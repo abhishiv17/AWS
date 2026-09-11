@@ -1,200 +1,158 @@
-# One Heist, Two Realities
+# CampusEvac — Asymmetric Emergency Evacuation Simulator
 
-An asymmetric multiplayer heist built with **React Three Fiber** + **Rapier**, out of nothing but
-boxes, cylinders and cones. One player walks the building blind; everyone else can see the
-security layer, but each of them is stuck watching a single room.
+> **Bharat Builds Tour 2026** (AWS Builder Center × WeMakeDevs)  
+> **Event 01: First Commit** | Track: *Ship It*, *Build It*, *Best UI*
 
+**CampusEvac** is an asymmetric, collaborative 3D emergency evacuation drill simulator built with **React Three Fiber**, **Rapier Physics**, **SpacetimeDB**, and **AWS Cloud Services** (*Bedrock, Polly, DynamoDB*).
+
+One student navigates a compromised campus building in first person under low visibility (smoke/fog), while remote floor wardens stationed at CCTV sensor feeds coordinate safe routes, ping hazard zones, and unlock emergency exits in real time.
+
+---
+
+## The Problem
+
+Campus and university hostel emergency drills are historically broken:
+* **Passive & Unrealistic:** Students casually walk down hallways during scheduled drills without practicing crisis decision-making or interpreting incomplete information.
+* **Communication Gaps:** When actual fires, toxic smoke, or structural hazards strike, panic and lack of real-time communication between floor wardens and evacuees cause stampedes and fatal routing errors.
+* **Zero Actionable Telemetry:** Campus safety administrators receive no quantifiable data regarding bottleneck corridors, evacuation latency, or hazard response times.
+
+**CampusEvac turns emergency preparedness into an interactive, high-stakes communication drill.**
+
+---
+
+## Asymmetric Roles & Mechanics
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      THE EVACUATION RUN                     │
+├───────────────────────────────┬─────────────────────────────┤
+│   Ground Evacuee (1st Person) │ Floor Wardens (CCTV Feeds)  │
+├───────────────────────────────┼─────────────────────────────┤
+│ • Limited visibility / smoke  │ • Multi-room cutaway views  │
+│ • Oxygen & stamina meter      │ • Thermal hazard detection  │
+│ • Manual door & panel actions │ • Dynamic safe-route pings  │
+│ • Relies on audio directions  │ • Environmental controls    │
+└───────────────────────────────┴─────────────────────────────┘
+```
+
+### The 1-to-1 Safety Mapping
+* **The Evacuee:** Navigates from ground zero to the Safe Assembly Point outside. Blind to hidden hazards around corners.
+* **Floor Wardens:** Stationed in specific sectors (Lobby, Control Room, Secure Archives). Switch between **Watch** (thermal CCTV cones) and **Discover** (scan and tag emergency supplies, hazard hotspots, and exit codes).
+* **Hazard Cones:** Moving smoke plumes, toxic gas leaks, and spreading fire corridors that drain oxygen on contact.
+* **Environmental Controls:** Emergency ventilation switches that clear smoke plumes, master Knox-box keys, and electronic fire doors.
+* **Assembly Point:** The final safe extraction zone outside the facility.
+
+---
+
+## AWS Cloud Architecture
+
+CampusEvac leverages AWS native services to provide dynamic drill variation, lifelike audio broadcasts, and institutional safety analytics:
+
+```mermaid
+flowchart TD
+    User([Students & Wardens]) -->|Web / Mobile| CF[Amazon CloudFront]
+    CF --> NextApp[Next.js 16 Web App]
+    
+    subgraph AWS Cloud
+        Bedrock[Amazon Bedrock\nClaude 3.5 Sonnet] -->|Dynamic Scenarios| NextApp
+        Polly[Amazon Polly\nNeural Voice PA] -->|Emergency Audio| NextApp
+        NextApp -->|Drill Telemetry & Scores| DDB[(Amazon DynamoDB\nCompliance Log)]
+    end
+    
+    subgraph Real-Time Engine
+        NextApp <-->|Spatial Sync & Events| SDB[SpacetimeDB Cloud]
+    end
+```
+
+### 1. Amazon Bedrock (Procedural Incident Generator)
+Instead of static, predictable drills, Bedrock generates dynamic crisis scenarios on demand:
+* Varies fire origin points (electrical short in lab, kitchen grease fire, utility closet combustion).
+* Procedurally blocks specific stairwells or exits to force alternative route planning.
+* Generates contextual emergency briefings for floor wardens before each run.
+
+### 2. Amazon Polly (Emergency Broadcast System)
+Generates realistic, low-latency synthetic emergency PA alerts and tactical radio dispatch chatter (*"Warning: Smoke detected on Sector B. Stairwell East is compromised. Divert evacuee to Fire Exit North."*).
+
+### 3. Amazon DynamoDB (After-Action Reports & Compliance)
+Records drill telemetry per session:
+* Total evacuation time and oxygen margin.
+* Choke-point bottlenecks and hazard exposure events.
+* Computes an institutional **Campus Safety Readiness Score (A–F)** for university safety officers.
+
+---
+
+## Quickstart
+
+### Prerequisites
+* Node.js 20+ installed
+* npm or pnpm
+
+### 1. Installation
+```bash
+git clone https://github.com/AfreenInnovates/moonshot2.git
+cd moonshot2
+npm install
+```
+
+### 2. Configure Environment
+Copy the template and add your credentials:
+```bash
+cp .env.example .env
+```
+
+| Variable | Purpose |
+| :--- | :--- |
+| `NEXT_PUBLIC_SPACETIME_HOST` | SpacetimeDB cloud endpoint for multiplayer state sync |
+| `AWS_REGION` | AWS Region (e.g., `us-east-1` or `ap-south-1`) |
+| `AWS_ACCESS_KEY_ID` | AWS IAM Access Key |
+| `AWS_SECRET_ACCESS_KEY` | AWS IAM Secret Key |
+| `BEDROCK_MODEL_ID` | Amazon Bedrock model (default: `anthropic.claude-3-5-sonnet-20241022-v2:0`) |
+| `POLLY_VOICE_ID` | Voice identity for PA announcements (default: `Joanna`) |
+| `DYNAMODB_DRILL_TABLE` | DynamoDB table for drill telemetry |
+
+### 3. Run Locally
 ```bash
 npm run dev
 ```
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-## The flow
+---
 
-| Route | What it is |
-| --- | --- |
-| `/` | What the game is, and how a run goes. |
-| `/rooms` | Create a room (2–4 players) or join with a code. |
-| `/room/[code]` | Name gate → lobby → the run. Share this link; anyone who opens it joins. |
-| `/play` | Solo sandbox: you drive the thief and can look through all three layers. |
+## App Routes
 
-A room fills up, a **ten second countdown** runs, then the roles are drawn:
+| Route | Functionality |
+| :--- | :--- |
+| `/` | Mission briefing, problem statement, and quickstart overview. |
+| `/rooms` | Lobby creation (2–4 players) or join existing drill session with a room code. |
+| `/room/[code]` | Dynamic role gate: automated seeded draw for Evacuee and Floor Wardens. |
+| `/play` | Solo training sandbox: toggle between 1st-person Evacuee and CCTV inspection layers. |
 
-- **one thief**, first person, starting on the street outside the entrance;
-- **everyone else a spectator**, each posted to exactly one room — lobby, security or vault — and
-  they cannot leave it. Three spectators covers the building; fewer means blind spots.
-
-Rooms fill in a fixed order — lobby, then security, then vault — so the set covered is always the
-sensible one; only *who* gets which is random. The exception is a crew of one: a single spectator
-would be stuck in one room while the run needs another, so they **roam** with the thief instead
-and are always on the command channel.
-
-The draw is deterministic from a seed on the room record, so every client lands on the same result
-the moment the clock hits zero — nothing waits on the host's tab being awake.
-
-Every view carries a **2D floorplan in the top right** with a live dot for the thief. Spectators
-also see guards in their own room on it; the thief does not get guard positions.
-
-## The run
-
-1. The thief walks in off the street, through the entrance into the lobby.
-2. **Security room** (west, blue door): the keycard is in here, and so is the note with the vault
-   code. The thief can pick up the keycard but cannot see the note as anything special — a
-   spectator posted to that room has to scan it in Discovery mode, which relays `4712`.
-   The **alarm panel** in here can be disabled with `E`, blinding every camera.
-3. **Vault room** (east, yellow door — needs the keycard): `E` at the keypad. Without the code
-   relayed from a spectator, it refuses.
-4. The round door opens: take the contents, walk back out to the street.
-
-Cameras sweep, two guards patrol and give chase once the alarm is up, floor traps hurt, and the
-health pack and bandages patch you up. None of that is visible to the thief.
-
-## The three layers
-
-| View | Who | What it shows |
-| --- | --- | --- |
-| Thief | the thief | A normal facility. No labels, no cones, no traps. |
-| Spectator ("Watch") | spectators, solo | Their room as a cutaway: camera cones, the guard, the keypad, the keycard. |
-| Discovery | spectators, solo | Same room plus pulsing blips over what nobody has found yet. Click to scan. |
-
-Anything a spectator scans stays tagged for everyone in the Watch layer — found things become
-shared knowledge. A room a spectator is *not* posted to stays sealed to them.
+---
 
 ## Controls
 
-Desktop:
+### Desktop
+* **Movement:** `W`, `A`, `S`, `D` to move, `Shift` to sprint, `Space` to jump.
+* **Interact:** `E` (open doors, toggle ventilation switches, grab emergency keys).
+* **Evacuee:** Click mouse for pointer-lock camera looking.
+* **Warden:** Fixed isometric cutaway (scroll to zoom, switch between *Watch* and *Discover* layers).
 
-- `WASD` move, `Shift` run, `Space` jump, `E` interact
-- Thief: click to look around (pointer lock, falls back to click-drag)
-- Spectator: fixed view (scroll to zoom), Watch/Discover to switch layer. A posted spectator's
-  room never rotates or pans, so "left" always means the thief's left
-- Solo only: `1` / `2` / `3` switch view
+### Mobile / Tablet
+* **Evacuee:** On-screen virtual joystick (left thumb) + swipe to look (right thumb) + action buttons (`E`, `JUMP/EXIT`).
+* **Warden:** Full-width Command Deck on bottom + tap targets on discovery beacons.
 
-Phone (anything with a coarse pointer):
+---
 
-- Thief: stick on the left thumb, drag anywhere to look, `E` and `JUMP` on the right. The jump
-  button becomes `EXIT` when they are standing in the extraction vent.
-- Spectator: the command deck is the whole bottom of the screen; discovery blips are tap targets.
+## Tech Stack
 
-## The run, end to end
+* **Frontend Framework:** Next.js 16 (App Router, Turbopack)
+* **3D & Physics Engine:** React Three Fiber (Three.js) + `@react-three/rapier` (WASM physics)
+* **Real-time Spatial Sync:** SpacetimeDB
+* **Cloud & AI:** AWS SDK v3 (Amazon Bedrock, Amazon Polly, Amazon DynamoDB)
+* **Styling & Icons:** Tailwind CSS v4 + Lucide React
 
-1. Walk in from the street through the entrance.
-2. Take the **keycard** from the security room (west door).
-3. Use it on the **keypad** by the round door in the vault room (`E`). That opens the vault *and*
-   releases the extraction vent.
-4. Take the vault contents if you want the score, then **jump into the vent** on the vault room's
-   east wall to get out.
+---
 
-A spectator posted to the vault can scan the vent open early, before the thief ever reaches the
-keypad. The 4-digit code on the note in the security room is a second way to satisfy the keypad,
-not a requirement - a run is always finishable with the keycard alone.
+## License
 
-## How the multiplayer works
-
-The thief's client owns the simulation — physics, guards, detection — and publishes a snapshot
-12 times a second (transform, guards, camera yaws, alarm, flags, log). Spectators never step the
-physics world; they fold each snapshot back into the same runtime the renderers already read, and
-send `discover` messages the other way.
-
-Transports sit behind one small interface (`app/game/net/types.ts`):
-
-- **`spacetime` (default)** — rooms and world snapshots use the published SpacetimeDB module.
-  This is the deployment transport and works across browsers and devices.
-- **`server` (opt-in)** — set `NEXT_PUBLIC_NET_TRANSPORT=server` to use the in-memory
-  Next server and SSE stream from `app/lib/roomStore.ts` and `app/api/rooms/*`. Only usable
-  against a single long-lived `next dev` process: the rooms live in that process's memory, so
-  on a serverless deployment the thief's snapshots and the spectators' streams land in
-  different instances and spectator views never update.
-
-## SpacetimeDB
-
-The module in `spacetime/src/index.ts` is written for exactly this flow and typechecks
-against `spacetimedb@2.10`:
-
-- tables: `game_room`, `player`, `thief_state`, `discovered_item`, `game_event`
-- reducers: `create_room`, `join_room`, `leave_room`, `start_run`, `draw_roles`, `publish_world`,
-  `discover_item`, `log_event`, `end_run`
-- `draw_roles` uses the same seeded shuffle as the web client, so client-side prediction and the
-  server agree on who gets to be the thief.
-
-The browser-side adapter is wired in `app/game/net/spacetimeNet.ts`, with the generated-compatible
-client schema in `app/game/net/spacetime.ts`. That file has to mirror the **published** module
-exactly — SpacetimeDB addresses tables and reducers by index, so one extra column or reducer
-shifts every id after it and the first subscription update fails to decode. Check it against the
-live schema before changing it:
-
-```bash
-curl https://maincloud.spacetimedb.com/v1/database/one-heist-spacetime/schema?version=9
-```
-
-`spacetime/src/index.ts` is currently *ahead* of what is deployed (it adds spectator
-disconnect-grace bookkeeping); the client bindings track the deployed module, not this source.
-
-The deployed client uses the module named by `NEXT_PUBLIC_SPACETIME_MODULE_NAME` (default: `one-heist-spacetime`) at
-`NEXT_PUBLIC_SPACETIME_HOST` (default: `wss://maincloud.spacetimedb.com`).
-
-Spectator commands use the existing `log_event` reducer with a reserved `command:*` tone, so the
-command deck works with the published module without a schema migration. These events are filtered
-out of the normal game log and delivered to the thief as live command messages.
-
-## Code layout
-
-```
-app/
-  page.tsx               landing
-  rooms/page.tsx         create / join
-  room/[code]/           name gate, lobby, countdown, then the run
-  play/page.tsx          solo sandbox
-  api/rooms/             room registry + SSE stream
-  lib/roomStore.ts       in-memory rooms, join / start / broadcast
-```
-
-```
-spacetime/               SpacetimeDB module (tables + reducers)
-docs/, HACKATHON_SPEC.md the original design notes
-  game/
-    GameShell.tsx        HUD: role, layer switch, minimap, discovery panel, log
-    GameCanvas.tsx       <Canvas> + <Physics> (paused on spectators) + keyboard map
-    store.ts             game state, and who is allowed to see which room
-    session.ts           rooms, players, countdown, the seeded role draw
-    runtime.ts           per-frame world state that must not re-render React
-    level.ts             floorplan: rooms, wall runs, doors, markers, patrols, cameras
-    net/                 transport interface + SSE server transport
-    components/
-      Building.tsx       walls cut around openings, floors, ceilings, doors, room fog
-      Exterior.tsx       ground, sky, plaza, lamps, skyline, extraction pad
-      Rooms.tsx          per-room furniture, the round vault door
-      Furniture.tsx      shared props
-      Interactables.tsx  keycard, keypad, alarm panel, traps, vent, med kits, loot
-      Markers.tsx        neon outlines, labels, clickable discovery blips
-      Thief.tsx          local (physics) and remote (streamed) thief
-      Guard.tsx          local patrol AI and remote guards
-      SecurityCameras.tsx sweeping cameras and cones
-      Systems.tsx        line of sight, alarm, damage, room tracking, prompts (host only)
-      NetSync.tsx        snapshot publish / apply
-      ViewRig.tsx        cameras, controls and per-view lighting
-      Minimap.tsx        the 2D floorplan
-```
-
-Three rules keep the layers honest:
-
-- **One simulation, many cameras.** Guards, cones, traps and damage behave identically for
-  everyone; only what is *drawn* changes.
-- **`level.ts` is the single source of truth.** Every marker carries a `room` and a
-  `reveal: "spectator" | "discovery"`; `useRoomVisible` is the one place that answers "can this
-  client see inside this room".
-- **Nothing spectator-only is ever mounted in a thief client** — not the cones, not the labels,
-  not the minimap's guard dots.
-
-## Deployment
-
-Production Google sign-in requires these public Vercel variables:
-
-```text
-NEXT_PUBLIC_SPACETIME_AUTH_CLIENT_ID=your-spacetimeauth-client-id
-NEXT_PUBLIC_SITE_URL=https://your-production-domain
-```
-
-Enable Google in the SpacetimeAuth project and allow `https://your-production-domain/` as the
-client redirect and post-logout URI. Publish the module with an account that owns or collaborates
-on `one-heist-spacetime` before deploying the frontend, because the counter and profile tables are
-part of the client schema.
+Built by the CampusEvac Team for the **Bharat Builds Tour 2026**.
