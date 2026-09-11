@@ -136,7 +136,7 @@ function Skyline() {
   );
 }
 
-/** Where the run ends - only the spectator layers draw the marker. */
+/** Where the drill ends - only the warden layers draw the marker. */
 function ExtractionPad() {
   const view = useGame((s) => s.view);
   if (view === "thief") return null;
@@ -146,7 +146,7 @@ function ExtractionPad() {
         <ringGeometry args={[1.5, 1.8, 40]} />
         <meshBasicMaterial color="#39ff88" transparent opacity={0.5} />
       </mesh>
-      <Label position={[0, 1.2, 0]} color="#39ff88" text="Extraction point" />
+      <Label position={[0, 1.2, 0]} color="#39ff88" text="Assembly point" />
     </group>
   );
 }

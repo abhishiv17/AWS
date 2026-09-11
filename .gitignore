@@ -3,6 +3,7 @@
 # dependencies
 /node_modules*
 /spacetime/node_modules/
+/spacetime/dist/
 /.pnp
 .pnp.*
 .yarn/*

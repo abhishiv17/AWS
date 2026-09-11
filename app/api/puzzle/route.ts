@@ -14,8 +14,8 @@ const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;
 
-const SYSTEM = `You write one very easy multiple-choice question for a heist game.
-A spectator is scanning an object in a room and has about 20 seconds to answer.
+const SYSTEM = `You write one very easy multiple-choice question for an emergency evacuation drill.
+A warden is scanning an object in a campus sector and has about 20 seconds to answer.
 
 Rules:
 - One sentence. Plain words. Aim it at a player who has never seen this room.

@@ -210,7 +210,7 @@ function Door({ def }: { def: DoorDef }) {
         </group>
       </group>
 
-      {/* the closed leaf is what actually blocks the thief */}
+      {/* The closed leaf is what actually blocks the evacuee. */}
       {!open && (
         <CuboidCollider
           position={[x, def.height / 2, z]}
@@ -228,8 +228,8 @@ function Door({ def }: { def: DoorDef }) {
 /* --------------------------------------------------------------- fog of war */
 
 /**
- * Spectators can see the shape of the building from the start, but not what is
- * inside a room until the thief has walked into it.
+ * Wardens can see the shape of the campus block from the start, but not what is
+ * inside a sector until the evacuee has entered it.
  */
 function RoomFog({ room }: { room: RoomDef }) {
   const explored = useRoomVisible(room.id);
@@ -275,7 +275,7 @@ function RoomFog({ room }: { room: RoomDef }) {
         position={[cx, 2.1, cz]}
         color="#6b7787"
         text={room.name.toUpperCase()}
-        sub="unexplored - follow the thief in"
+         sub="unexplored - follow the evacuee in"
       />
     </group>
   );

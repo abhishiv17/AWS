@@ -18,16 +18,16 @@ const sy = (z: number) => z - MIN_Z;
 const PLAN: RoomId[] = ["sec", "wcorr", "lobby", "ecorr", "vault", "entry", "annex"];
 
 const SHORT: Partial<Record<RoomId, string>> = {
-  sec: "SEC",
+  sec: "CTRL",
   wcorr: "W",
   lobby: "LOBBY",
   ecorr: "E",
-  vault: "VAULT",
-  entry: "ENTRY",
-  annex: "VAULT",
+  vault: "ARCH",
+  entry: "GATE",
+  annex: "EXIT",
 };
 
-/** Flat floorplan with a dot for the thief. Reads runtime directly at 20hz. */
+/** Flat campus floorplan with a dot for the evacuee. Reads runtime at 20hz. */
 export default function Minimap() {
   const mode = useGame((s) => s.mode);
   const thiefRoom = useGame((s) => s.room);
@@ -81,15 +81,15 @@ export default function Minimap() {
     <div className="hud-panel hud-panel-blue p-2">
       <div className="mb-1 flex items-center justify-between text-[9px] uppercase tracking-widest text-zinc-500">
         <span>Floorplan</span>
-        <span className="text-zinc-400">{thiefRoom}</span>
+         <span className="text-zinc-400">{roomById(thiefRoom).name}</span>
       </div>
       <svg
         viewBox={`0 0 ${W} ${H}`}
         className="block h-[86px] w-[128px] overflow-visible sm:h-[132px] sm:w-[196px]"
         role="img"
-        aria-label="Facility floorplan"
+         aria-label="Campus floorplan"
       >
-        {/* street / approach */}
+        {/* assembly court / approach */}
         <rect
           x={sx(-14)}
           y={sy(10.5)}
@@ -135,7 +135,7 @@ export default function Minimap() {
           );
         })}
 
-        {/* extraction */}
+        {/* assembly point */}
         <circle
           cx={sx(0)}
           cy={sy(ESCAPE_Z + 2)}
@@ -170,9 +170,9 @@ export default function Minimap() {
         <circle ref={thief} r={1.05} fill="#ffd23b" stroke="#000" strokeWidth={0.2} />
       </svg>
       <div className="mt-1 flex gap-3 text-[9px] text-zinc-500">
-        <span className="text-yellow-300">● thief</span>
+        <span className="text-yellow-300">● evacuee</span>
         <span className="text-yellow-300">→ heading</span>
-        {showGuards && <span className="text-sky-400">● guard</span>}
+        {showGuards && <span className="text-sky-400">● patrol</span>}
         {watching && <span className="text-emerald-400">▭ your room</span>}
       </div>
       <div className="mt-1 text-[9px] uppercase tracking-widest text-zinc-600">

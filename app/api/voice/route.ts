@@ -8,7 +8,7 @@ import {
 export const dynamic = "force-dynamic";
 
 const INTRO_TEXT =
-  "Welcome to Blind Run. You cannot rely on sight. The Spectator sees the path and guides you. The Thief must listen, move, and trust the voice. In the dark, communication is survival.";
+  "Welcome to CampusEvac. Visibility is limited. The evacuee moves through the building while wardens interpret the map and coordinate a safe route. Listen, confirm, and move together. Clear communication is safety.";
 
 const COMMAND_TEXT: Record<CommandCode, string> = {
   LEFT: "Go left.",

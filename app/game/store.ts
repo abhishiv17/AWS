@@ -9,9 +9,9 @@ export type ViewMode = "thief" | "spectator" | "discovery";
 
 /**
  * How this client is taking part.
- * - solo: sandbox, you drive the thief and may look through all three views
- * - thief: multiplayer thief; this client also runs the simulation
- * - spectator: multiplayer spectator, posted to exactly one room
+ * - solo: sandbox, you drive the evacuee and may inspect all three views
+ * - thief: legacy transport role for the active evacuee simulation
+ * - spectator: legacy transport role for a warden posted to exactly one room
  */
 export type GameMode =
   | { kind: "solo" }
@@ -28,22 +28,22 @@ export const VIEWS: {
   {
     id: "thief",
     n: "1",
-    title: "Thief View",
-    blurb: "Only sees what's visible. Looks like a normal facility.",
+    title: "Evacuee View",
+    blurb: "Only sees immediate conditions and route-level information.",
     color: "#4aa8ff",
   },
   {
     id: "spectator",
     n: "2",
-    title: "Spectator View",
-    blurb: "Sees useful information and some interactable elements.",
+    title: "Warden View",
+    blurb: "Sees useful sector information and emergency controls.",
     color: "#39ff88",
   },
   {
     id: "discovery",
     n: "3",
-    title: "Spectator - Discovery Mode",
-    blurb: "Reveals hidden threats, clues and collectibles.",
+    title: "Warden - Signal Scan",
+    blurb: "Reveals unverified hazards, clues, and safety resources.",
     color: "#ffd23b",
   },
 ];
@@ -193,12 +193,12 @@ export const useGame = create<GameState>()((set, get) => ({
     set((s) => ({ room, explored: { ...s.explored, [room]: true } }));
     if (first) {
       const named: Partial<Record<RoomId, string>> = {
-        lobby: "the Lobby",
-        sec: "the Security Room",
-        vault: "the Vault Room",
-        annex: "the vault",
-      };
-      if (named[room]) get().push(`Thief entered ${named[room]}`, "info");
+         lobby: "the Central Lobby",
+         sec: "the Control Sector",
+         vault: "the Archives Sector",
+         annex: "the Exit Annex",
+       };
+       if (named[room]) get().push(`Evacuee entered ${named[room]}`, "info");
     }
   },
 
@@ -206,7 +206,7 @@ export const useGame = create<GameState>()((set, get) => ({
     const hp = Math.max(0, get().hp - n);
     set({ hp });
     get().push(`-${Math.round(n)} HP - ${reason}`, "bad");
-    if (hp === 0) get().push("The thief is down. Run has ended.", "bad");
+     if (hp === 0) get().push("The evacuee is down. Drill has ended.", "bad");
   },
 
   drain: (n) => {
@@ -214,7 +214,7 @@ export const useGame = create<GameState>()((set, get) => ({
     const hp = Math.max(0, before - n);
     set({ hp });
     if (hp === 0 && before > 0)
-      get().push("The thief is down. Run has ended.", "bad");
+       get().push("The evacuee is down. Drill has ended.", "bad");
   },
 
   heal: (n, reason) => {
@@ -225,7 +225,7 @@ export const useGame = create<GameState>()((set, get) => ({
   setAlarm: (alarm, spotted) => {
     const was = get().spotted;
     set({ alarm: Math.max(0, Math.min(100, alarm)), spotted });
-    if (spotted && !was) get().push("The thief has been spotted!", "bad");
+     if (spotted && !was) get().push("The evacuee is exposed to a hazard!", "bad");
   },
 
   discover: (id, label) => {
@@ -237,7 +237,7 @@ export const useGame = create<GameState>()((set, get) => ({
     }));
     get().push(`Discovered: ${label}`, "good");
     if (id === "note")
-      get().push("Vault code relayed to the thief: 4-7-1-2", "good");
+       get().push("Route code relayed to the evacuee: 4-7-1-2", "good");
   },
 
   collect: (id, label, value = 0) => {
@@ -263,19 +263,18 @@ export const useGame = create<GameState>()((set, get) => ({
   },
 
   /**
-   * The keypad by the round door, and the one step that opens the way out.
+   * The emergency panel by the exit, and the one step that opens the way out.
    *
-   * It takes the keycard from the security room, or the 4-digit code if the
-   * crew read the note - either is enough. Accepting it swings the vault open
-   * *and* releases the extraction vent, so a thief who got this far always has
-   * an exit rather than a locked room and no way to finish.
+    * It takes the access key from the control sector, or the 4-digit code if
+    * the crew read the note. Accepting it releases the service exit, so an
+    * evacuee who got this far always has a clear way to finish.
    */
   tryKeypad: () => {
     const s = get();
     if (s.vaultOpen) return;
     if (!s.keycard && !s.codeFound) {
       s.push(
-        "Keypad is locked. Bring the keycard from the security room.",
+         "Emergency panel is locked. Bring the access key from the control sector.",
         "bad",
       );
       return;
@@ -283,11 +282,11 @@ export const useGame = create<GameState>()((set, get) => ({
     set({ vaultOpen: true, ventOpen: true, score: s.score + 250 });
     s.push(
       s.codeFound
-        ? "Keypad accepted 4-7-1-2. Vault open, extraction vent released."
-        : "Keycard accepted. Vault open, extraction vent released.",
+         ? "Route code accepted. Exit unlocked and service route released."
+         : "Access key accepted. Exit unlocked and service route released.",
       "good",
     );
-    s.push("The vent on the east wall is your way out.", "info");
+     s.push("The marked service exit is your way to the assembly point.", "info");
   },
 
   escape: (via = "entrance") => {
@@ -297,21 +296,20 @@ export const useGame = create<GameState>()((set, get) => ({
     set({ escaped: true, escapedVia: via, score: s.score + (withLoot ? 500 : 200) });
     get().push(
       via === "vent"
-        ? withLoot
-          ? "Into the vent with the vault contents. Clean getaway."
-          : "Into the vent and out of the building. You got out."
-        : "Out of the building with the loot. Run complete.",
+           ? withLoot
+           ? "Through the service exit with the supplies secured. Drill complete."
+           : "Through the service exit and out of the building. Drill complete."
+         : "Out of the building with the supplies secured. Drill complete.",
       "good",
     );
   },
 
   /**
-   * The extraction vent is the way this run ends.
+   * The service exit is the way this drill ends.
    *
-   * There is deliberately no "come back when you have the loot" gate here. The
-   * hatch only exists once a spectator has found it, so getting to this point
-   * already took the crew - and a hidden exit the thief cannot use is just a
-   * wall. Clearing the vault on the way out is worth more, not required.
+   * The exit only exists once a warden has found it, so reaching this point
+   * already required shared information. Securing optional supplies is useful,
+   * but it is not required for a safe evacuation.
    */
   ventExit: () => {
     const s = get();
@@ -338,7 +336,7 @@ export const useGame = create<GameState>()((set, get) => ({
       get().heal(25, `Power-up from ${by}`);
     } else if (effect === "invis") {
       set({ invisibleUntil: Date.now() + 10000 });
-      get().push(`Invisibility (10s) active - Power-up from ${by}`, "good");
+       get().push(`Safe passage (10s) active - Support action from ${by}`, "good");
     }
   },
 

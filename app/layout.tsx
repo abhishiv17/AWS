@@ -14,9 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Blind Run — One Thief. Multiple Views. One Way Out.",
+  title: "CampusEvac — Shared Awareness. Safer Decisions.",
   description:
-    "A real-time asymmetric multiplayer heist. One player can\u2019t see the whole picture. Your crew sees the facility, guides the thief, and finds the way out.",
+    "A real-time asymmetric emergency evacuation drill. One evacuee navigates changing hazards while wardens coordinate safer routes.",
 };
 
 /**

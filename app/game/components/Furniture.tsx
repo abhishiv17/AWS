@@ -480,7 +480,7 @@ export function ServerRack({
   );
 }
 
-/** Heavy pedestal that makes the vault objective feel deliberate. */
+/** Heavy pedestal for the optional supply cache objective. */
 export function VaultPedestal({ position }: { position: Vec3 }) {
   return (
     <RigidBody type="fixed" colliders="cuboid">

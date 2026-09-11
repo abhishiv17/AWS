@@ -129,7 +129,7 @@ const voiceFromEvent = (text: string): VoiceTransmission | null => {
  * tab starts a new person.
  */
 function identitySuffix() {
-  const key = "heist:spacetime-tab";
+  const key = "campusevac:spacetime-tab";
   try {
     const stored = sessionStorage.getItem(key);
     if (stored) return stored;
@@ -166,7 +166,7 @@ export class SpacetimeNet implements NetClient {
 
     const host = process.env.NEXT_PUBLIC_SPACETIME_HOST || "wss://maincloud.spacetimedb.com";
     const database = process.env.NEXT_PUBLIC_SPACETIME_MODULE_NAME || "one-heist-spacetime";
-    const tokenKey = `heist:spacetime-token:${host}:${database}:${identitySuffix()}`;
+    const tokenKey = `campusevac:spacetime-token:${host}:${database}:${identitySuffix()}`;
     let token = "";
     let authenticated = false;
     try {
@@ -464,7 +464,7 @@ export class SpacetimeNet implements NetClient {
       // Anything else is a real refusal and the caller can only report "no such
       // room", which hides why. Say it once, plainly, so a failed create is
       // diagnosable from the console instead of guessed at.
-      console.error("[heist] create_room refused:", error);
+      console.error("[campusevac] create_room refused:", error);
       this.lastError = error instanceof Error ? error.message : String(error);
       return null;
     }
@@ -486,7 +486,7 @@ export class SpacetimeNet implements NetClient {
       );
       return { room: this.room ?? room };
     } catch (error) {
-      console.error("[heist] join_room refused:", error);
+      console.error("[campusevac] join_room refused:", error);
       this.lastError = error instanceof Error ? error.message : String(error);
       return { error: joinFailure(error) };
     }

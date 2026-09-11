@@ -69,7 +69,7 @@ function playNextVoice() {
   void audio.play().catch(finish);
 }
 
-/** Play a room command once, in order, while the thief is still active. */
+/** Play a room command once, in order, while the evacuee is still active. */
 export function enqueueVoice(id: string, url: string, valid: () => boolean) {
   if (typeof window === "undefined" || playedVoice.has(id)) return;
   playedVoice.add(id);

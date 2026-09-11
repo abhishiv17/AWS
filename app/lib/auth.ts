@@ -1,6 +1,6 @@
-export const SPACETIME_AUTH_TOKEN_KEY = "heist:spacetime-auth-token";
-export const PROFILE_NAME_KEY = "heist:name";
-export const AUTH_RETURN_TO_KEY = "heist:auth-return-to";
+export const SPACETIME_AUTH_TOKEN_KEY = "campusevac:spacetime-auth-token";
+export const PROFILE_NAME_KEY = "campusevac:name";
+export const AUTH_RETURN_TO_KEY = "campusevac:auth-return-to";
 
 export function claimString(
   claims: Record<string, unknown> | undefined,
@@ -30,7 +30,7 @@ export function profileNameFromClaims(claims: Record<string, unknown> | undefine
  * this is a real subscription: same-tab writes fire a custom event, other tabs
  * come through `storage`.
  */
-export const AUTH_TOKEN_EVENT = "heist:auth-token-changed";
+export const AUTH_TOKEN_EVENT = "campusevac:auth-token-changed";
 
 export function announceAuthTokenChange() {
   if (typeof window === "undefined") return;

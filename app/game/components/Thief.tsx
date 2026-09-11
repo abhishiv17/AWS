@@ -12,6 +12,7 @@ import * as THREE from "three";
 import { roomAt, THIEF_SPAWN } from "../level";
 import { pressJump, pressUse } from "../controls";
 import { clampDt, runtime } from "../runtime";
+import { useSession } from "../session";
 import { useGame, useIsHost } from "../store";
 import { Label, NeonBox } from "./Markers";
 
@@ -101,13 +102,38 @@ function LocalThief() {
   const visual = useRef<THREE.Group>(null);
   const overlay = useRef<THREE.Group>(null);
   const eyeTarget = useRef(new THREE.Vector3());
+  const correctionTarget = useRef(new THREE.Vector3());
+  const correctedPosition = useRef(new THREE.Vector3());
   const bobT = useRef(0);
   const [sub, get] = useKeyboardControls<Controls>();
 
   const view = useGame((s) => s.view);
   const hp = useGame((s) => s.hp);
   const resetSeq = useGame((s) => s.resetSeq);
+  const multiplayerThief = useGame((s) => s.mode.kind === "thief");
+  const onSnapshot = useSession((s) => s.onSnapshot);
   const firstPerson = view === "thief";
+
+  useEffect(() => {
+    if (!multiplayerThief) {
+      runtime.netThief = null;
+      return;
+    }
+
+    const unsubscribe = onSnapshot((snapshot) => {
+      runtime.netThief = {
+        x: snapshot.thief[0],
+        y: snapshot.thief[1],
+        z: snapshot.thief[2],
+        yaw: snapshot.thief[3],
+      };
+    });
+
+    return () => {
+      unsubscribe();
+      runtime.netThief = null;
+    };
+  }, [multiplayerThief, onSnapshot]);
 
   // the on-screen buttons call the same two functions, so a thumb and a key
   // press are the same action
@@ -145,7 +171,23 @@ function LocalThief() {
     if (!rb) return;
     const dt = clampDt(rawDt);
 
-    const t = rb.translation();
+    let t = rb.translation();
+    const serverPosition = multiplayerThief ? runtime.netThief : null;
+    if (serverPosition) {
+      correctionTarget.current.set(serverPosition.x, serverPosition.y, serverPosition.z);
+      correctedPosition.current
+        .set(t.x, t.y, t.z)
+        .lerp(correctionTarget.current, 1 - Math.exp(-dt * 10));
+      rb.setTranslation(
+        {
+          x: correctedPosition.current.x,
+          y: correctedPosition.current.y,
+          z: correctedPosition.current.z,
+        },
+        true,
+      );
+      t = rb.translation();
+    }
     runtime.thief.set(t.x, t.y, t.z);
     runtime.room = roomAt(t.x, t.z);
 
@@ -217,7 +259,7 @@ function LocalThief() {
         t.y + EYE + (moving ? Math.sin(bobT.current * 2) * 0.02 : 0),
         t.z,
       );
-      cam.position.lerp(eyeTarget.current, 1 - Math.exp(-dt * 24));
+      cam.position.lerp(eyeTarget.current, 1 - Math.exp(-dt * 14));
     }
 
     if (overlay.current) overlay.current.position.set(t.x, 0, t.z);

@@ -152,7 +152,7 @@ function Keycard() {
         sensor
         onIntersectionEnter={({ other }) => {
           if (!isThief(other)) return;
-          collect("keycard", "Keycard");
+           collect("keycard", "Emergency access key");
         }}
       />
       <MarkerOverlay def={def} size={[0.4, 0.5, 0.4]} />
@@ -166,8 +166,8 @@ function Vent({ id }: { id: string }) {
   const def = byId(id);
   const [x, y, z] = def.position;
   const { revealed } = useMarker(def);
-  // the extraction hatch is the one thing the thief is allowed to see for
-  // themselves - once the keypad has released it, they need to find the way out
+  // The marked service exit becomes visible after the route-control panel
+  // releases it, so the evacuee can find the way to assembly.
   const released = useGame((s) => s.ventOpen) && id === "vault-vent";
   const lit = revealed || released;
   return (
@@ -183,7 +183,7 @@ function Vent({ id }: { id: string }) {
             <meshStandardMaterial color="#4d4b47" />
           </mesh>
         ))}
-        {/* an open hatch glows, so the thief can see where they are aiming
+        {/* An open hatch glows, so the evacuee can see where they are aiming
             even though the marker itself stays spectator-only */}
         {lit && (
           <mesh position={[0, 0, 0.05]}>
@@ -221,7 +221,7 @@ function FloorTrap({ id }: { id: string }) {
 
   return (
     <group>
-      {/* barely-there seam in the floor - this much the thief can see */}
+       {/* Barely-there seam in the floor - this much the evacuee can see. */}
       <mesh position={[x, 0.012, z]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[2.4, 2.4]} />
         <meshStandardMaterial color="#726f69" roughness={1} />
@@ -236,7 +236,7 @@ function FloorTrap({ id }: { id: string }) {
           const now = performance.now() / 1000;
           if (now - last.current < 2) return;
           last.current = now;
-          damage(25, "floor trap");
+           damage(25, "pressure hazard");
         }}
       />
 
@@ -328,7 +328,7 @@ function AlarmPanel() {
   );
 }
 
-/* --------------------------------------------------------------- valuables */
+/* ---------------------------------------------------------- emergency supplies */
 
 function Valuables() {
   const def = byId("valuables");
@@ -357,7 +357,7 @@ function Valuables() {
         sensor
         onIntersectionEnter={({ other }) => {
           if (!isThief(other)) return;
-          collect("valuables", "Valuables", 150);
+           collect("valuables", "Emergency supplies", 150);
         }}
       />
       <MarkerOverlay def={def} size={[1.0, 0.9, 0.8]} center={[x, y + 0.1, z]} />
@@ -365,7 +365,7 @@ function Valuables() {
   );
 }
 
-/* ---------------------------------------------------------- vault contents */
+/* ------------------------------------------------------------- supply cache */
 
 function VaultLoot() {
   const def = byId("vault-loot");
@@ -376,7 +376,7 @@ function VaultLoot() {
 
   return (
     <group>
-      {/* shelf inside the vault chamber */}
+       {/* Shelf inside the archives sector. */}
       <mesh position={[x, 0.45, z]} receiveShadow>
         <boxGeometry args={[2.6, 0.1, 0.7]} />
         <meshStandardMaterial color="#43464a" roughness={0.8} />
@@ -408,7 +408,7 @@ function VaultLoot() {
           sensor
           onIntersectionEnter={({ other }) => {
             if (!isThief(other)) return;
-            collect("vault-loot", "the vault contents", 500);
+             collect("vault-loot", "the supply cache", 500);
           }}
         />
       )}
@@ -419,7 +419,7 @@ function VaultLoot() {
   );
 }
 
-/* --------------------------------------------------------- vault code note */
+/* ----------------------------------------------------------- route code note */
 
 function CodeNote() {
   const def = byId("note");

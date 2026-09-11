@@ -27,22 +27,22 @@ export interface RoomDef {
   name: string;
   blurb: string;
   bounds: Bounds;
-  /** contents stay hidden from spectators until the thief walks in */
+  /** contents stay hidden from wardens until the evacuee enters the sector */
   fog: boolean;
   floor: string;
   /**
-   * Spectator camera pose for this room.
+   * Warden camera pose for this room.
    *
-   * For the three watchable rooms this sits *behind the door the thief walks in
-   * through*, looking into the room along the same axis they walk. That is what
-   * makes a callout mean anything: the spectator's screen-right is the thief's
+   * For the three watchable rooms this sits behind the door the evacuee walks in
+   * through, looking into the room along the same axis they walk. That is what
+   * makes a callout mean anything: the warden's screen-right is the evacuee's
    * right, so "LEFT" is the same left for both of them.
    *
    * All three are the same shot, 14 back and 19.3 up - about 54 degrees, 24
-   * units out - so a spectator moved between rooms is not re-learning the view.
+   * units out - so a warden moved between sectors is not re-learning the view.
    *
    * Two rules when touching these. `pos` and `target` must share the axis the
-   * thief walks along (equal z for the side rooms, equal x for the lobby): any
+   * evacuee walks along (equal z for the side rooms, equal x for the lobby): any
    * yaw between them twists left and right apart. And `target` is the *centre
    * of the room*, not the doorway - aiming at the door instead pushes the room
    * a fifth of a frame off-centre and leaves dead space down one side.
@@ -51,10 +51,10 @@ export interface RoomDef {
 }
 
 /**
- * Facility floorplan, seen from above (+Z is south / towards the street):
+ * Campus block floorplan, seen from above (+Z is south / towards the assembly court):
  *
  *        ┌──────────────┐        ┌──────────────┐
- *        │ SECURITY     │──┐  ┌──│ VAULT        │   (vault annex sticks out
+ *        │ CONTROL      │──┐  ┌──│ ARCHIVES     │   (exit annex sticks out
  *        │              │  │  │  │              │    through the north wall)
  *        └──────────────┘  │  │  └──────────────┘
  *                       ┌──┴──┴──┐
@@ -65,8 +65,8 @@ export interface RoomDef {
 export const ROOMS: RoomDef[] = [
   {
     id: "outside",
-    name: "Street",
-    blurb: "Approach. The facility entrance is straight ahead.",
+    name: "Assembly Court",
+    blurb: "Safe staging area. The campus entrance is straight ahead.",
     bounds: { minX: -14, maxX: 14, minZ: 10.5, maxZ: 26 },
     fog: false,
     floor: "#2c2f33",
@@ -74,8 +74,8 @@ export const ROOMS: RoomDef[] = [
   },
   {
     id: "entry",
-    name: "Entrance",
-    blurb: "Glass doors into the lobby.",
+    name: "Main Entrance",
+    blurb: "Glass doors into the central lobby.",
     bounds: { minX: -3, maxX: 3, minZ: 7, maxZ: 10.5 },
     fog: false,
     floor: "#6e6a63",
@@ -83,8 +83,8 @@ export const ROOMS: RoomDef[] = [
   },
   {
     id: "lobby",
-    name: "Lobby",
-    blurb: "Central area. Reception, and a door to each wing.",
+    name: "Central Lobby",
+    blurb: "Reception area with a route to each campus sector.",
     bounds: { minX: -5.5, maxX: 5.5, minZ: -7, maxZ: 7 },
     fog: true,
     floor: "#7b7770",
@@ -93,8 +93,8 @@ export const ROOMS: RoomDef[] = [
   },
   {
     id: "wcorr",
-    name: "West passage",
-    blurb: "Short corridor to the security room.",
+    name: "Control Passage",
+    blurb: "Short corridor to the control sector.",
     bounds: { minX: -8, maxX: -5.5, minZ: 1, maxZ: 4 },
     fog: false,
     floor: "#6e6a63",
@@ -102,8 +102,8 @@ export const ROOMS: RoomDef[] = [
   },
   {
     id: "ecorr",
-    name: "East passage",
-    blurb: "Short corridor to the vault room.",
+    name: "Archives Passage",
+    blurb: "Short corridor to the archives sector.",
     bounds: { minX: 5.5, maxX: 8, minZ: 1, maxZ: 4 },
     fog: false,
     floor: "#6e6a63",
@@ -111,28 +111,28 @@ export const ROOMS: RoomDef[] = [
   },
   {
     id: "sec",
-    name: "Security Room",
-    blurb: "Monitors, cameras, controls - and the keycard.",
+    name: "Control Sector",
+    blurb: "Monitoring, ventilation controls, and the emergency access key.",
     bounds: { minX: -22, maxX: -8, minZ: -7, maxZ: 7 },
     fog: true,
     floor: "#78746d",
-    // door is in the east wall: look west, the way the thief walks in
+    // door is in the east wall: look west, the way the evacuee walks in
     cam: { pos: [-1, 19.9, 0], target: [-15, 0.6, 0] },
   },
   {
     id: "vault",
-    name: "Vault Room",
-    blurb: "Main objective. High security.",
+    name: "Archives Sector",
+    blurb: "Restricted sector with a route-control panel.",
     bounds: { minX: 8, maxX: 22, minZ: -7, maxZ: 7 },
     fog: true,
     floor: "#78746d",
-    // entered through the west wall: look east, the way the thief walks in
+    // entered through the west wall: look east, the way the evacuee walks in
     cam: { pos: [1, 19.9, 0], target: [15, 0.6, 0] },
   },
   {
     id: "annex",
-    name: "Vault",
-    blurb: "Behind the round door.",
+    name: "Exit Annex",
+    blurb: "Service route behind the round access door.",
     bounds: { minX: 13, maxX: 17, minZ: -10, maxZ: -7 },
     fog: false,
     floor: "#5d5a55",
@@ -142,30 +142,30 @@ export const ROOMS: RoomDef[] = [
 
 export const roomById = (id: RoomId) => ROOMS.find((r) => r.id === id)!;
 
-/** The rooms a spectator can be posted to. */
+/** The sectors a warden can be posted to. */
 export const WATCHED_ROOMS: RoomId[] = ["lobby", "sec", "vault"];
 
 /**
- * Which spectator has the thief's ear, or null when nobody does.
+ * Which warden has the evacuee's channel, or null when nobody does.
  *
- * A spectator is on air exactly while the thief is standing in the room they
- * were posted to - which is exactly while they can see the thief at all. Three
+ * A warden is on air exactly while the evacuee is standing in the sector they
+ * were posted to - which is exactly while they can see the evacuee at all. Three
  * people calling "LEFT" about three different rooms is worse than silence, so
  * only one of them is ever live, and someone watching an empty room cannot
- * steer a thief they are not looking at.
+ * guide an evacuee they are not looking at.
  *
- * The corridors, the entrance hall and the street belong to nobody on purpose:
+ * The corridors, entrance hall, and assembly court belong to nobody on purpose:
  * they are a few seconds of walking with nothing in them, and folding them into
- * a neighbour would put a spectator on air over a room the thief has not
+ * a neighbour would put a warden on air over a sector the evacuee has not
  * reached yet.
  */
 export const commandChannel = (thiefRoom: RoomId): RoomId | null =>
   WATCHED_ROOMS.includes(thiefRoom) ? thiefRoom : null;
 
 /**
- * Can this spectator talk to the thief right now?
+ * Can this warden talk to the evacuee right now?
  *
- * Only the spectator whose room the thief is standing in. Everyone else is off
+ * Only the warden whose sector the evacuee is standing in. Everyone else is off
  * air, so two people can never call directions over each other.
  */
 export function channelOpen(
@@ -203,7 +203,7 @@ export interface WallDef {
   to: number;
   openings?: Opening[];
   height?: number;
-  /** hidden in spectator views so the building reads as a cutaway */
+  /** hidden in warden views so the building reads as a cutaway */
   cutaway?: boolean;
   color?: string;
 }
@@ -220,7 +220,7 @@ export const WALLS: WallDef[] = [
     from: -22.15,
     to: 22.15,
     color: OUT,
-    // the round vault door lives in this hole
+    // the round route-control door lives in this hole
     openings: [{ at: 15, width: 3.6, height: 2.9 }],
   },
   { id: "w-west", axis: "z", fixed: -22, from: -7.15, to: 7.15, color: OUT },
@@ -256,7 +256,7 @@ export const WALLS: WallDef[] = [
     openings: [{ at: 0, width: 3.0, height: 2.6 }],
   },
 
-  // vault annex, poking out through the north wall
+  // exit annex, poking out through the north wall
   { id: "w-annex-w", axis: "z", fixed: 13, from: -10.15, to: -7, color: OUT },
   { id: "w-annex-e", axis: "z", fixed: 17, from: -10.15, to: -7, color: OUT },
   { id: "w-annex-n", axis: "x", fixed: -10, from: 12.85, to: 17.15, color: OUT },
@@ -308,7 +308,7 @@ export const MASSES: { x1: number; z1: number; x2: number; z2: number }[] = [
   { x1: 5.5, z1: 4, x2: 8, z2: 7.15 },
 ];
 
-/** Floor / ceiling slabs. Ceilings are dropped in the spectator views. */
+/** Floor / ceiling slabs. Ceilings are dropped in the warden views. */
 export const SLABS: {
   id: string;
   x1: number;
@@ -503,12 +503,12 @@ export const CAMERAS: CameraDef[] = [
 ];
 
 export const MARKERS: MarkerDef[] = [
-  /* --- security room ------------------------------------------------ */
+  /* --- control sector ------------------------------------------------ */
   {
     id: "keycard",
     kind: "keycard",
-    label: "Keycard",
-    sub: "opens the vault room door",
+     label: "Emergency access key",
+     sub: "opens the route-control panel",
     reveal: "spectator",
     room: "sec",
     color: C.yellow,
@@ -518,7 +518,7 @@ export const MARKERS: MarkerDef[] = [
   {
     id: "health",
     kind: "health",
-    label: "Health pack",
+     label: "Stabilization kit",
     reveal: "spectator",
     room: "sec",
     color: C.green,
@@ -528,8 +528,8 @@ export const MARKERS: MarkerDef[] = [
   {
     id: "sec-vent",
     kind: "vent",
-    label: "Vent (alternate route)",
-    sub: "thief can enter from here",
+     label: "Service hatch (alternate route)",
+     sub: "evacuee can use this route",
     reveal: "discovery",
     room: "sec",
     color: C.cyan,
@@ -540,8 +540,8 @@ export const MARKERS: MarkerDef[] = [
   {
     id: "sec-trap",
     kind: "trap",
-    label: "Floor trap (hidden)",
-    sub: "-25 HP on contact",
+     label: "Pressure hazard (hidden)",
+     sub: "reduces condition on contact",
     reveal: "discovery",
     room: "sec",
     color: C.red,
@@ -551,8 +551,8 @@ export const MARKERS: MarkerDef[] = [
   {
     id: "alarm",
     kind: "alarm",
-    label: "Alarm panel",
-    sub: "can be disabled (E)",
+     label: "Ventilation control",
+     sub: "can be activated (E)",
     reveal: "discovery",
     room: "sec",
     color: C.red,
@@ -562,7 +562,7 @@ export const MARKERS: MarkerDef[] = [
   {
     id: "note",
     kind: "note",
-    label: "Vault code note",
+     label: "Route code notice",
     sub: "4-7-1-2",
     reveal: "discovery",
     room: "sec",
@@ -584,7 +584,7 @@ export const MARKERS: MarkerDef[] = [
   {
     id: "sec-coffee",
     kind: "note",
-    label: "Guard's Coffee",
+     label: "Active station",
     sub: "Scan for intel",
     reveal: "discovery",
     room: "sec",
@@ -597,8 +597,8 @@ export const MARKERS: MarkerDef[] = [
   {
     id: "bandages",
     kind: "health",
-    label: "Bandages (collect)",
-    sub: "+20 HP",
+     label: "Stabilization kit (collect)",
+     sub: "+20 condition",
     reveal: "discovery",
     room: "lobby",
     color: C.green,
@@ -628,11 +628,11 @@ export const MARKERS: MarkerDef[] = [
     labelOffset: [0, 0.7, 0],
   },
 
-  /* --- vault room --------------------------------------------------- */
+  /* --- archives sector ---------------------------------------------- */
   {
     id: "keypad",
     kind: "keypad",
-    label: "Keypad (needs code)",
+     label: "Route-control panel (needs code)",
     reveal: "spectator",
     room: "vault",
     color: C.yellow,
@@ -642,8 +642,8 @@ export const MARKERS: MarkerDef[] = [
   {
     id: "vault-trap",
     kind: "trap",
-    label: "Floor trap (hidden)",
-    sub: "-25 HP on contact",
+     label: "Pressure hazard (hidden)",
+     sub: "reduces condition on contact",
     reveal: "discovery",
     room: "vault",
     color: C.red,
@@ -653,7 +653,7 @@ export const MARKERS: MarkerDef[] = [
   {
     id: "valuables",
     kind: "valuables",
-    label: "Valuables (collect)",
+     label: "Emergency supplies (collect)",
     sub: "+150",
     reveal: "discovery",
     room: "vault",
@@ -664,8 +664,8 @@ export const MARKERS: MarkerDef[] = [
   {
     id: "vault-loot",
     kind: "valuables",
-    label: "Vault contents",
-    sub: "+500 - the objective",
+     label: "Supply cache",
+     sub: "+500 - optional readiness credit",
     reveal: "spectator",
     room: "vault",
     color: C.yellow,
@@ -673,13 +673,13 @@ export const MARKERS: MarkerDef[] = [
     labelOffset: [0, 1.0, 0],
   },
   {
-    // The way out. Hidden until the spectator posted to the vault scans it, so
-    // the run has a second job running alongside the keycard: the thief cannot
-    // leave this way until their crew has found the hatch for them.
+     // The way out. Hidden until the warden posted to the sector scans it, so
+     // the drill has a second job alongside the access key: the evacuee cannot
+     // use this route until the response team has found the hatch.
     id: "vault-vent",
     kind: "vent",
-    label: "Extraction vent",
-    sub: "jump in to get out",
+     label: "Marked service exit",
+     sub: "move through to reach assembly",
     reveal: "discovery",
     room: "vault",
     color: C.cyan,
@@ -734,14 +734,14 @@ export const PATROLS: PatrolDef[] = [
   },
 ];
 
-export const GUARD_LABEL = "Guard (patrolling)";
+export const GUARD_LABEL = "Patrol unit (active)";
 
 /* ------------------------------------------------------------------ player */
 
-/** The thief starts on the street, outside the building. */
+/** The evacuee starts in the assembly court, outside the building. */
 export const THIEF_SPAWN: Vec3 = [0, 1.1, 15.5];
 
-/** Reaching this again with the loot ends the run. */
+/** Reaching this again with the supplies ends the drill. */
 export const ESCAPE_Z = 13.5;
 
 export function isRevealed(
@@ -751,6 +751,6 @@ export function isRevealed(
 ): boolean {
   if (view === "thief") return false;
   if (reveal === "spectator") return true;
-  // discovery-tier markers stay tagged in the plain spectator view once found
+  // discovery-tier markers stay tagged in the plain warden view once found
   return view === "discovery" || discovered;
 }

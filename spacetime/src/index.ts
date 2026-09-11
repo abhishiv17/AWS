@@ -1,23 +1,25 @@
 /**
- * SpacetimeDB Module — One Heist, Two Realities
+ * SpacetimeDB Module — CampusEvac legacy bridge
  *
- * The authoritative room server for the heist. Clients subscribe to these
- * tables over the SpacetimeDB WebSocket and call the reducers below.
+ * The temporary room server for the current CampusEvac prototype. Clients
+ * subscribe to these tables over the SpacetimeDB WebSocket and call the
+ * reducers below. This module is scheduled for replacement by the AWS room
+ * contract in docs/architecture-design.md.
  *
  * Shape of a run:
  *   create_room  -> a host opens a room and gets a code
  *   join_room    -> players drop in through the shared link
  *   start_run    -> countdown begins; roles are drawn from the room seed
- *   publish_world-> the thief's client streams the world 12x a second
- *   discover_item-> a spectator scans something hidden in their room
- *   end_run      -> escaped or caught
+ *   publish_world-> the evacuee's client streams the world 12x a second
+ *   discover_item-> a warden scans something hidden in their sector
+ *   end_run      -> safe exit or failed drill
  *
  * Roles are drawn from `seed` with the same shuffle the web client uses, so a
  * client can predict the draw the instant the countdown ends and the server
  * stays the source of truth.
  */
 
-import { ScheduleAt, SenderError, schema, table, t, type ReducerCtx } from 'spacetimedb/server';
+import { ScheduleAt, schema, table, t, type ReducerCtx } from 'spacetimedb/server';
 
 const WATCHABLE = ['lobby', 'sec', 'vault'] as const;
 const SPECTATOR_REJOIN_MS = 20_000n;
@@ -169,11 +171,11 @@ export default spacetimedb;
 /* -------------------------------------------------------------------------- */
 
 const nowMs = (ts: { toMillis(): bigint }) => ts.toMillis();
-type HeistContext = ReducerCtx<typeof spacetimedb.schemaType>;
+type CampusEvacBridgeContext = ReducerCtx<typeof spacetimedb.schemaType>;
 
 type AuthClaims = Record<string, unknown>;
 
-function authClaims(ctx: HeistContext): AuthClaims | null {
+function authClaims(ctx: CampusEvacBridgeContext): AuthClaims | null {
   const jwt = ctx.senderAuth.jwt;
   if (!jwt) return null;
   return jwt.fullPayload as AuthClaims;
@@ -184,7 +186,7 @@ function claim(claims: AuthClaims, key: string) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-function profileFromAuth(ctx: HeistContext) {
+function profileFromAuth(ctx: CampusEvacBridgeContext) {
   const claims = authClaims(ctx);
   if (!claims) return null;
 
@@ -210,14 +212,14 @@ function profileFromAuth(ctx: HeistContext) {
  * back to the name the client supplied. This means guests can play without
  * signing in — the hackathon requirement is "name only, skip passwords."
  */
-function resolvePlayerName(ctx: HeistContext, clientName: string): string {
+function resolvePlayerName(ctx: CampusEvacBridgeContext, clientName: string): string {
   const profile = ctx.db.user_profile.identity.find(ctx.sender.toHexString());
   if (profile) return profile.name;
   const trimmed = clientName.trim().replace(/\s+/g, ' ').slice(0, 16);
   return trimmed || `Player-${ctx.sender.toHexString().slice(0, 6)}`;
 }
 
-function endRoom(ctx: HeistContext, code: string, result: string, text: string) {
+function endRoom(ctx: CampusEvacBridgeContext, code: string, result: string, text: string) {
   const room = ctx.db.game_room.code.find(code);
   if (!room || room.phase === 'ended') return;
 
@@ -242,7 +244,7 @@ function endRoom(ctx: HeistContext, code: string, result: string, text: string) 
 }
 
 function startSpectatorGrace(
-  ctx: HeistContext,
+  ctx: CampusEvacBridgeContext,
   code: string,
   playerId: string,
   connectionId: string,
@@ -551,7 +553,7 @@ export const start_run = spacetimedb.reducer(
   }
 );
 
-function drawRoles(ctx: HeistContext, code: string, allowEarly: boolean) {
+function drawRoles(ctx: CampusEvacBridgeContext, code: string, allowEarly: boolean) {
   const room = ctx.db.game_room.code.find(code);
   if (!room || (room.phase !== 'countdown' && !(allowEarly && room.phase === 'lobby'))) return;
   if (!allowEarly && nowMs(ctx.timestamp) < room.starts_at) throw new Error('too early');

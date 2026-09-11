@@ -67,7 +67,7 @@ const powerUpSubs = new Set<(effect: "heal" | "invis", by: string) => void>();
 let unsubscribe: (() => void) | null = null;
 
 function playerIdForRoom(code: string) {
-  const key = `heist:player:${code}`;
+  const key = `campusevac:player:${code}`;
   try {
     const stored = sessionStorage.getItem(key);
     if (stored) return stored;
@@ -173,7 +173,7 @@ export const useSession = create<SessionState>()((set, get) => ({
             errorStatus = "connection";
           }
           
-          console.warn("[heist] room creation failed:", refusal || "unknown");
+          console.warn("[campusevac] room creation failed:", refusal || "unknown");
           set({ status: errorStatus, net: null });
           return;
         }

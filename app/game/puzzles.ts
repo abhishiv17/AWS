@@ -1,7 +1,7 @@
 /**
  * Scan puzzles.
  *
- * A spectator taps a blip, answers one short question, and the thing is
+ * A warden taps a blip, answers one short question, and the thing is
  * identified. The question is a beat of tension, not a wall: every answer is
  * readable straight off the card, and the `hint` line says what the item
  * actually is, so a player who has never seen the room still knows what to
@@ -14,7 +14,7 @@ export interface Puzzle {
   options: string[];
   /** index into `options` */
   correct: number;
-  /** what the spectator is looking at, in one plain line */
+  /** what the warden is looking at, in one plain line */
   hint: string;
 }
 
@@ -27,46 +27,46 @@ interface Entry {
 
 const BANK: Record<string, Entry> = {
   "sec-cam-b": {
-    question: "This camera has no status light, so the thief cannot spot it. What do you call out?",
+    question: "This sensor has no status light, so the evacuee cannot spot it. What do you call out?",
     answer: "Keep out of its cone",
     wrong: ["Walk right past it", "Stand still in front of it"],
-    hint: "A hidden camera watches exactly like a visible one.",
+    hint: "A hidden sensor still reports exactly like a visible one.",
   },
   "vault-cam-b": {
-    question: "A second camera covers the vault with no light on it. What do you call out?",
+    question: "A second sensor covers the archives with no light on it. What do you call out?",
     answer: "Keep out of its cone",
     wrong: ["Wave at the lens", "Stop underneath it"],
-    hint: "A hidden camera watches exactly like a visible one.",
+    hint: "A hidden sensor still reports exactly like a visible one.",
   },
   "sec-vent": {
-    question: "A floor vent opens into this room. What is it useful for?",
-    answer: "Getting in without the door",
-    wrong: ["Storing the loot", "Turning the lights on"],
-    hint: "A vent is a second way into the room.",
+    question: "A service hatch opens into this sector. What is it useful for?",
+    answer: "A second route",
+    wrong: ["Storing supplies", "Turning the lights on"],
+    hint: "A service hatch provides another route through the building.",
   },
   "sec-trap": {
-    question: "A pressure trap takes 25 HP off anyone who steps on it. What do you call out?",
+    question: "A pressure hazard reduces condition for anyone who steps on it. What do you call out?",
     answer: "Walk around it",
     wrong: ["Step on it once", "Run straight over it"],
-    hint: "Floor trap - contact costs the thief health.",
+    hint: "Floor hazard - contact reduces the evacuee's condition.",
   },
   "vault-trap": {
-    question: "A pressure trap takes 25 HP off anyone who steps on it. What do you call out?",
+    question: "A pressure hazard reduces condition for anyone who steps on it. What do you call out?",
     answer: "Walk around it",
     wrong: ["Jump on it twice", "Stand on it and wait"],
-    hint: "Floor trap - contact costs the thief health.",
+    hint: "Floor hazard - contact reduces the evacuee's condition.",
   },
   alarm: {
-    question: "Switching this panel off blinds every camera in the building. Is that good for the thief?",
-    answer: "Yes - the cameras go dark",
-    wrong: ["No - it calls the guards", "No - it locks the vault"],
-    hint: "Alarm panel. The thief disables it with E.",
+    question: "Switching this panel off clears the sensor feed. Is that useful for the evacuee?",
+    answer: "Yes - the feed clears",
+    wrong: ["No - it calls security", "No - it locks the exit"],
+    hint: "Emergency control panel. The evacuee activates it with E.",
   },
   note: {
-    question: "The note on the desk reads 4 - 7 - 1 - 2. Relay it back exactly.",
+    question: "The route notice reads 4 - 7 - 1 - 2. Relay it back exactly.",
     answer: "4-7-1-2",
     wrong: ["7-4-2-1", "1-2-4-7"],
-    hint: "This is the vault code. Read it left to right.",
+    hint: "This is the emergency route code. Read it left to right.",
   },
   "sec-network": {
     question: "The node wants the next number in its sequence: 2, 4, 6, ?",
@@ -82,9 +82,9 @@ const BANK: Record<string, Entry> = {
   },
   bandages: {
     question: "Bandages restore 20 HP. Who should pick them up?",
-    answer: "The thief",
-    wrong: ["The guard", "Nobody"],
-    hint: "A health pickup sitting in the lobby.",
+    answer: "The evacuee",
+    wrong: ["Security", "Nobody"],
+    hint: "A stabilization kit sitting in the lobby.",
   },
   "lobby-guestlog": {
     question: "The guest log signs people in on the hour: 09:00, 10:00, 11:00, ?",
@@ -102,13 +102,13 @@ const BANK: Record<string, Entry> = {
     question: "These valuables are worth 150 to the score. What do you call out?",
     answer: "Take them",
     wrong: ["Leave them", "Break them"],
-    hint: "Loose valuables in the vault room.",
+    hint: "Emergency supplies in the archives sector.",
   },
   "vault-vent": {
     question: "This vent goes straight out of the building. What is it for?",
-    answer: "Getting the thief out",
-    wrong: ["Storing the loot", "Calling a guard"],
-    hint: "Extraction vent. Find it and the thief can escape through it.",
+    answer: "Reaching the assembly point",
+    wrong: ["Storing supplies", "Calling security"],
+    hint: "Service exit. Find it and the evacuee can reach the assembly point.",
   },
   "vault-deposit-box": {
     question: "The deposit box is numbered one higher than 41. Which box is it?",
@@ -119,10 +119,10 @@ const BANK: Record<string, Entry> = {
 };
 
 const FALLBACK: Entry = {
-  question: "Run the scan on this object to log it for the crew?",
+  question: "Run the scan on this object to log it for the response team?",
   answer: "Run the scan",
   wrong: ["Cancel the scan", "Wipe the log"],
-  hint: "Scanning shares what you found with everyone watching.",
+  hint: "Scanning shares what you found with every connected warden.",
 };
 
 /** Tiny deterministic hash so an item's options do not reshuffle mid-answer. */

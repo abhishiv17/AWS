@@ -22,7 +22,7 @@ export default function RoomsPage() {
   const create = () => {
     const c = newCode();
     try {
-      sessionStorage.setItem(`heist:host:${c}`, String(size));
+       sessionStorage.setItem(`campusevac:host:${c}`, String(size));
     } catch {
       /* private mode: the room still works, just not across a refresh */
     }
@@ -56,13 +56,13 @@ export default function RoomsPage() {
             <div className="mb-4 inline-block border-2 border-[#111216] bg-[#e9ff4f] px-2 py-1 text-[10px] font-black uppercase tracking-[0.18em] shadow-[3px_3px_0_#111216]">Lobby terminal / 02</div>
             <h1 className="text-5xl font-black uppercase leading-[0.88] tracking-[-0.07em] sm:text-7xl">Set the<br /><span className="text-[#3b63ff]">crew loose.</span></h1>
           </div>
-          <p className="max-w-md border-l-4 border-[#3b63ff] pl-4 text-sm font-medium leading-relaxed text-[#4e4d53]">Create a room, share the code, then wait for the full crew. The ten-second countdown starts only when every seat is filled.</p>
+          <p className="max-w-md border-l-4 border-[#3b63ff] pl-4 text-sm font-medium leading-relaxed text-[#4e4d53]">Create a drill room, share the code, then wait for the response team. The countdown starts when every seat is filled.</p>
         </header>
 
         <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
           <section className="brutal-panel p-5 sm:p-7">
             <div className="flex items-start justify-between gap-4 border-b-2 border-[#111216] pb-4">
-              <div><h2 className="text-xs font-black uppercase tracking-[0.2em]">New room</h2><p className="mt-2 text-sm font-medium text-[#5a5960]">You are the operator. Choose how many seats the run needs.</p></div>
+               <div><h2 className="text-xs font-black uppercase tracking-[0.2em]">New drill room</h2><p className="mt-2 text-sm font-medium text-[#5a5960]">You are the coordinator. Choose how many seats the drill needs.</p></div>
               <span className="font-mono text-xs font-bold text-[#3b63ff]">CREATE_01</span>
             </div>
             <div className="mt-6 flex flex-wrap items-end gap-5">
@@ -78,8 +78,8 @@ export default function RoomsPage() {
                 {Array.from({ length: MAX_PLAYERS - 1 }, (_, i) => i + 2).map(
                   (n) => (
                     <option key={n} value={n}>
-                      {n} players — 1 thief, {n - 1} spectator
-                      {n - 1 > 1 ? "s" : ""}
+                       {n} participants — 1 evacuee, {n - 1} warden
+                       {n - 1 > 1 ? "s" : ""}
                     </option>
                   ),
                 )}
@@ -92,7 +92,7 @@ export default function RoomsPage() {
               Open room -&gt;
             </button>
             </div>
-            <p className="mt-6 max-w-lg border-t border-[#111216]/20 pt-4 text-[11px] font-semibold leading-relaxed text-[#6c6b70]">Three spectators cover every room: lobby, security, vault. Fewer players means some rooms go unwatched. You can still start with two.</p>
+            <p className="mt-6 max-w-lg border-t border-[#111216]/20 pt-4 text-[11px] font-semibold leading-relaxed text-[#6c6b70]">Wardens cover the active sectors and relay verified route guidance. Fewer participants means some sectors go unwatched. You can still start with two.</p>
           </section>
 
           <section id="join" className="brutal-panel-dark scroll-mt-6 p-5 text-[#f2eee5] sm:p-7">

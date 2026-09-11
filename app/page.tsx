@@ -7,13 +7,13 @@ import AuthControls from "./components/AuthControls";
 /* ── data ─────────────────────────────────────────────────────────────── */
 
 const STEPS = [
-  "Create a room and share the link. Up to four players.",
-  "Ten second countdown \u2013 roles are drawn at random.",
-  "One thief walks in from the street.",
-  "Spectators scan their room and call out what they find.",
-  "The thief hears it and acts on it.",
-  "Keycard, then the vault code, then the vault.",
-  "Get back out to the street.",
+  "Create a drill room and share the link. Up to four participants.",
+  "A short countdown assigns the evacuee and wardens.",
+  "The evacuee enters a compromised campus sector.",
+  "Wardens scan their assigned feeds and verify hazards.",
+  "The evacuee hears the guidance and chooses a route.",
+  "Clear access points, manage exposure, and reach the assembly point.",
+  "Review the drill result and readiness signals.",
 ];
 
 /* ── page ─────────────────────────────────────────────────────────────── */
@@ -34,10 +34,10 @@ export default function Home() {
                 <path d="M7 0L13.9282 12H0.0717969L7 0Z" fill="#111216" />
               </svg>
             </span>
-            <span>
-              Blind Run{" "}
-              <span className="text-[10px] font-bold tracking-[0.12em] text-[#6c6b70]">
-                | Trust the Voice
+             <span>
+               CampusEvac{" "}
+               <span className="text-[10px] font-bold tracking-[0.12em] text-[#6c6b70]">
+                 | Shared Situational Awareness
               </span>
             </span>
           </Link>
@@ -58,19 +58,19 @@ export default function Home() {
               <LandingCounter />
             </div>
             <div className="mt-1 text-[9px] font-bold uppercase tracking-[0.16em] text-[#6c6b70]">
-              Moonshots landed
+               Drills logged
             </div>
           </div>
           <div className="border-b-2 border-[#111216] py-3 sm:border-b-0 sm:border-r-2 sm:px-4">
             <div className="text-lg font-black uppercase leading-none tracking-tight">3K+</div>
             <div className="mt-1 text-[9px] font-bold uppercase tracking-[0.16em] text-[#6c6b70]">
-              X views
+              Community reach
             </div>
           </div>
           <div className="py-3 sm:pl-4">
             <div className="text-lg font-black uppercase leading-none tracking-tight">20+</div>
             <div className="mt-1 text-[9px] font-bold uppercase tracking-[0.16em] text-[#6c6b70]">
-              Early playtests
+              Scenario tests
             </div>
           </div>
         </div>
@@ -83,21 +83,21 @@ export default function Home() {
             {/* tags */}
             <div className="mb-4 flex flex-wrap items-center gap-3 text-[10px] font-black uppercase tracking-[0.22em]">
               <span className="bg-[#111216] px-2.5 py-1 text-[#e9ff4f]">Asymmetric Multiplayer</span>
-              <span className="border-2 border-[#111216] px-2.5 py-1">Heist Simulation</span>
+               <span className="border-2 border-[#111216] px-2.5 py-1">Emergency Drill</span>
             </div>
 
             {/* headline with overlapping mascot */}
             <div className="relative w-full">
               <h1 className="text-[clamp(3.2rem,9vw,7.5rem)] font-black uppercase leading-[0.84] tracking-[-0.07em]">
-                One
-                <br />
-                Thief.
-                <br />
-                <span className="text-[#3b63ff]">Multiple</span>
-                <br />
-                <span className="text-[#3b63ff]">Views.</span>
-                <br />
-                One way out.
+                 One
+                 <br />
+                 Safe
+                 <br />
+                 <span className="text-[#3b63ff]">Route.</span>
+                 <br />
+                 <span className="text-[#3b63ff]">Shared</span>
+                 <br />
+                 awareness.
               </h1>
 
               {/* mascot — overlapping on top of the headline */}
@@ -107,7 +107,7 @@ export default function Home() {
               >
                 <Image
                   src={mascotImg}
-                  alt="Blind Run mascot"
+                   alt="CampusEvac field kit illustration"
                   width={260}
                   height={260}
                   className="drop-shadow-[4px_4px_0_rgba(17,18,22,0.2)]"
@@ -139,10 +139,10 @@ export default function Home() {
 
             {/* supporting copy */}
             <p className="mt-6 max-w-md text-sm font-medium leading-relaxed sm:text-[15px]">
-              A real-time multiplayer heist where the thief can&apos;t see.
-              Your crew watches, guides, and helps you escape.
-              <br />
-              Different eyes. Same adventure.
+               A real-time evacuation drill where one evacuee navigates changing
+               conditions. Wardens watch, verify, and coordinate a safer route.
+               <br />
+               Different views. One accountable decision.
             </p>
 
             {/* CTA + meta */}
@@ -199,21 +199,21 @@ export default function Home() {
               {[
                 {
                   n: "1",
-                  name: "Thief View",
+                     name: "Evacuee View",
                   accent: "#3b63ff",
-                  body: "First person, inside the facility. No labels, no camera cones, no traps. One player gets this.",
+                   body: "First person, inside the campus. Limited visibility, route pressure, and immediate decisions for one participant.",
                 },
                 {
                   n: "2",
-                  name: "Spectator View",
+                     name: "Warden View",
                   accent: "#24d17e",
-                  body: "A cutaway of one room. Camera cones, the guard\u2019s patrol, the keypad, the keycard \u2014 the layer the thief is blind to.",
+                   body: "A cutaway sector view with hazard evidence, route options, and the information the evacuee cannot see.",
                 },
                 {
                   n: "3",
-                  name: "Discovery Mode",
+                     name: "Signal Scan",
                   accent: "#e9ff4f",
-                  body: "Same room, scanning for what nobody has found yet: hidden cameras, vents, floor traps, the note with the vault code.",
+                   body: "Inspect the sector for unverified hazards, emergency controls, supplies, and safer route signals.",
                 },
               ].map((v) => (
                 <div key={v.n} className="flex flex-col">
@@ -292,7 +292,7 @@ export default function Home() {
                 <div className="relative w-[130px]" style={{ transform: "scaleX(-1)" }}>
                   <Image
                     src={mascotImg}
-                    alt="Blind Run mascot"
+                     alt="CampusEvac field kit illustration"
                     width={130}
                     height={130}
                     className="drop-shadow-[3px_3px_0_rgba(17,18,22,0.15)]"
@@ -305,7 +305,7 @@ export default function Home() {
 
         {/* ═══════════════ FOOTER ═══════════════ */}
         <footer className="flex flex-col gap-3 border-t-2 border-[#111216] pb-3 pt-4 text-[10px] font-bold uppercase tracking-[0.14em] text-[#6c6b70] sm:flex-row sm:items-center sm:justify-between">
-          <span>Blind Run // Trust the Voice</span>
+           <span>CampusEvac // Make the safer call</span>
           <span className="flex items-center gap-2">
             <svg width="14" height="12" viewBox="0 0 14 12" fill="none" aria-hidden>
               <rect x="1" y="3" width="12" height="6" rx="2" stroke="currentColor" strokeWidth="0.8" />

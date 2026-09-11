@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -26,8 +25,6 @@ import { resolveRoom, useSession } from "../../game/session";
 import { useGame } from "../../game/store";
 
 const NAME_KEY = PROFILE_NAME_KEY;
-const AUTH_ENABLED = Boolean(process.env.NEXT_PUBLIC_SPACETIME_AUTH_CLIENT_ID);
-
 /** Read browser storage without tripping hydration or effect-ordering rules. */
 const noSubscribe = () => () => {};
 function useStored<T>(read: () => T, serverValue: T): T {
@@ -72,7 +69,7 @@ export default function RoomClient({ code }: { code: string }) {
   }, []);
   const readSeat = useCallback(() => {
     try {
-      const seat = sessionStorage.getItem(`heist:host:${code}`);
+       const seat = sessionStorage.getItem(`campusevac:host:${code}`);
       return seat ? Number(seat) : null;
     } catch {
       return null;
@@ -91,6 +88,7 @@ export default function RoomClient({ code }: { code: string }) {
     readAuthToken,
     () => "",
   );
+  void authToken;
   const hostSize = useStored(readSeat, null);
   const link = useStored(readLink, "");
   const canShare = useStored(readShare, false);
@@ -180,7 +178,7 @@ export default function RoomClient({ code }: { code: string }) {
       try {
         await navigator.share({
           title: `Join room ${code}`,
-          text: "Join our One Heist room",
+          text: "Join our CampusEvac drill room",
           url: link,
         });
         return;
@@ -320,8 +318,8 @@ export default function RoomClient({ code }: { code: string }) {
         <GameShell
           title={
             me.role === "thief"
-              ? `Thief · room ${code}`
-              : `${roomById(me.watching ?? "lobby").name} · room ${code}`
+              ? `Evacuee · room ${code}`
+              : `Warden / ${roomById(me.watching ?? "lobby").name} · room ${code}`
           }
         />
       </main>
@@ -338,17 +336,17 @@ export default function RoomClient({ code }: { code: string }) {
         </div>
         <h1 className="text-4xl font-black uppercase leading-none tracking-[-0.06em] sm:text-5xl">
           {thiefLeft
-            ? "The thief left. This game is over."
-            : spectatorLeft
-              ? "Spectator did not return."
-              : "This run is over"}
+             ? "The evacuee left. This drill is over."
+             : spectatorLeft
+               ? "A warden did not return."
+               : "This drill is over"}
         </h1>
         <p className="mt-4 max-w-lg border-l-4 border-[#ff5b55] pl-4 text-sm font-medium leading-relaxed text-[#5a5960]">
           {thiefLeft
-            ? "The room has been closed. Return to the room list to start a new game."
-            : spectatorLeft
-              ? "The room was closed after the 20-second rejoin window. Start a new game."
-              : "The room has finished and cannot accept another player. Open a new room to play again."}
+             ? "The room has been closed. Return to the room list to start a new drill."
+             : spectatorLeft
+               ? "The room was closed after the 20-second rejoin window. Start a new drill."
+               : "The room has finished and cannot accept another participant. Open a new drill room to continue."}
         </p>
         <div className="mt-8 flex flex-wrap gap-3">
           <button onClick={leaveAndGo} className="brutal-button px-5 py-3">
@@ -512,10 +510,9 @@ export default function RoomClient({ code }: { code: string }) {
       </div>
 
       <p className="mt-8 max-w-lg border-t border-[#111216]/20 pt-4 text-[11px] font-semibold leading-relaxed text-[#6c6b70]">
-        One player is drawn as the thief and walks in from the street. Everyone
-        else is posted to a single room - lobby, security or vault - and can only
-        see that one. Talk to each other; the thief cannot see any of the
-        security layer.
+         One participant is assigned as the evacuee and enters the campus route.
+         Wardens are posted to a single sector and relay the evidence they can
+         see. Talk to each other; the evacuee cannot see the full safety layer.
       </p>
     </Frame>
   );

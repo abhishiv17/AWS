@@ -29,7 +29,7 @@ export default function LandingCounter() {
       process.env.NEXT_PUBLIC_SPACETIME_MODULE_NAME || "one-heist-spacetime";
     // Signed in or not, everyone is counted - an anonymous identity is still a
     // distinct visitor, and the landing page must work before you sign in.
-    const tokenKey = `heist:landing-token:${host}:${database}`;
+    const tokenKey = `campusevac:landing-token:${host}:${database}`;
     let token = "";
     try {
       token =
@@ -46,7 +46,7 @@ export default function LandingCounter() {
     const recount = (db: DbConnection["db"]) => {
       if (!live) return;
       let total = 0;
-      for (const _row of db.landingVisit.iter()) total++;
+      for (const row of db.landingVisit.iter()) total += row ? 1 : 0;
       setLanded(total);
     };
 

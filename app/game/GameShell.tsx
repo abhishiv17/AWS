@@ -27,11 +27,11 @@ const GameCanvas = dynamic(() => import("./GameCanvas"), {
 const HIDDEN = [...CAMERAS, ...MARKERS].filter((m) => m.reveal === "discovery");
 
 /**
- * Is this sender the spectator posted to the sector the thief is standing in?
+ * Is this sender the warden posted to the sector the evacuee is standing in?
  *
- * The sender gates itself too, but the thief is the one who has to live with a
+ * The sender gates itself too, but the evacuee is the one who has to live with a
  * bad callout, so the ear checks as well: a message already in flight when the
- * thief crosses a door must not arrive as an instruction about the room they
+ * evacuee crosses a door must not arrive as an instruction about the sector they
  * just left.
  */
 function onLiveChannel(by: string) {
@@ -43,7 +43,7 @@ function onLiveChannel(by: string) {
 const noSubscribe = () => () => {};
 const readOnboardingCompletion = () => {
   try {
-    return localStorage.getItem("heist:onboarding:v1") === "complete";
+    return localStorage.getItem("campusevac:onboarding:v1") === "complete";
   } catch {
     return false;
   }
@@ -174,24 +174,26 @@ function Log() {
 }
 
 function DangerBanner() {
+  const mode = useGame((s) => s.mode);
   const hp = useGame((s) => s.hp);
   const alarm = useGame((s) => s.alarm);
   const spotted = useGame((s) => s.spotted);
   const escaped = useGame((s) => s.escaped);
   const alarmDisabled = useGame((s) => s.alarmDisabled);
+  const securityVisible = mode.kind !== "thief";
   const previous = useRef<string | null>(null);
 
   const alert = escaped
     ? null
     : hp <= 0
-      ? { label: "THIEF DOWN", detail: "Run ended - restart or return to the room", color: "#ff5b55" }
-      : spotted
-        ? { label: "THREAT DETECTED", detail: "Security has line of sight on the thief", color: "#ff5b55" }
-        : alarm > 65
+      ? { label: "EVACUEE DOWN", detail: "Drill ended - restart or return to the room", color: "#ff5b55" }
+      : securityVisible && spotted
+        ? { label: "HAZARD DETECTED", detail: "The evacuee is exposed to the active hazard", color: "#ff5b55" }
+        : securityVisible && alarm > 65
           ? { label: "ALARM CRITICAL", detail: "Break line of sight before the meter fills", color: "#ffb347" }
           : hp < 35
-            ? { label: "HEALTH LOW", detail: "Find a health pickup before pushing deeper", color: "#ffb347" }
-            : alarmDisabled
+            ? { label: "CONDITION LOW", detail: "Find support before continuing deeper", color: "#ffb347" }
+            : securityVisible && alarmDisabled
               ? { label: "CAMERAS OFFLINE", detail: "Security layer disabled - keep moving", color: "#39ff88" }
               : null;
   const alertLabel = alert?.label ?? null;
@@ -226,17 +228,17 @@ function CommandDeck() {
   const intelPoints = useGame((s) => s.intelPoints);
   const spendIntel = useGame((s) => s.spendIntel);
   const mode = useGame((s) => s.mode);
-  const thiefRoom = useGame((s) => s.room);
+  const evacueeRoom = useGame((s) => s.room);
   const watching = watchedRoom(mode);
   const [sent, setSent] = useState<CommandCode | null>(null);
   const lastSent = useRef<{ code: CommandCode; at: number } | null>(null);
 
   // one spectator talks at a time: the one whose room the thief is standing in
-  const holder = commandChannel(thiefRoom);
-  const live = channelOpen(thiefRoom, watching);
+  const holder = commandChannel(evacueeRoom);
+  const live = channelOpen(evacueeRoom, watching);
   const offAir = holder
-    ? `Thief is in the ${roomById(holder).name} - ${roomById(holder).name} is calling it.`
-    : `Thief is in the ${roomById(thiefRoom).name}. Nobody has the channel until they reach a watched room.`;
+    ? `Evacuee is in the ${roomById(holder).name} - ${roomById(holder).name} is calling it.`
+    : `Evacuee is in the ${roomById(evacueeRoom).name}. Nobody has the channel until they reach a watched room.`;
 
   return (
     <div
@@ -257,7 +259,7 @@ function CommandDeck() {
             className={live ? "signal-pulse h-1.5 w-1.5 rounded-full" : "h-1.5 w-1.5 rounded-full"}
             style={{ background: live ? "#e9ff4f" : "#4b5563" }}
           />
-          {live ? "THIEF CHANNEL / LIVE" : "OFF AIR"}
+          {live ? "EVACUEE CHANNEL / LIVE" : "OFF AIR"}
         </span>
       </div>
       <div className="mt-1.5 flex gap-1 overflow-x-auto sm:gap-1.5">
@@ -286,25 +288,25 @@ function CommandDeck() {
       </div>
       <div className="mt-1 text-[8px] uppercase tracking-widest text-zinc-600">
         {live
-          ? "Short callouts only. The thief is moving."
+          ? "Short callouts only. The evacuee is moving."
           : `${offAir} You are back on the moment they walk into your room.`}
       </div>
       <div className="mt-2 flex items-center justify-between border-t border-white/10 pt-2">
-        <div className="text-[9px] font-black uppercase tracking-[0.18em] text-emerald-400">Power-ups</div>
+        <div className="text-[9px] font-black uppercase tracking-[0.18em] text-emerald-400">Support actions</div>
         <div className="flex gap-2">
           <button
             disabled={intelPoints < 50}
             onClick={() => { spendIntel(50); sendPowerUp("heal"); playSignal("command"); }}
             className="border border-white/20 bg-white/5 px-2 py-1 text-[9px] font-black uppercase text-emerald-400 disabled:opacity-30 hover:bg-white/10"
           >
-            Heal (50 IP)
+            Stabilize (50 IP)
           </button>
           <button
             disabled={intelPoints < 50}
             onClick={() => { spendIntel(50); sendPowerUp("invis"); playSignal("command"); }}
             className="border border-white/20 bg-white/5 px-2 py-1 text-[9px] font-black uppercase text-[#e9ff4f] disabled:opacity-30 hover:bg-white/10"
           >
-            Invis 10s (50 IP)
+            Safe passage (50 IP)
           </button>
         </div>
       </div>
@@ -335,7 +337,7 @@ function CommandTransmission() {
         <div>
           <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#e9ff4f]">Crew transmission / {lastCommand.code}</div>
           <div className="mt-1 text-sm font-black uppercase text-zinc-100">{command.label}</div>
-          <div className="mt-0.5 text-[10px] text-zinc-400">{command.detail} - call received from spectator</div>
+          <div className="mt-0.5 text-[10px] text-zinc-400">{command.detail} - call received from warden</div>
         </div>
       </div>
     </div>
@@ -360,12 +362,12 @@ function EndCard({ onReset }: { onReset?: () => void }) {
           className="text-3xl font-black uppercase tracking-[-0.03em]"
           style={{ color: escaped ? "#5dffa8" : "#ff6b73" }}
         >
-          {escaped ? "You escaped" : "Thief down"}
+          {escaped ? "Safe exit" : "Evacuee down"}
         </div>
         {escaped && (
           <div className="mt-2 text-[11px] font-bold uppercase tracking-[0.16em] text-zinc-400">
-            {via === "vent" ? "Out through the extraction vent" : "Out through the entrance"}
-            {gotLoot ? " · vault emptied" : " · vault left behind"}
+            {via === "vent" ? "Through the marked service exit" : "Through the main entrance"}
+            {gotLoot ? " · supplies secured" : " · supplies left behind"}
           </div>
         )}
         <div className="mt-3 font-mono text-sm text-zinc-300">Score {score}</div>
@@ -385,7 +387,7 @@ function EndCard({ onReset }: { onReset?: () => void }) {
   );
 }
 
-const ONBOARDING_KEY = "heist:onboarding:v1";
+const ONBOARDING_KEY = "campusevac:onboarding:v1";
 const INTRO_AUDIO_URL = "/api/voice?kind=intro";
 
 function Onboarding() {
@@ -399,13 +401,13 @@ function Onboarding() {
   const open = !completed && !dismissed;
 
   useEffect(() => {
-    if (open) playNarrationOnce("blind-run-intro", INTRO_AUDIO_URL);
+    if (open) playNarrationOnce("campusevac-intro", INTRO_AUDIO_URL);
   }, [open]);
 
   if (!open) return null;
 
   const finish = () => {
-    playNarrationOnce("blind-run-intro", INTRO_AUDIO_URL);
+    playNarrationOnce("campusevac-intro", INTRO_AUDIO_URL);
     try {
       localStorage.setItem(ONBOARDING_KEY, "complete");
     } catch {
@@ -426,7 +428,7 @@ function Onboarding() {
           <div className="flex items-center gap-3">
             <Image
               src={mascot}
-              alt="Blind Run mascot"
+               alt="CampusEvac field kit illustration"
               width={84}
               height={84}
               priority
@@ -434,10 +436,10 @@ function Onboarding() {
             />
             <div>
             <div className="text-[10px] font-black uppercase tracking-[0.2em] text-[#e9ff4f]">
-              Blind Run / first briefing
+              CampusEvac / first briefing
             </div>
             <h2 id="onboarding-title" className="mt-2 text-2xl font-black uppercase tracking-[-0.04em]">
-              {mode.kind === "spectator" ? "Keep the thief alive" : "Get in and get out"}
+              {mode.kind === "spectator" ? "Keep the evacuee safe" : "Reach the assembly point"}
             </h2>
             </div>
           </div>
@@ -452,11 +454,11 @@ function Onboarding() {
         <div className="mt-5 grid gap-4 text-sm leading-relaxed text-zinc-300 sm:grid-cols-2">
           <div className="border-l-2 border-[#3b63ff] pl-3">
             <h3 className="text-[10px] font-black uppercase tracking-widest text-[#4aa8ff]">Objective</h3>
-            <p className="mt-2">The thief must reach the vault, take the loot, and escape back through the entrance.</p>
+            <p className="mt-2">The evacuee must cross the affected sector, follow verified guidance, and reach a safe exit.</p>
           </div>
           <div className="border-l-2 border-[#39ff88] pl-3">
             <h3 className="text-[10px] font-black uppercase tracking-widest text-[#39ff88]">Core mechanic</h3>
-            <p className="mt-2">The thief cannot see security. Spectators see one room each and relay danger through short commands.</p>
+            <p className="mt-2">The evacuee cannot see the full hazard layer. Wardens inspect one sector each and relay short, verified commands.</p>
           </div>
           <div className="border-l-2 border-[#ffd23b] pl-3">
             <h3 className="text-[10px] font-black uppercase tracking-widest text-[#ffd23b]">Controls</h3>
@@ -468,12 +470,12 @@ function Onboarding() {
           </div>
           <div className="border-l-2 border-[#ff6b73] pl-3">
             <h3 className="text-[10px] font-black uppercase tracking-widest text-[#ff6b73]">Survive / win</h3>
-            <p className="mt-2">Avoid guards and cameras, manage health and alarm, find the keycard and code, then get out alive.</p>
+            <p className="mt-2">Manage exposure, verify the route, use emergency controls, and reach the assembly point safely.</p>
           </div>
         </div>
 
         <button onClick={finish} className="brutal-button mt-6 w-full px-4 py-3">
-          Understood - enter the run
+           Understood - enter the drill
         </button>
       </section>
     </div>
@@ -520,7 +522,7 @@ export default function GameShell({ title }: { title?: string }) {
   const solo = mode.kind === "solo";
   const spectator = mode.kind === "spectator";
   const touch = useCoarsePointer();
-  // the thief drives the world, so they are the one who needs a stick
+  // The evacuee drives the world, so they are the one who needs a stick.
   const showStick = touch && view === "thief";
   const v = VIEWS.find((x) => x.id === view)!;
 
@@ -569,19 +571,17 @@ export default function GameShell({ title }: { title?: string }) {
     };
   }, [mode.kind, onVoice]);
 
-  // The keycard opens the vault *room*; the vault itself takes a 4-digit code
-  // only a spectator can read. Spelling out which of the two is missing is the
-  // difference between a puzzle and a dead end.
-  // one line, one next step: keycard -> keypad -> vent -> out
+  // Keep the next action explicit while the legacy facility simulation is being
+  // migrated to the CampusEvac sector and hazard model.
   const objective = ventFound
     ? gotLoot
-      ? "Jump into the vent on the vault room's east wall (Space) to escape."
-      : "Vent is open. Take the vault contents, then jump into the vent (Space)."
+      ? "Move through the marked service exit (Space) to reach the assembly point."
+      : "The service exit is open. Secure the route, then move to the assembly point (Space)."
     : keycard
-      ? "Take the keycard to the keypad by the round door in the vault room (E)."
+      ? "Take the access key to the emergency panel at the north exit (E)."
       : explored.lobby
-        ? "Find the keycard in the security room (west door)."
-        : "Walk in through the main entrance.";
+        ? "Find the emergency access key in the control sector."
+        : "Enter through the main campus entrance.";
 
   return (
     <div className="game-surface absolute inset-0 overflow-hidden bg-[#06080c] text-zinc-100">
@@ -594,14 +594,14 @@ export default function GameShell({ title }: { title?: string }) {
         <div className="pointer-events-auto flex min-w-0 max-w-[36vw] flex-col gap-3 sm:max-w-[min(32rem,calc(100vw-1.5rem))]">
           <div>
             <h1 className="text-[11px] font-bold uppercase leading-tight tracking-[0.12em] text-zinc-200 sm:text-sm sm:tracking-[0.2em]">
-              {title ?? "Facility heist"}
+              {title ?? "CampusEvac drill"}
             </h1>
             <p className="hidden text-[11px] text-zinc-500 sm:block">
               {spectator
-                ? `You are posted to the ${roomById(mode.watching).name}. You see what the thief cannot - tell them.`
+                ? `You are assigned to the ${roomById(mode.watching).name}. You see what the evacuee cannot - guide them.`
                 : mode.kind === "thief"
-                  ? "You are the thief. You cannot see cameras, traps or guards' cones - your spectators can."
-                  : "Solo sandbox: you drive the thief and can look through all three layers."}
+                  ? "You are the evacuee. You cannot see the full hazard layer - your wardens can."
+                  : "Solo sandbox: you guide the evacuee and can inspect all three layers."}
             </p>
           </div>
           {!spectator && (
@@ -706,18 +706,20 @@ export default function GameShell({ title }: { title?: string }) {
           <div className="mt-2 text-[11px] text-zinc-200">{objective}</div>
             <div className="flex flex-wrap gap-4 sm:gap-5">
             <Bar label="HP" value={hp} color="#5dffa8" danger={hp < 35} />
-            <Bar
-              label={
-                alarmDisabled
-                  ? "Alarm - offline"
-                  : spotted
-                    ? "Alarm - seen!"
-                    : "Alarm"
-              }
-              value={alarmDisabled ? 0 : alarm}
-              color="#ff6b73"
-              danger={alarm > 60}
-            />
+            {mode.kind !== "thief" && (
+              <Bar
+                label={
+                  alarmDisabled
+                    ? "Alarm - offline"
+                    : spotted
+                      ? "Alarm - seen!"
+                      : "Alarm"
+                }
+                value={alarmDisabled ? 0 : alarm}
+                color="#ff6b73"
+                danger={alarm > 60}
+              />
+            )}
           </div>
           <div className="flex flex-wrap gap-3 font-mono text-[11px] text-zinc-400">
             <span className={keycard ? "text-yellow-300" : ""}>
@@ -726,7 +728,7 @@ export default function GameShell({ title }: { title?: string }) {
             <span className={codeFound ? "text-emerald-400" : ""}>
               code {codeFound ? "4712" : "????"}
             </span>
-            <span>loot {loot}</span>
+            <span>supplies {loot}</span>
             <span>score {score}</span>
           </div>
         </div>
@@ -739,7 +741,7 @@ export default function GameShell({ title }: { title?: string }) {
                 <span className="text-zinc-200">Watch / Discover</span> switches
                 layer
               </div>
-              <div>your room never rotates - left is the thief&apos;s left</div>
+              <div>your room never rotates - left is the evacuee&apos;s left</div>
             </>
           ) : (
             <>
