@@ -8,11 +8,11 @@ import Building from "./components/Building";
 import Exterior from "./components/Exterior";
 import Rooms from "./components/Rooms";
 import Interactables from "./components/Interactables";
-import Thief from "./components/Thief";
+import Evacuee from "./components/Evacuee";
 import Systems from "./components/Systems";
 import NetSync from "./components/NetSync";
 import ViewRig from "./components/ViewRig";
-import { useIsHost } from "./store";
+import { useIsSimulationOwner } from "./store";
 
 const MAP = [
   { name: "forward", keys: ["ArrowUp", "KeyW"] },
@@ -50,7 +50,7 @@ function useSpaceForJumpOnly() {
 }
 
 export default function GameCanvas() {
-  const isHost = useIsHost();
+  const ownsSimulation = useIsSimulationOwner();
   useSpaceForJumpOnly();
 
   return (
@@ -63,15 +63,14 @@ export default function GameCanvas() {
       >
         <Suspense fallback={null}>
           <ViewRig />
-          {/* fixed timestep: a frame hitch must not tunnel bodies through walls.
-              Spectators never step the world - they replay what they are sent. */}
-          <Physics gravity={[0, -18, 0]} paused={!isHost}>
+          {/* Only the evacuee/solo client steps physics; the warden receives a marker. */}
+          <Physics gravity={[0, -18, 0]} paused={!ownsSimulation}>
             <Exterior />
             <Building />
             <Rooms />
             <Interactables />
-            <Thief />
-            {isHost && <Systems />}
+            <Evacuee />
+            {ownsSimulation && <Systems />}
           </Physics>
           <NetSync />
         </Suspense>

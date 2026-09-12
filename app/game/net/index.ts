@@ -1,18 +1,14 @@
 "use client";
 
-import { SpacetimeNet } from "./spacetimeNet";
+import { AppSyncNet } from "./appsync";
+import { MockNet } from "./mockNet";
 import type { NetClient } from "./types";
 
-/**
- * Which transport carries a room.
- *
- * - `spacetime` (default): the published SpacetimeDB module in `spacetime/`.
- *   One authoritative database every client subscribes to, so room records and
- *   world snapshots arrive live no matter where the page is served from. This
- *   is the only transport that works on a serverless deployment.
- */
+/** Local development is deterministic; AppSync is opt-in until deployed. */
 export function createNet(): NetClient {
-  return new SpacetimeNet();
+  const mode = process.env.NEXT_PUBLIC_NETWORK_MODE?.trim().toLowerCase();
+  if (mode === "appsync") return new AppSyncNet();
+  return new MockNet();
 }
 
 export * from "./types";

@@ -21,7 +21,7 @@ The central claim is a product hypothesis until the validation study is complete
 | Statement | Classification |
 | --- | --- |
 | The repository has a React Three Fiber and Rapier foundation. | [IMPLEMENTED] |
-| The current browser prototype has a legacy SpacetimeDB room bridge. | [IMPLEMENTED] |
+| The browser prototype has a deterministic local room adapter and an AppSync boundary. | [IMPLEMENTED] |
 | Students and wardens need a better way to practice coordination under route uncertainty. | [VALIDATION PENDING] Problem hypothesis. |
 | Structured information with confidence and age will improve route decisions. | [VALIDATION PENDING] Product hypothesis. |
 | AWS services can support the target role-scoped drill. | [PLANNED] Architecture proposal until deployed and tested. |
@@ -102,8 +102,9 @@ questions to evidence without claiming official scoring:
 ## AWS Proof Contract
 
 The target AWS architecture is described in [`architecture-design.md`](architecture-design.md)
-and [`ai-cloud-integration.md`](ai-cloud-integration.md). The current browser prototype still
-uses the legacy SpacetimeDB bridge.
+and [`ai-cloud-integration.md`](ai-cloud-integration.md). The current browser prototype defaults
+to the deterministic local adapter. The AppSync adapter and CDK scaffold are present but require
+deployment and Cognito configuration.
 
 Minimum credible proof:
 

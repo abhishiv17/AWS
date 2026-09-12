@@ -3,11 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { MAX_PLAYERS, newCode } from "../game/net/types";
+import { newCode } from "../game/net/types";
 
 export default function RoomsPage() {
   const router = useRouter();
-  const [size, setSize] = useState(4);
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const codeInput = useRef<HTMLInputElement>(null);
@@ -22,7 +21,7 @@ export default function RoomsPage() {
   const create = () => {
     const c = newCode();
     try {
-       sessionStorage.setItem(`campusevac:host:${c}`, String(size));
+       sessionStorage.setItem(`campusevac:host:${c}`, "2");
     } catch {
       /* private mode: the room still works, just not across a refresh */
     }
@@ -65,26 +64,8 @@ export default function RoomsPage() {
                <div><h2 className="text-xs font-black uppercase tracking-[0.2em]">New drill room</h2><p className="mt-2 text-sm font-medium text-[#5a5960]">You are the coordinator. Choose how many seats the drill needs.</p></div>
               <span className="font-mono text-xs font-bold text-[#3b63ff]">CREATE_01</span>
             </div>
-            <div className="mt-6 flex flex-wrap items-end gap-5">
-              <label className="flex flex-col gap-2">
-                <span className="text-[10px] font-black uppercase tracking-widest text-[#5a5960]">
-                Players
-                </span>
-              <select
-                value={size}
-                onChange={(e) => setSize(Number(e.target.value))}
-                className="brutal-input w-64 px-3 py-3 text-sm font-bold outline-none"
-              >
-                {Array.from({ length: MAX_PLAYERS - 1 }, (_, i) => i + 2).map(
-                  (n) => (
-                    <option key={n} value={n}>
-                       {n} participants — 1 evacuee, {n - 1} warden
-                       {n - 1 > 1 ? "s" : ""}
-                    </option>
-                  ),
-                )}
-              </select>
-            </label>
+             <div className="mt-6 flex flex-wrap items-end gap-5">
+               <div className="border-2 border-[#111216] bg-[#fffdf7] px-4 py-3 text-sm font-bold shadow-[3px_3px_0_#111216]">2 seats: 1 evacuee + 1 warden</div>
             <button
               onClick={create}
               className="brutal-button px-5 py-3"

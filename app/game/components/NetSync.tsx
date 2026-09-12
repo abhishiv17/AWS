@@ -2,94 +2,86 @@
 
 import { useEffect, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { MARKERS, type RoomId } from "../level";
 import { runtime } from "../runtime";
 import { useSession } from "../session";
-import { useGame, useIsHost } from "../store";
-import type { Snapshot } from "../net/types";
+import { useGame, useIsSimulationOwner } from "../store";
+import type { EvacueeState } from "../net/types";
 
 const PUBLISH_HZ = 12;
 
-const keys = (m: Record<string, boolean>) =>
-  Object.keys(m).filter((k) => m[k]);
+/** Converts local prediction into the small role-scoped state sent to the room. */
+function readEvacueeState(version: number): EvacueeState {
+  const game = useGame.getState();
+  return {
+    kind: "evacuee",
+    t: Date.now(),
+    hazardElapsed: runtime.hazardElapsed,
+    stateVersion: version,
+    eventSequence: version,
+    position: [
+      runtime.evacuee.x,
+      runtime.evacuee.y,
+      runtime.evacuee.z,
+      runtime.evacueeYaw,
+    ],
+    sectorId: runtime.sector,
+    air: game.air,
+    smokeIntensity: game.smokeIntensity,
+    stamina: game.stamina,
+    routeStatus: game.routeStatus,
+    interventionApplied: game.interventionApplied,
+    assemblyProgress: game.assemblyProgress,
+    assemblyConfirmed: game.assemblyConfirmed,
+    failed: game.failed,
+    routeMessage: game.latestMessage,
+    log: game.log,
+  };
+}
 
-/**
- * The wire between clients. The thief's client owns the simulation and pushes a
- * snapshot 12 times a second; spectators fold what they receive back into the
- * same runtime + store the renderers already read from.
- */
 export default function NetSync() {
-  const isHost = useIsHost();
-  const inRoom = useGame((s) => s.mode.kind !== "solo");
-  const publish = useSession((s) => s.publish);
-  const onSnapshot = useSession((s) => s.onSnapshot);
-  const onDiscover = useSession((s) => s.onDiscover);
+  const ownsSimulation = useIsSimulationOwner();
+  const inRoom = useGame((state) => state.mode.kind !== "solo");
+  const publish = useSession((state) => state.publish);
+  const onEvacueeState = useSession((state) => state.onEvacueeState);
+  const onWardenState = useSession((state) => state.onWardenState);
   const acc = useRef(0);
+  const version = useRef(0);
 
-  // host: apply scans coming in from spectators
   useEffect(() => {
-    if (!isHost || !inRoom) return;
-    return onDiscover((itemId) => {
-      const def = MARKERS.find((m) => m.id === itemId);
-      useGame.getState().discover(itemId, def?.label ?? itemId);
+    if (!ownsSimulation || !inRoom) return;
+    return onEvacueeState((state) => {
+      if (useGame.getState().mode.kind === "evacuee")
+        useGame.getState().applyEvacueeState(state);
     });
-  }, [isHost, inRoom, onDiscover]);
+  }, [inRoom, onEvacueeState, ownsSimulation]);
 
-  // spectator: fold snapshots into the local world
   useEffect(() => {
-    if (isHost || !inRoom) return;
-    return onSnapshot((snap: Snapshot) => {
-      runtime.netThief = {
-        x: snap.thief[0],
-        y: snap.thief[1],
-        z: snap.thief[2],
-        yaw: snap.thief[3],
-      };
-      runtime.thiefYaw = snap.thief[3];
-      runtime.hazardElapsed = snap.hazardElapsed ?? runtime.hazardElapsed;
-      runtime.room = snap.room;
-      runtime.alert = snap.alarm;
-      useGame.getState().applySnapshot(snap);
+    if (ownsSimulation || !inRoom) return;
+    return onWardenState((state) => {
+      if (state.evacuee) {
+        runtime.netEvacuee = {
+          x: state.evacuee.position[0],
+          y: state.evacuee.position[1],
+          z: state.evacuee.position[2],
+          yaw: state.evacuee.position[3],
+        };
+        runtime.sector = state.evacuee.sectorId;
+        runtime.evacueeYaw = state.evacuee.position[3];
+      } else {
+        runtime.netEvacuee = null;
+      }
+      runtime.alert = state.smokeIntensity * 100;
+      useGame.getState().applyWardenState(state);
     });
-  }, [isHost, inRoom, onSnapshot]);
+  }, [inRoom, onWardenState, ownsSimulation]);
 
   useFrame((_, dt) => {
-    if (!isHost || !inRoom) return;
+    if (!ownsSimulation || !inRoom) return;
     acc.current += dt;
     if (acc.current < 1 / PUBLISH_HZ) return;
     acc.current = 0;
-
-    const s = useGame.getState();
-    publish({
-      t: Date.now(),
-      hazardElapsed: runtime.hazardElapsed,
-      thief: [
-        runtime.thief.x,
-        runtime.thief.y,
-        runtime.thief.z,
-        runtime.thiefYaw,
-      ],
-      room: runtime.room,
-      hp: s.hp,
-      alarm: s.alarm,
-      spotted: s.spotted,
-      guards: {},
-      cams: {},
-      keycard: s.keycard,
-      codeFound: s.codeFound,
-      vaultOpen: s.vaultOpen,
-      ventOpen: s.ventOpen,
-      alarmDisabled: s.alarmDisabled,
-      escaped: s.escaped,
-      down: s.hp <= 0,
-      loot: s.loot,
-      score: s.score,
-      collected: keys(s.collected),
-      discovered: keys(s.discovered),
-      doorsOpen: keys(s.doorsOpen),
-      explored: keys(s.explored as Record<string, boolean>) as RoomId[],
-      log: s.log,
-    });
+    version.current += 1;
+    publish(readEvacueeState(version.current));
   });
 
   return null;

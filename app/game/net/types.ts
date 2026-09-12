@@ -1,99 +1,172 @@
 import type { RoomId } from "../level";
 import type { CommandCode } from "../commands";
 
-export type Role = "thief" | "spectator";
-export type Phase = "lobby" | "countdown" | "playing" | "ended";
+export type Role = "evacuee" | "warden";
+export type Phase =
+  | "lobby"
+  | "preparing"
+  | "active"
+  | "assembly"
+  | "failed"
+  | "reported";
 
-/** Sectors a warden can be posted to. One each, no overlap while there are seats. */
-export const WATCHABLE: RoomId[] = ["lobby", "sec", "vault"];
+/** The authored MVP gives the warden the utility/evidence sector feed. */
+export const WARDEN_SECTORS: RoomId[] = ["sec"];
 
-export const MAX_PLAYERS = 4;
+export const MAX_PLAYERS = 2;
 export const MIN_PLAYERS = 2;
 export const COUNTDOWN_MS = 10_000;
-export const WARDEN_REJOIN_MS = 20_000;
+export const RECONNECT_WINDOW_MS = 20_000;
 
-export type RoomResult = "escaped" | "down" | "thief-left" | "spectator-left";
+export type RoomResult =
+  | "assembly-confirmed"
+  | "drill-failed"
+  | "participant-left";
 
-export interface PlayerInfo {
+export interface Participant {
   id: string;
   name: string;
   role: Role | null;
-  /** the single sector this warden is posted to */
-  watching: RoomId | null;
+  /** The authored sector feed assigned to a warden. */
+  sectorId: RoomId | null;
   joinedAt: number;
-  /** Set by the authoritative transport while a warden is in grace. */
+  /** Set by the transport while reconnecting. */
   connected?: boolean;
-  rejoinUntil?: number;
+  reconnectUntil?: number;
 }
 
-export interface RoomState {
+export interface DrillRoom {
+  drillId: string;
   code: string;
   hostId: string;
   maxPlayers: number;
   phase: Phase;
-  /** epoch ms the run begins, while phase === "countdown" */
+  /** Epoch milliseconds at which preparation becomes active. */
   startsAt: number | null;
-  players: PlayerInfo[];
+  participants: Participant[];
   createdAt: number;
-  /** shared randomness for the role draw */
+  scenarioVersion: string;
   seed: number;
-  result: RoomResult | null;
+  outcome: RoomResult | null;
 }
 
-export interface VoiceTransmission {
+export type EvidenceStatus =
+  | "UNKNOWN"
+  | "OBSERVED"
+  | "VERIFIED"
+  | "STALE"
+  | "EXPIRED";
+
+export interface EvidenceRecord {
+  id: string;
+  sectorId: RoomId;
+  label: string;
+  source: string;
+  status: EvidenceStatus;
+  observedAt: number | null;
+  verifiedAt: number | null;
+  updatedAt: number;
+  nextAction: string;
+}
+
+export type RouteDirection = "west" | "east" | "wait" | "assembly";
+export type MessageKind = "route" | "hazard" | "wait" | "assembly";
+
+export interface RouteMessage {
+  messageId: string;
+  drillId: string;
+  senderId: string;
+  senderSector: RoomId;
+  targetSector: RoomId;
+  direction: RouteDirection;
+  kind: MessageKind;
+  confidence: "observed" | "verified";
+  urgency: "normal" | "urgent";
+  createdAt: number;
+  expiresAt: number;
+  caption: string;
+  acknowledgedAt: number | null;
+}
+
+export interface CommandAcknowledgement {
   id: string;
   command: CommandCode;
-  by: string;
-  audioUrl: string;
-  t: number;
+  accepted: boolean;
+  reason: string | null;
+  at: number;
+  stateVersion: number;
+  eventSequence: number;
 }
 
-/** Everything a viewer needs to draw the run. Published by the evacuee's client. */
-export interface Snapshot {
-  t: number;
-  /** local hazard clock; carried in transport extras for old table compatibility */
-  hazardElapsed?: number;
-  /** x, y, z, yaw */
-  thief: [number, number, number, number];
-  room: RoomId;
-  hp: number;
-  alarm: number;
-  spotted: boolean;
-  /** patrol id -> x, z, yaw */
-  guards: Record<string, [number, number, number]>;
-  /** camera id -> yaw */
-  cams: Record<string, number>;
-  keycard: boolean;
-  codeFound: boolean;
-  vaultOpen: boolean;
-  ventOpen: boolean;
-  alarmDisabled: boolean;
-  escaped: boolean;
-  down: boolean;
-  loot: number;
-  score: number;
-  collected: string[];
-  discovered: string[];
-  doorsOpen: string[];
-  explored: RoomId[];
-  log: { id: number; text: string; tone: "info" | "good" | "bad" }[];
+export interface LogEntry {
+  id: number;
+  text: string;
+  tone: "info" | "good" | "bad";
 }
 
-export type NetMessage =
-  /** a client announcing itself to the host */
-  | { type: "hello"; player: PlayerInfo }
-  /** the host's authoritative room record */
-  | { type: "room"; room: RoomState }
-  /** the thief's client publishing the world */
-  | { type: "world"; snap: Snapshot }
-  /** a warden scanning something hidden */
-  | { type: "discover"; itemId: string; by: string }
-  /** a warden sending a short call sign to the evacuee */
-  | { type: "command"; command: CommandCode; by: string; t: number }
-  /** a warden sending a support action to the evacuee */
-  | { type: "powerup"; effect: "heal" | "invis"; by: string; t: number }
-  /** a server-hosted TTS reference for the same room-scoped command */
-  | ({ type: "voice" } & VoiceTransmission)
+/** Evacuee payload. It contains no warden evidence or hidden route state. */
+export interface EvacueeState {
+  kind: "evacuee";
+  t: number;
+  hazardElapsed: number;
+  stateVersion: number;
+  eventSequence: number;
+  position: [number, number, number, number];
+  sectorId: RoomId;
+  air: number;
+  smokeIntensity: number;
+  stamina: number;
+  routeStatus: "clear" | "unsafe" | "intervened";
+  interventionApplied: boolean;
+  assemblyProgress: number;
+  assemblyConfirmed: boolean;
+  failed: boolean;
+  routeMessage: RouteMessage | null;
+  log: LogEntry[];
+}
+
+/** Warden payload. Evidence is filtered to the participant's assigned sector. */
+export interface WardenState {
+  kind: "warden";
+  t: number;
+  stateVersion: number;
+  eventSequence: number;
+  assignedSector: RoomId;
+  evacuee: {
+    position: [number, number, number, number];
+    sectorId: RoomId;
+  } | null;
+  air: number;
+  smokeIntensity: number;
+  routeStatus: "clear" | "unsafe" | "intervened";
+  interventionApplied: boolean;
+  assemblyProgress: number;
+  assemblyConfirmed: boolean;
+  failed: boolean;
+  evidence: EvidenceRecord[];
+  latestMessage: RouteMessage | null;
+  lastAcknowledgement: CommandAcknowledgement | null;
+  log: LogEntry[];
+}
+
+export type ClientIntent =
+  | { type: "evacuee-state"; state: EvacueeState }
+  | {
+      type: "warden-command";
+      command: CommandCode;
+      evidenceId?: string;
+      clientSentAt: number;
+      idempotencyKey: string;
+    }
+  | { type: "observe-evidence"; evidenceId: string; clientSentAt: number };
+
+export type NetEvent =
+  | { type: "room"; room: DrillRoom }
+  | { type: "evacuee-state"; state: EvacueeState }
+  | { type: "warden-state"; state: WardenState }
+  | { type: "route-message"; message: RouteMessage }
+  | { type: "command-ack"; acknowledgement: CommandAcknowledgement }
+  | { type: "evidence"; evidence: EvidenceRecord }
   | { type: "bye"; id: string };
 
 export type JoinFailure =
@@ -106,27 +179,28 @@ export type StartFailure = "notfound" | "not-host" | "not-ready" | "started";
 export type StartResult =
   | { ok: true }
   | { ok: false; error: StartFailure };
+export type JoinResult =
+  | { room: DrillRoom; participantId?: string }
+  | { error: JoinFailure };
 
 /**
- * One transport, so the game does not care whether rooms live in this Next
- * server's memory or in a SpacetimeDB module. Each method maps onto one
- * reducer on the SpacetimeDB side.
+ * The game speaks intent and receives role-scoped events. The local adapter and
+ * AppSync implementation share this contract so the renderer does not know
+ * which provider owns the room.
  */
 export interface NetClient {
-  readonly kind: "server" | "spacetime";
-  /** open the live stream for a room */
+  readonly kind: "mock" | "appsync";
   connect(code: string): Promise<void>;
   disconnect(intentional?: boolean): void;
-  createRoom(room: RoomState): Promise<RoomState | null>;
+  createRoom(room: DrillRoom): Promise<DrillRoom | null>;
   join(
     code: string,
-    player: PlayerInfo,
-  ): Promise<{ room: RoomState } | { error: JoinFailure }>;
+    participant: Participant,
+  ): Promise<JoinResult>;
   leave(code: string, playerId: string): void;
   start(code: string, playerId: string): Promise<StartResult>;
-  /** fan-out only: world snapshots and scans */
-  send(msg: NetMessage): void;
-  onMessage(cb: (m: NetMessage) => void): () => void;
+  send(intent: ClientIntent): void;
+  onMessage(cb: (event: NetEvent) => void): () => void;
 }
 
 export const newCode = () => {

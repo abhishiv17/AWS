@@ -6,7 +6,7 @@ import { runtime } from "../runtime";
 import { useGame } from "../store";
 
 /**
- * Phone controls for the thief: a stick on the left thumb, look on the right.
+ * Phone controls for the evacuee: a stick on the left thumb, look on the right.
  *
  * Both halves write straight into `runtime`, which is where the simulation
  * already reads input from - nothing here re-renders React per frame. Each
@@ -177,21 +177,21 @@ function ActionButton({
 
 export default function TouchControls() {
   const prompt = useGame((s) => s.prompt);
-  const hp = useGame((s) => s.hp);
-  const escaped = useGame((s) => s.escaped);
+  const air = useGame((s) => s.air);
+  const failed = useGame((s) => s.failed);
+  const assemblyConfirmed = useGame((s) => s.assemblyConfirmed);
   // only label the interact button with what it would actually do
   const [action, setAction] = useState<string | null>(null);
 
   useEffect(() => {
     const id = window.setInterval(() => {
-      const kind = runtime.useTarget?.kind ?? null;
-      setAction(kind === "vent" ? "vent" : kind);
+      setAction(runtime.useTarget?.kind ?? null);
     }, 200);
     return () => window.clearInterval(id);
   }, []);
 
-  if (hp <= 0 || escaped) return null;
-  const ventHere = action === "vent";
+  if (air <= 0 || failed || assemblyConfirmed) return null;
+  const assemblyHere = action === "assembly";
 
   return (
     <div className="pointer-events-none absolute inset-0 z-20 select-none">
@@ -214,13 +214,13 @@ export default function TouchControls() {
         <ActionButton
           label="E"
           hint="use"
-          color={action === "keypad" || action === "alarm" ? "#ffd23b" : "#8b94a1"}
+          color={action === "intervention" ? "#38bdf8" : "#8b94a1"}
           onPress={pressUse}
         />
         <ActionButton
-          label={ventHere ? "EXIT" : "JUMP"}
-          hint={ventHere ? "vent" : undefined}
-          color={ventHere ? "#39ff88" : "#e9ff4f"}
+          label={assemblyHere ? "READY" : "JUMP"}
+          hint={assemblyHere ? "assembly" : undefined}
+          color={assemblyHere ? "#10b981" : "#facc15"}
           onPress={pressJump}
         />
       </div>

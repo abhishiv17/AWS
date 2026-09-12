@@ -1,7 +1,6 @@
 export type Vec3 = [number, number, number];
 
-/* ------------------------------------------------------------------ layout */
-
+/* The compact authored block. IDs are stable across render, collision, and events. */
 export type RoomId =
   | "outside"
   | "entry"
@@ -27,46 +26,20 @@ export interface RoomDef {
   name: string;
   blurb: string;
   bounds: Bounds;
-  /** contents stay hidden from wardens until the evacuee enters the sector */
   fog: boolean;
   floor: string;
-  /**
-   * Warden camera pose for this room.
-   *
-   * For the three watchable rooms this sits behind the door the evacuee walks in
-   * through, looking into the room along the same axis they walk. That is what
-   * makes a callout mean anything: the warden's screen-right is the evacuee's
-   * right, so "LEFT" is the same left for both of them.
-   *
-   * All three are the same shot, 14 back and 19.3 up - about 54 degrees, 24
-   * units out - so a warden moved between sectors is not re-learning the view.
-   *
-   * Two rules when touching these. `pos` and `target` must share the axis the
-   * evacuee walks along (equal z for the side rooms, equal x for the lobby): any
-   * yaw between them twists left and right apart. And `target` is the *centre
-   * of the room*, not the doorway - aiming at the door instead pushes the room
-   * a fifth of a frame off-centre and leaves dead space down one side.
-   */
   cam: { pos: Vec3; target: Vec3 };
 }
 
 /**
- * Campus block floorplan, seen from above (+Z is south / towards the assembly court):
- *
- *        ┌──────────────┐        ┌──────────────┐
- *        │ CONTROL      │──┐  ┌──│ ARCHIVES     │   (exit annex sticks out
- *        │              │  │  │  │              │    through the north wall)
- *        └──────────────┘  │  │  └──────────────┘
- *                       ┌──┴──┴──┐
- *                       │ LOBBY  │
- *                       └───┬────┘
- *                        ENTRANCE
+ * The renderer retains the compact block foundation while the labels and
+ * interaction catalog describe the CampusEvac topology.
  */
 export const ROOMS: RoomDef[] = [
   {
     id: "outside",
-    name: "Assembly Court",
-    blurb: "Safe staging area. The campus entrance is straight ahead.",
+    name: "Outdoor Assembly",
+    blurb: "Safe staging area with the assembly beacon ahead.",
     bounds: { minX: -14, maxX: 14, minZ: 10.5, maxZ: 26 },
     fog: false,
     floor: "#2c2f33",
@@ -74,8 +47,8 @@ export const ROOMS: RoomDef[] = [
   },
   {
     id: "entry",
-    name: "Main Entrance",
-    blurb: "Glass doors into the central lobby.",
+    name: "Main Foyer",
+    blurb: "Notice wall and orientation point for the drill.",
     bounds: { minX: -3, maxX: 3, minZ: 7, maxZ: 10.5 },
     fog: false,
     floor: "#6e6a63",
@@ -83,27 +56,26 @@ export const ROOMS: RoomDef[] = [
   },
   {
     id: "lobby",
-    name: "Central Lobby",
-    blurb: "Reception area with a route to each campus sector.",
+    name: "Corridor Junction",
+    blurb: "Primary route decision between the west and east stairs.",
     bounds: { minX: -5.5, maxX: 5.5, minZ: -7, maxZ: 7 },
     fog: true,
     floor: "#7b7770",
-    // entered from the entrance hall, due south
     cam: { pos: [0, 19.9, 14], target: [0, 0.6, 0] },
   },
   {
     id: "wcorr",
-    name: "Control Passage",
-    blurb: "Short corridor to the control sector.",
+    name: "West Stair",
+    blurb: "Candidate route to the outdoor assembly point.",
     bounds: { minX: -8, maxX: -5.5, minZ: 1, maxZ: 4 },
     fog: false,
     floor: "#6e6a63",
-    cam: { pos: [-7, 9, 18], target: [-7, 1.4, 2 ] },
+    cam: { pos: [-7, 9, 18], target: [-7, 1.4, 2] },
   },
   {
     id: "ecorr",
-    name: "Archives Passage",
-    blurb: "Short corridor to the archives sector.",
+    name: "East Stair",
+    blurb: "Route edge that becomes unsafe during the scenario.",
     bounds: { minX: 5.5, maxX: 8, minZ: 1, maxZ: 4 },
     fog: false,
     floor: "#6e6a63",
@@ -111,28 +83,26 @@ export const ROOMS: RoomDef[] = [
   },
   {
     id: "sec",
-    name: "Control Sector",
-    blurb: "Monitoring, ventilation controls, and the emergency access key.",
+    name: "Lab and Utility",
+    blurb: "Smoke source evidence and the ventilation panel.",
     bounds: { minX: -22, maxX: -8, minZ: -7, maxZ: 7 },
     fog: true,
     floor: "#78746d",
-    // door is in the east wall: look west, the way the evacuee walks in
     cam: { pos: [-1, 19.9, 0], target: [-15, 0.6, 0] },
   },
   {
     id: "vault",
-    name: "Archives Sector",
-    blurb: "Restricted sector with a route-control panel.",
+    name: "Dorm Wing",
+    blurb: "A secondary campus sector beyond the east passage.",
     bounds: { minX: 8, maxX: 22, minZ: -7, maxZ: 7 },
     fog: true,
     floor: "#78746d",
-    // entered through the west wall: look east, the way the evacuee walks in
     cam: { pos: [1, 19.9, 0], target: [15, 0.6, 0] },
   },
   {
     id: "annex",
-    name: "Exit Annex",
-    blurb: "Service route behind the round access door.",
+    name: "Electrical Service",
+    blurb: "Authored smoke origin and recovery route.",
     bounds: { minX: 13, maxX: 17, minZ: -10, maxZ: -7 },
     fog: false,
     floor: "#5d5a55",
@@ -140,46 +110,19 @@ export const ROOMS: RoomDef[] = [
   },
 ];
 
-export const roomById = (id: RoomId) => ROOMS.find((r) => r.id === id)!;
-
-/** The sectors a warden can be posted to. */
-export const WATCHED_ROOMS: RoomId[] = ["lobby", "sec", "vault"];
-
-/**
- * Which warden has the evacuee's channel, or null when nobody does.
- *
- * A warden is on air exactly while the evacuee is standing in the sector they
- * were posted to - which is exactly while they can see the evacuee at all. Three
- * people calling "LEFT" about three different rooms is worse than silence, so
- * only one of them is ever live, and someone watching an empty room cannot
- * guide an evacuee they are not looking at.
- *
- * The corridors, entrance hall, and assembly court belong to nobody on purpose:
- * they are a few seconds of walking with nothing in them, and folding them into
- * a neighbour would put a warden on air over a sector the evacuee has not
- * reached yet.
- */
-export const commandChannel = (thiefRoom: RoomId): RoomId | null =>
-  WATCHED_ROOMS.includes(thiefRoom) ? thiefRoom : null;
-
-/**
- * Can this warden talk to the evacuee right now?
- *
- * Only the warden whose sector the evacuee is standing in. Everyone else is off
- * air, so two people can never call directions over each other.
- */
-export function channelOpen(
-  thiefRoom: RoomId,
-  watching: RoomId | null,
-): boolean {
-  return watching !== null && commandChannel(thiefRoom) === watching;
-}
+export const roomById = (id: RoomId) => ROOMS.find((room) => room.id === id)!;
 
 export function roomAt(x: number, z: number): RoomId {
-  for (const r of ROOMS) {
-    if (r.id === "outside") continue;
-    const b = r.bounds;
-    if (x >= b.minX && x <= b.maxX && z >= b.minZ && z <= b.maxZ) return r.id;
+  for (const room of ROOMS) {
+    if (room.id === "outside") continue;
+    const bounds = room.bounds;
+    if (
+      x >= bounds.minX &&
+      x <= bounds.maxX &&
+      z >= bounds.minZ &&
+      z <= bounds.maxZ
+    )
+      return room.id;
   }
   return "outside";
 }
@@ -187,23 +130,19 @@ export function roomAt(x: number, z: number): RoomId {
 /* ------------------------------------------------------------------- walls */
 
 export interface Opening {
-  /** position along the wall axis */
   at: number;
   width: number;
-  /** clear height of the hole; wall above it becomes a lintel */
   height?: number;
 }
 
 export interface WallDef {
   id: string;
-  /** "x" walls run along X at a fixed Z, "z" walls run along Z at a fixed X */
   axis: "x" | "z";
   fixed: number;
   from: number;
   to: number;
   openings?: Opening[];
   height?: number;
-  /** hidden in warden views so the building reads as a cutaway */
   cutaway?: boolean;
   color?: string;
 }
@@ -212,7 +151,6 @@ const OUT = "#6c706d";
 const IN = "#8f8b83";
 
 export const WALLS: WallDef[] = [
-  // exterior shell
   {
     id: "w-north",
     axis: "x",
@@ -220,7 +158,6 @@ export const WALLS: WallDef[] = [
     from: -22.15,
     to: 22.15,
     color: OUT,
-    // the round route-control door lives in this hole
     openings: [{ at: 15, width: 3.6, height: 2.9 }],
   },
   { id: "w-west", axis: "z", fixed: -22, from: -7.15, to: 7.15, color: OUT },
@@ -253,15 +190,11 @@ export const WALLS: WallDef[] = [
     to: 3.15,
     height: 3.2,
     color: OUT,
-    openings: [{ at: 0, width: 3.0, height: 2.6 }],
+    openings: [{ at: 0, width: 3, height: 2.6 }],
   },
-
-  // exit annex, poking out through the north wall
   { id: "w-annex-w", axis: "z", fixed: 13, from: -10.15, to: -7, color: OUT },
   { id: "w-annex-e", axis: "z", fixed: 17, from: -10.15, to: -7, color: OUT },
   { id: "w-annex-n", axis: "x", fixed: -10, from: 12.85, to: 17.15, color: OUT },
-
-  // interior partitions - each pair frames a short connecting passage
   {
     id: "w-sec-e",
     axis: "z",
@@ -300,7 +233,6 @@ export const WALLS: WallDef[] = [
   },
 ];
 
-/** Solid structure filling the gaps either side of the passages. */
 export const MASSES: { x1: number; z1: number; x2: number; z2: number }[] = [
   { x1: -8, z1: -7.15, x2: -5.5, z2: 1 },
   { x1: -8, z1: 4, x2: -5.5, z2: 7.15 },
@@ -308,7 +240,6 @@ export const MASSES: { x1: number; z1: number; x2: number; z2: number }[] = [
   { x1: 5.5, z1: 4, x2: 8, z2: 7.15 },
 ];
 
-/** Floor / ceiling slabs. Ceilings are dropped in the warden views. */
 export const SLABS: {
   id: string;
   x1: number;
@@ -329,59 +260,43 @@ export interface DoorDef {
   id: string;
   label: string;
   room: RoomId;
-  /** centre of the opening */
   at: Vec3;
-  /** orientation of the wall the door sits in */
   axis: "x" | "z";
   width: number;
   height: number;
   color: string;
-  /** hinge side, so two doors in one passage do not swing into each other */
   swing: 1 | -1;
-  lock?: "keycard";
 }
 
 export const DOORS: DoorDef[] = [
   {
-    id: "door-sec",
-    label: "Security room door",
+    id: "door-utility",
+    label: "Utility access door",
     room: "wcorr",
     at: [-8, 0, 2.5],
     axis: "z",
     width: 1.6,
     height: 2.4,
-    color: "#4aa8ff",
+    color: "#38bdf8",
     swing: 1,
   },
   {
-    id: "door-vault",
-    label: "Vault room door",
+    id: "door-dorm",
+    label: "Dorm wing access door",
     room: "ecorr",
     at: [5.5, 0, 2.5],
     axis: "z",
     width: 1.6,
     height: 2.4,
-    color: "#ffd23b",
+    color: "#facc15",
     swing: -1,
-    lock: "keycard",
   },
 ];
 
-/* ----------------------------------------------------------------- markers */
+/* --------------------------------------------------------------- evidence */
 
-export type Reveal = "spectator" | "discovery";
-
-export type MarkerKind =
-  | "camera"
-  | "keypad"
-  | "guard"
-  | "health"
-  | "vent"
-  | "trap"
-  | "alarm"
-  | "valuables"
-  | "keycard"
-  | "note";
+export type Reveal = "warden" | "evidence";
+export type MarkerKind = "evidence" | "intervention" | "route";
 
 export interface MarkerDef {
   id: string;
@@ -394,363 +309,83 @@ export interface MarkerDef {
   position: Vec3;
   labelOffset?: Vec3;
   rotationY?: number;
+  source?: string;
+  nextAction?: string;
 }
 
 export const C = {
-  red: "#ff3b47",
-  yellow: "#ffd23b",
-  blue: "#4aa8ff",
-  green: "#39ff88",
-  cyan: "#3bd8ff",
-  lime: "#c8ff3b",
-  pink: "#ff7ad9",
+  red: "#ef4444",
+  yellow: "#facc15",
+  blue: "#38bdf8",
+  green: "#10b981",
+  slate: "#334155",
 };
 
-export interface CameraDef extends MarkerDef {
-  kind: "camera";
-  /** centre yaw the camera sweeps around; 0 looks down -Z */
-  baseYaw: number;
-  sweep: number;
-  speed: number;
-  pitch: number;
-  range: number;
-  fov: number;
-}
-
-export const CAMERAS: CameraDef[] = [
-  {
-    id: "lobby-cam",
-    kind: "camera",
-    label: "Camera (active)",
-    reveal: "spectator",
-    room: "lobby",
-    color: C.red,
-    position: [-4.9, 3.3, -6.5],
-    labelOffset: [0, 0.75, 0],
-    baseYaw: -2.5,
-    sweep: 0.5,
-    speed: 0.33,
-    pitch: -0.42,
-    range: 10,
-    fov: 0.4,
-  },
-  {
-    id: "sec-cam-a",
-    kind: "camera",
-    label: "Camera (active)",
-    reveal: "spectator",
-    room: "sec",
-    color: C.red,
-    position: [-9.2, 3.35, -6.5],
-    labelOffset: [0, 0.75, 0],
-    baseYaw: -2.35,
-    sweep: 0.55,
-    speed: 0.3,
-    pitch: -0.4,
-    range: 11,
-    fov: 0.42,
-  },
-  {
-    id: "sec-cam-b",
-    kind: "camera",
-    label: "Camera (hidden)",
-    sub: "no status light",
-    reveal: "discovery",
-    room: "sec",
-    color: C.red,
-    position: [-21.3, 3.4, 5.9],
-    labelOffset: [0, 0.75, 0],
-    baseYaw: 0.75,
-    sweep: 0.45,
-    speed: 0.26,
-    pitch: -0.38,
-    range: 11,
-    fov: 0.38,
-  },
-  {
-    id: "vault-cam-a",
-    kind: "camera",
-    label: "Camera (active)",
-    reveal: "spectator",
-    room: "vault",
-    color: C.red,
-    position: [9.2, 3.35, -6.5],
-    labelOffset: [0, 0.75, 0],
-    baseYaw: 2.35,
-    sweep: 0.55,
-    speed: 0.31,
-    pitch: -0.4,
-    range: 11,
-    fov: 0.42,
-  },
-  {
-    id: "vault-cam-b",
-    kind: "camera",
-    label: "Camera (hidden)",
-    sub: "no status light",
-    reveal: "discovery",
-    room: "vault",
-    color: C.red,
-    position: [21.3, 3.4, 5.9],
-    labelOffset: [0, 0.75, 0],
-    baseYaw: -0.75,
-    sweep: 0.45,
-    speed: 0.24,
-    pitch: -0.38,
-    range: 11,
-    fov: 0.38,
-  },
-];
-
+/** Stable IDs are shared by the local fixtures, AppSync payloads, and renderer. */
 export const MARKERS: MarkerDef[] = [
-  /* --- control sector ------------------------------------------------ */
   {
-    id: "keycard",
-    kind: "keycard",
-     label: "Emergency access key",
-     sub: "opens the route-control panel",
-    reveal: "spectator",
+    id: "east-route-evidence",
+    kind: "evidence",
+    label: "East route sensor",
+    sub: "observed route block",
+    reveal: "evidence",
     room: "sec",
-    color: C.yellow,
-    position: [-13.4, 0.95, -5.7],
-    labelOffset: [0, 0.7, 0],
-  },
-  {
-    id: "health",
-    kind: "health",
-     label: "Stabilization kit",
-    reveal: "spectator",
-    room: "sec",
-    color: C.green,
-    position: [-20.6, 0.42, 2.4],
+    color: C.red,
+    position: [-11.2, 1.3, 0.2],
     labelOffset: [0, 0.75, 0],
+    source: "Utility sector sensor feed",
+    nextAction: "Verify before sending route guidance.",
   },
   {
-    id: "sec-vent",
-    kind: "vent",
-     label: "Service hatch (alternate route)",
-     sub: "evacuee can use this route",
-    reveal: "discovery",
+    id: "smoke-source-evidence",
+    kind: "evidence",
+    label: "Smoke source reading",
+    sub: "observed 8 seconds ago",
+    reveal: "evidence",
     room: "sec",
-    color: C.cyan,
-    position: [-21.85, 2.9, -1.2],
-    labelOffset: [0.25, 0.8, 0],
-    rotationY: Math.PI / 2,
+    color: C.yellow,
+    position: [-19, 1.1, -4],
+    labelOffset: [0, 0.75, 0],
+    source: "Electrical service monitor",
+    nextAction: "Compare the source with the route status.",
   },
   {
-    id: "sec-trap",
-    kind: "trap",
-     label: "Pressure hazard (hidden)",
-     sub: "reduces condition on contact",
-    reveal: "discovery",
+    id: "ventilation-panel",
+    kind: "intervention",
+    label: "Ventilation panel",
+    sub: "one authorized intervention",
+    reveal: "warden",
     room: "sec",
-    color: C.red,
-    position: [-16.8, 0.03, 3.1],
-    labelOffset: [0, 1.5, 0],
-  },
-  {
-    id: "alarm",
-    kind: "alarm",
-     label: "Ventilation control",
-     sub: "can be activated (E)",
-    reveal: "discovery",
-    room: "sec",
-    color: C.red,
-    position: [-12.2, 2.0, -6.8],
+    color: C.blue,
+    position: [-12.2, 2, -6.8],
     labelOffset: [0, 0.85, 0],
+    source: "Utility control panel",
+    nextAction: "Apply only after the route evidence is verified.",
   },
   {
-    id: "note",
-    kind: "note",
-     label: "Route code notice",
-    sub: "4-7-1-2",
-    reveal: "discovery",
-    room: "sec",
-    color: C.pink,
-    position: [-16.4, 0.83, -5.7],
-    labelOffset: [0, 0.7, 0],
-  },
-  {
-    id: "sec-network",
-    kind: "note",
-    label: "Network Node",
-    sub: "Scan for intel",
-    reveal: "discovery",
-    room: "sec",
-    color: C.cyan,
-    position: [-11.0, 1.2, 0.0],
-    labelOffset: [0, 0.7, 0],
-  },
-  {
-    id: "sec-coffee",
-    kind: "note",
-     label: "Active station",
-    sub: "Scan for intel",
-    reveal: "discovery",
-    room: "sec",
-    color: C.cyan,
-    position: [-19.0, 1.0, -4.0],
-    labelOffset: [0, 0.7, 0],
-  },
-
-  /* --- lobby -------------------------------------------------------- */
-  {
-    id: "bandages",
-    kind: "health",
-     label: "Stabilization kit (collect)",
-     sub: "+20 condition",
-    reveal: "discovery",
+    id: "west-route-sign",
+    kind: "route",
+    label: "West route sign",
+    sub: "alternate route to assembly",
+    reveal: "warden",
     room: "lobby",
     color: C.green,
-    position: [-1.1, 0.42, 4.3],
+    position: [-2.8, 2.5, -6.8],
     labelOffset: [0, 0.7, 0],
-  },
-  {
-    id: "lobby-guestlog",
-    kind: "note",
-    label: "Guest Log",
-    sub: "Scan for intel",
-    reveal: "discovery",
-    room: "lobby",
-    color: C.cyan,
-    position: [0.0, 1.0, -2.0],
-    labelOffset: [0, 0.7, 0],
-  },
-  {
-    id: "lobby-terminal",
-    kind: "note",
-    label: "Reception Terminal",
-    sub: "Scan for intel",
-    reveal: "discovery",
-    room: "lobby",
-    color: C.cyan,
-    position: [2.5, 1.1, 0.5],
-    labelOffset: [0, 0.7, 0],
-  },
-
-  /* --- archives sector ---------------------------------------------- */
-  {
-    id: "keypad",
-    kind: "keypad",
-     label: "Route-control panel (needs code)",
-    reveal: "spectator",
-    room: "vault",
-    color: C.yellow,
-    position: [17.6, 1.6, -6.75],
-    labelOffset: [0.2, 0.85, 0],
-  },
-  {
-    id: "vault-trap",
-    kind: "trap",
-     label: "Pressure hazard (hidden)",
-     sub: "reduces condition on contact",
-    reveal: "discovery",
-    room: "vault",
-    color: C.red,
-    position: [15, 0.03, 2.2],
-    labelOffset: [0, 1.5, 0],
-  },
-  {
-    id: "valuables",
-    kind: "valuables",
-     label: "Emergency supplies (collect)",
-    sub: "+150",
-    reveal: "discovery",
-    room: "vault",
-    color: C.lime,
-    position: [10.6, 0.86, 4.3],
-    labelOffset: [0, 0.8, 0],
-  },
-  {
-    id: "vault-loot",
-    kind: "valuables",
-     label: "Supply cache",
-     sub: "+500 - optional readiness credit",
-    reveal: "spectator",
-    room: "vault",
-    color: C.yellow,
-    position: [15, 0.75, -8.6],
-    labelOffset: [0, 1.0, 0],
-  },
-  {
-     // The way out. Hidden until the warden posted to the sector scans it, so
-     // the drill has a second job alongside the access key: the evacuee cannot
-     // use this route until the response team has found the hatch.
-    id: "vault-vent",
-    kind: "vent",
-     label: "Marked service exit",
-     sub: "move through to reach assembly",
-    reveal: "discovery",
-    room: "vault",
-    color: C.cyan,
-    position: [21.85, 1.05, 2.0],
-    labelOffset: [-0.4, 0.9, 0],
-    rotationY: -Math.PI / 2,
-  },
-  {
-    id: "vault-deposit-box",
-    kind: "note",
-    label: "Safe Deposit Box",
-    sub: "Scan for intel",
-    reveal: "discovery",
-    room: "vault",
-    color: C.cyan,
-    position: [12.0, 1.0, -2.0],
-    labelOffset: [0, 0.7, 0],
+    source: "Physical route signage",
+    nextAction: "Send the west route when the block is verified.",
   },
 ];
 
-/* ------------------------------------------------------------------ guards */
-
-export interface PatrolDef {
-  id: string;
-  room: RoomId;
-  path: [number, number][];
-  vision: { range: number; fov: number };
-}
-
-export const PATROLS: PatrolDef[] = [
-  {
-    id: "guard-sec",
-    room: "sec",
-    path: [
-      [-18.5, -2.5],
-      [-18.5, 4.5],
-      [-10.5, 4.5],
-      [-10.5, -2.5],
-    ],
-    vision: { range: 7, fov: 0.6 },
-  },
-  {
-    id: "guard-vault",
-    room: "vault",
-    path: [
-      [11.5, -3],
-      [19.5, -3],
-      [19.5, 3.5],
-      [11.5, 3.5],
-    ],
-    vision: { range: 7, fov: 0.6 },
-  },
-];
-
-export const GUARD_LABEL = "Patrol unit (active)";
-
-/* ------------------------------------------------------------------ player */
-
-/** The evacuee starts in the assembly court, outside the building. */
-export const THIEF_SPAWN: Vec3 = [0, 1.1, 15.5];
-
-/** Reaching this again with the supplies ends the drill. */
-export const ESCAPE_Z = 13.5;
+export const EVACUEE_SPAWN: Vec3 = [0, 1.1, 9];
+export const ASSEMBLY_Z = 13.5;
 
 export function isRevealed(
   reveal: Reveal,
   view: string,
-  discovered: boolean,
+  observed: boolean,
 ): boolean {
-  if (view === "thief") return false;
-  if (reveal === "spectator") return true;
-  // discovery-tier markers stay tagged in the plain warden view once found
-  return view === "discovery" || discovered;
+  if (view === "evacuee") return false;
+  if (reveal === "warden") return true;
+  return view === "evidence" || observed;
 }

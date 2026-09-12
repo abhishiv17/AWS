@@ -5,8 +5,7 @@ import { Html, Edges } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { isRevealed, type MarkerDef, type Vec3 } from "../level";
-import { useGame, useRoomVisible } from "../store";
-import { roomById } from "../level";
+import { useGame, useSectorVisible } from "../store";
 
 /** Screen-space neon chip, same language as the reference mock. */
 export function Label({
@@ -101,7 +100,7 @@ export function NeonBox({
   );
 }
 
-/** The clickable "something is here" blip used in discovery mode. */
+/** The clickable evidence target used in evidence review. */
 function Blip({
   position,
   color,
@@ -188,7 +187,7 @@ function Blip({
             opacity: hovered ? 1 : 0.8,
           }}
         >
-          ? scan
+          ? inspect
         </div>
       </Html>
     </group>
@@ -196,33 +195,34 @@ function Blip({
 }
 
 export interface MarkerViewState {
-  /** fully revealed: neon outline + label */
+  /** Fully revealed: neon outline and label. */
   revealed: boolean;
-  /** discovery-tier and still unfound: show a clickable blip instead */
+  /** Unobserved evidence in the evidence view. */
   pending: boolean;
-  discover: () => void;
+  inspect: () => void;
 }
 
 export function useMarker(def: MarkerDef): MarkerViewState {
   const view = useGame((s) => s.view);
-  const discovered = useGame((s) => !!s.discovered[def.id]);
-  // a room is legible once the thief has been in it, or - in multiplayer - if
-  // this is the one room you were posted to
-  const visible = useRoomVisible(def.room);
-  const revealed = visible && isRevealed(def.reveal, view, discovered);
+  const evidence = useGame((s) => s.evidence[def.id]);
+  const observed = evidence?.status !== undefined && evidence.status !== "UNKNOWN";
+  const visible = useSectorVisible(def.room);
+  const revealed = visible && isRevealed(def.reveal, view, observed);
   return {
-    revealed: revealed && (def.reveal === "spectator" || discovered),
+    revealed,
     pending:
       visible &&
-      view === "discovery" &&
-      def.reveal === "discovery" &&
-      !discovered,
-    discover: () => {
-      const event = new CustomEvent("start-puzzle", {
+      view === "evidence" &&
+      def.kind === "evidence" &&
+      !observed,
+    inspect: () => {
+      const event = new CustomEvent("inspect-evidence", {
         detail: {
           id: def.id,
           label: def.label,
-          roomName: roomById(def.room).name,
+          sectorId: def.room,
+          source: def.source ?? "Authored sector evidence",
+          nextAction: def.nextAction ?? "Inspect and verify the evidence.",
         },
       });
       window.dispatchEvent(event);
@@ -231,8 +231,8 @@ export function useMarker(def: MarkerDef): MarkerViewState {
 }
 
 /**
- * Standard overlay for a prop: neon volume + chip when revealed, clickable
- * blip while the spectator has not found it yet. Renders nothing in thief view.
+ * Standard overlay for a prop: neon volume and chip when visible, clickable
+ * evidence blip before it is observed.
  */
 export function MarkerOverlay({
   def,
@@ -245,7 +245,7 @@ export function MarkerOverlay({
   rotation?: Vec3;
   center?: Vec3;
 }) {
-  const { revealed, pending, discover } = useMarker(def);
+  const { revealed, pending, inspect } = useMarker(def);
   const p = center ?? def.position;
   const lo = def.labelOffset ?? [0, 0.7, 0];
 
@@ -254,7 +254,7 @@ export function MarkerOverlay({
       <Blip
         position={[p[0], p[1] + 0.25, p[2]]}
         color={def.color}
-        onClick={discover}
+        onClick={inspect}
       />
     );
 

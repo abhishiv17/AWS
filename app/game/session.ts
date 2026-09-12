@@ -3,19 +3,8 @@
 import { create } from "zustand";
 import { createNet } from "./net";
 import { resolveRoom } from "./net/roles";
-import { channelOpen } from "./level";
-import { useGame } from "./store";
+import { newId, MAX_PLAYERS, type ClientIntent, type CommandAcknowledgement, type DrillRoom, type EvidenceRecord, type EvacueeState, type NetEvent, type NetClient, type Participant, type RouteMessage, type WardenState } from "./net/types";
 import type { CommandCode } from "./commands";
-import {
-  MAX_PLAYERS,
-  newId,
-  type NetClient,
-  type NetMessage,
-  type PlayerInfo,
-  type RoomState,
-  type Snapshot,
-  type VoiceTransmission,
-} from "./net/types";
 
 export { assignRoles, resolveRoom } from "./net/roles";
 
@@ -23,6 +12,8 @@ export type SessionStatus =
   | "idle"
   | "connecting"
   | "connected"
+  | "reconnecting"
+  | "offline"
   | "notfound"
   | "full"
   | "unavailable"
@@ -34,39 +25,36 @@ interface SessionState {
   status: SessionStatus;
   code: string | null;
   myId: string | null;
-  room: RoomState | null;
-  /** true while this tab owns the room record */
+  room: DrillRoom | null;
   isHost: boolean;
   startError: string | null;
-  /** latest snapshot received from the evacuee's client (wardens only) */
-  lastSnapshot: Snapshot | null;
-  /** local receive time, so live status is not affected by device clock skew */
-  lastSnapshotAt: number;
+  lastEvacueeState: EvacueeState | null;
+  lastWardenState: WardenState | null;
+  lastStateAt: number;
 
-  connect: (code: string, name: string, asHost?: RoomState) => Promise<void>;
+  connect: (code: string, name: string, asHost?: DrillRoom) => Promise<void>;
   leave: () => void;
   disconnect: (intentional?: boolean) => void;
   startNow: () => Promise<boolean>;
-  sendDiscover: (itemId: string) => void;
-  sendCommand: (command: CommandCode) => void;
-  publish: (snap: Snapshot) => void;
-  onSnapshot: (cb: (s: Snapshot) => void) => () => void;
-  onDiscover: (cb: (itemId: string) => void) => () => void;
-  onCommand: (cb: (command: CommandCode, by: string) => void) => () => void;
-  onVoice: (cb: (voice: VoiceTransmission) => void) => () => void;
-  sendPowerUp: (effect: "heal" | "invis") => void;
-  onPowerUp: (cb: (effect: "heal" | "invis", by: string) => void) => () => void;
+  observeEvidence: (evidenceId: string) => void;
+  sendCommand: (command: CommandCode, evidenceId?: string) => void;
+  publish: (state: EvacueeState) => void;
+  onEvacueeState: (callback: (state: EvacueeState) => void) => () => void;
+  onWardenState: (callback: (state: WardenState) => void) => () => void;
+  onRouteMessage: (callback: (message: RouteMessage) => void) => () => void;
+  onAcknowledgement: (callback: (acknowledgement: CommandAcknowledgement) => void) => () => void;
+  onEvidence: (callback: (evidence: EvidenceRecord) => void) => () => void;
 }
 
-const snapshotSubs = new Set<(s: Snapshot) => void>();
-const discoverSubs = new Set<(id: string) => void>();
-const commandSubs = new Set<(command: CommandCode, by: string) => void>();
-const voiceSubs = new Set<(voice: VoiceTransmission) => void>();
-const powerUpSubs = new Set<(effect: "heal" | "invis", by: string) => void>();
+const evacueeStateSubs = new Set<(state: EvacueeState) => void>();
+const wardenStateSubs = new Set<(state: WardenState) => void>();
+const routeMessageSubs = new Set<(message: RouteMessage) => void>();
+const acknowledgementSubs = new Set<(acknowledgement: CommandAcknowledgement) => void>();
+const evidenceSubs = new Set<(evidence: EvidenceRecord) => void>();
 let unsubscribe: (() => void) | null = null;
 
 function playerIdForRoom(code: string) {
-  const key = `campusevac:player:${code}`;
+  const key = `campusevac:participant:${code}`;
   try {
     const stored = sessionStorage.getItem(key);
     if (stored) return stored;
@@ -78,6 +66,14 @@ function playerIdForRoom(code: string) {
   }
 }
 
+function statusForJoin(error: string): SessionStatus {
+  if (error === "full") return "full";
+  if (error === "unavailable") return "unavailable";
+  if (error === "timeout") return "timeout";
+  if (error === "connection") return "connection";
+  return "notfound";
+}
+
 export const useSession = create<SessionState>()((set, get) => ({
   net: null,
   status: "idle",
@@ -86,83 +82,73 @@ export const useSession = create<SessionState>()((set, get) => ({
   room: null,
   isHost: false,
   startError: null,
-  lastSnapshot: null,
-  lastSnapshotAt: 0,
+  lastEvacueeState: null,
+  lastWardenState: null,
+  lastStateAt: 0,
 
   connect: async (code, name, seedRoom) => {
     get().leave();
-
     const net = createNet();
     const myId = playerIdForRoom(code);
-    const me: PlayerInfo = {
+    const participant: Participant = {
       id: myId,
-      name: name.trim() || "player",
+      name: name.trim() || "participant",
       role: null,
-      watching: null,
+      sectorId: null,
       joinedAt: Date.now(),
       connected: true,
-      rejoinUntil: 0,
+      reconnectUntil: 0,
     };
 
     set({ net, myId, code, status: "connecting", startError: null });
 
-    unsubscribe = net.onMessage((msg: NetMessage) => {
-      switch (msg.type) {
-        case "room": {
-          if (!msg.room || msg.room.code !== get().code) return;
+    unsubscribe = net.onMessage((event: NetEvent) => {
+      switch (event.type) {
+        case "room":
+          if (event.room.code !== get().code) return;
           set({
-            room: msg.room,
+            room: event.room,
             status: "connected",
-            isHost: msg.room.hostId === get().myId,
+            isHost: event.room.hostId === get().myId,
           });
           break;
-        }
-        case "world": {
-          set({ lastSnapshot: msg.snap, lastSnapshotAt: Date.now() });
-          for (const cb of snapshotSubs) cb(msg.snap);
+        case "evacuee-state":
+          set({ lastEvacueeState: event.state, lastStateAt: Date.now() });
+          for (const callback of evacueeStateSubs) callback(event.state);
           break;
-        }
-        case "discover": {
-          if (msg.by === get().myId) return; // we applied it optimistically
-          for (const cb of discoverSubs) cb(msg.itemId);
+        case "warden-state":
+          set({ lastWardenState: event.state, lastStateAt: Date.now() });
+          for (const callback of wardenStateSubs) callback(event.state);
           break;
-        }
-        case "command": {
-          for (const cb of commandSubs) cb(msg.command, msg.by);
+        case "route-message":
+          for (const callback of routeMessageSubs) callback(event.message);
           break;
-        }
-        case "voice": {
-          for (const cb of voiceSubs) cb(msg);
+        case "command-ack":
+          set({ startError: null });
+          for (const callback of acknowledgementSubs)
+            callback(event.acknowledgement);
           break;
-        }
-        case "powerup": {
-          for (const cb of powerUpSubs) cb(msg.effect, msg.by);
+        case "evidence":
+          for (const callback of evidenceSubs) callback(event.evidence);
           break;
-        }
+        case "bye":
+          break;
       }
     });
 
     try {
       await net.connect(code);
       if (seedRoom) {
-        const created = await net.createRoom({ ...seedRoom, hostId: "" });
+        const created = await net.createRoom({
+          ...seedRoom,
+          drillId: seedRoom.drillId || `drill_${code}`,
+          hostId: "",
+        });
         if (!created) {
-          const refusal = (
-            (net as { lastError?: string }).lastError ?? ""
-          ).toLowerCase();
           net.disconnect();
           unsubscribe?.();
           unsubscribe = null;
-          // Surface the actual module refusal so users know what went wrong.
-          let errorStatus: SessionStatus = refusal ? "connection" : "notfound";
-          if (refusal.includes("taken")) {
-            errorStatus = "unavailable";
-          } else if (refusal.includes("timed out") || refusal.includes("timeout")) {
-            errorStatus = "timeout";
-          }
-
-          console.warn("[campusevac] room creation failed:", refusal || "unknown");
-          set({ status: errorStatus, net: null });
+          set({ status: "unavailable", net: null });
           return;
         }
       }
@@ -173,7 +159,7 @@ export const useSession = create<SessionState>()((set, get) => ({
       const message = error instanceof Error ? error.message.toLowerCase() : "";
       set({
         status:
-          message.includes("timed out") || message.includes("timeout")
+          message.includes("timeout") || message.includes("timed out")
             ? "timeout"
             : "connection",
         net: null,
@@ -181,49 +167,37 @@ export const useSession = create<SessionState>()((set, get) => ({
       return;
     }
 
-    const result = await net.join(code, me);
+    const result = await net.join(code, participant);
     if ("error" in result) {
       net.disconnect();
       unsubscribe?.();
       unsubscribe = null;
-      set({
-        status:
-          result.error === "full"
-            ? "full"
-            : result.error === "unavailable"
-              ? "unavailable"
-              : result.error === "timeout"
-                ? "timeout"
-                : result.error === "connection"
-                  ? "connection"
-                  : "notfound",
-        net: null,
-      });
+      set({ status: statusForJoin(result.error), net: null });
       return;
     }
     set({
-      myId: me.id,
+      myId: "participantId" in result ? result.participantId ?? participant.id : participant.id,
       room: result.room,
       status: "connected",
-      isHost: result.room.hostId === me.id,
+      isHost: result.room.hostId === participant.id,
     });
   },
 
   startNow: async () => {
-    const s = get();
+    const state = get();
     if (
-      !s.code ||
-      !s.myId ||
-      !s.net ||
-      !s.room ||
-      !s.isHost ||
-      (s.room.phase !== "lobby" && s.room.phase !== "countdown") ||
-      s.room.players.length < s.room.maxPlayers
+      !state.code ||
+      !state.myId ||
+      !state.net ||
+      !state.room ||
+      !state.isHost ||
+      (state.room.phase !== "lobby" && state.room.phase !== "preparing") ||
+      state.room.participants.length < state.room.maxPlayers
     )
       return false;
 
     set({ startError: null });
-    const result = await s.net.start(s.code, s.myId);
+    const result = await state.net.start(state.code, state.myId);
     if (!result.ok) {
       set({ startError: result.error });
       return false;
@@ -232,21 +206,22 @@ export const useSession = create<SessionState>()((set, get) => ({
   },
 
   leave: () => {
-    const s = get();
-    if (s.net && s.myId && s.code) s.net.leave(s.code, s.myId);
+    const state = get();
+    if (state.net && state.myId && state.code) state.net.leave(state.code, state.myId);
     get().disconnect(true);
   },
 
   disconnect: (intentional = false) => {
-    const s = get();
+    void intentional;
+    const state = get();
     unsubscribe?.();
     unsubscribe = null;
-    s.net?.disconnect(intentional);
-    snapshotSubs.clear();
-    discoverSubs.clear();
-    commandSubs.clear();
-    voiceSubs.clear();
-    powerUpSubs.clear();
+    state.net?.disconnect(intentional);
+    evacueeStateSubs.clear();
+    wardenStateSubs.clear();
+    routeMessageSubs.clear();
+    acknowledgementSubs.clear();
+    evidenceSubs.clear();
     set({
       net: null,
       status: "idle",
@@ -255,66 +230,72 @@ export const useSession = create<SessionState>()((set, get) => ({
       room: null,
       isHost: false,
       startError: null,
-      lastSnapshot: null,
-      lastSnapshotAt: 0,
+      lastEvacueeState: null,
+      lastWardenState: null,
+      lastStateAt: 0,
     });
   },
 
-  sendDiscover: (itemId) => {
-    const s = get();
-    s.net?.send({ type: "discover", itemId, by: s.myId ?? "?" });
+  observeEvidence: (evidenceId) => {
+    const state = get();
+    const room = resolveRoom(state.room);
+    const participant = room?.participants.find((item) => item.id === state.myId);
+    if (!state.net || participant?.role !== "warden") return;
+    state.net.send({ type: "observe-evidence", evidenceId, clientSentAt: Date.now() });
   },
 
-  sendCommand: (command) => {
-    const s = get();
-    const room = resolveRoom(s.room);
-    const me = room?.players.find((player) => player.id === s.myId);
-    if (!s.code || !s.myId || !s.net || room?.phase !== "playing" || me?.role !== "spectator") return;
-    // the room the thief is standing in owns the channel; everyone else is off
-    // air, so two wardens can never talk over each other
-    if (!channelOpen(useGame.getState().room, me.watching)) return;
-    s.net.send({ type: "command", command, by: s.myId, t: Date.now() });
+  sendCommand: (command, evidenceId) => {
+    const state = get();
+    const room = resolveRoom(state.room);
+    const participant = room?.participants.find((item) => item.id === state.myId);
+    if (
+      !state.net ||
+      !state.myId ||
+      !room ||
+      room.phase !== "active" ||
+      participant?.role !== "warden"
+    )
+      return;
+    const intent: ClientIntent = {
+      type: "warden-command",
+      command,
+      evidenceId,
+      clientSentAt: Date.now(),
+      idempotencyKey: newId(),
+    };
+    state.net.send(intent);
   },
 
-  publish: (snap) => {
-    get().net?.send({ type: "world", snap });
+  publish: (state) => get().net?.send({ type: "evacuee-state", state }),
+
+  onEvacueeState: (callback) => {
+    evacueeStateSubs.add(callback);
+    return () => evacueeStateSubs.delete(callback);
   },
 
-  onSnapshot: (cb) => {
-    snapshotSubs.add(cb);
-    return () => snapshotSubs.delete(cb);
+  onWardenState: (callback) => {
+    wardenStateSubs.add(callback);
+    return () => wardenStateSubs.delete(callback);
   },
 
-  onDiscover: (cb) => {
-    discoverSubs.add(cb);
-    return () => discoverSubs.delete(cb);
+  onRouteMessage: (callback) => {
+    routeMessageSubs.add(callback);
+    return () => routeMessageSubs.delete(callback);
   },
 
-  onCommand: (cb) => {
-    commandSubs.add(cb);
-    return () => commandSubs.delete(cb);
+  onAcknowledgement: (callback) => {
+    acknowledgementSubs.add(callback);
+    return () => acknowledgementSubs.delete(callback);
   },
 
-  onVoice: (cb) => {
-    voiceSubs.add(cb);
-    return () => voiceSubs.delete(cb);
-  },
-
-  sendPowerUp: (effect) => {
-    const s = get();
-    if (!s.code || !s.myId || !s.net) return;
-    s.net.send({ type: "powerup", effect, by: s.myId, t: Date.now() });
-  },
-
-  onPowerUp: (cb) => {
-    powerUpSubs.add(cb);
-    return () => powerUpSubs.delete(cb);
+  onEvidence: (callback) => {
+    evidenceSubs.add(callback);
+    return () => evidenceSubs.delete(callback);
   },
 }));
 
-/** Convenience selectors */
-export const myPlayer = (s: SessionState): PlayerInfo | null =>
-  s.room?.players.find((p) => p.id === s.myId) ?? null;
+export const myParticipant = (state: SessionState): Participant | null =>
+  state.room?.participants.find((participant) => participant.id === state.myId) ?? null;
 
-export const roomIsFull = (r: RoomState | null) =>
-  !!r && r.players.length >= Math.min(r.maxPlayers, MAX_PLAYERS);
+export const roomIsFull = (room: DrillRoom | null) =>
+  !!room && room.participants.length >= Math.min(room.maxPlayers, MAX_PLAYERS);

@@ -1,9 +1,10 @@
 # CampusEvac Architecture Design
 
-**Status:** [PLANNED] Target architecture and migration contract.
+**Status:** [IN PROGRESS] Target architecture and migration contract.
 
-**Current runtime:** The repository runs a Next.js client with React Three Fiber, Rapier, and a
-legacy SpacetimeDB room bridge. The AWS path described here is not implemented yet.
+**Current runtime:** The repository runs a Next.js client with React Three Fiber, Rapier, a
+deterministic local room adapter, and an AppSync adapter boundary. The AWS CDK and Lambda scaffold
+exists, but the deployed room worker path is not operational yet.
 
 ## Architecture Position
 
@@ -21,12 +22,12 @@ CampusEvac needs authoritative coordination, not a large cloud diagram. The arch
 | Concern | Current repository | CampusEvac MVP target |
 | --- | --- | --- |
 | Web client | Next.js App Router, R3F, Rapier, Tailwind | Preserve and retarget the existing engine. |
-| Room transport | SpacetimeDB bridge and legacy facility-shaped tables | AppSync GraphQL control plane plus role-scoped realtime events. |
-| Active state | Legacy room/runtime state | One Fargate room worker for mutable drill state and fixed hazard ticks. |
-| Durable history | Legacy bridge support only | DynamoDB event ledger, checkpoint, and AAR. |
+| Room transport | Deterministic local adapter plus an AppSync adapter boundary | AppSync GraphQL control plane plus role-scoped realtime events. |
+| Active state | Browser-local deterministic scenario | One Fargate room worker for mutable drill state and fixed hazard ticks. |
+| Durable history | CDK table and Lambda event/AAR scaffold | DynamoDB event ledger, checkpoint, and AAR. |
 | Scenario | Authored/legacy prototype behavior | Authored seed with optional validated Bedrock proposal. |
-| Audio | Existing browser/audio helpers | Polly phrase cache with captions and local fallback. |
-| Identity | Existing development room flow | Cognito membership and role claims. |
+| Audio | Deterministic browser cues with captions | Polly phrase cache with captions and local fallback. |
+| Identity | Pseudonymous local room membership | Cognito membership and role claims. |
 | Deployment | Local or existing web deployment | AWS proof path first; production hardening is post-hackathon. |
 
 ## MVP Service Responsibilities
@@ -73,8 +74,9 @@ flowchart LR
   AAR --> LEDGER
 ```
 
-The current SpacetimeDB bridge sits where AppSync and the room worker will eventually sit. It
-must remain an explicit migration boundary, not an invisible second source of truth.
+The local adapter currently occupies the browser development path while AppSync and the room worker
+are completed. It must remain an explicit fallback, not an invisible second production source of
+truth.
 
 ## Room Contract
 
@@ -171,7 +173,7 @@ Fallback behavior is part of the demo, not an invisible error handler.
 4. Add AppSync behind a feature flag and run two-device join/command/reconnect tests.
 5. Deploy the smallest Fargate worker only after the state contract is stable.
 6. Add DynamoDB event/AAR persistence and test replay determinism.
-7. Remove SpacetimeDB only after the AWS path owns room membership and state.
+7. Move room membership and active state to the AWS path before calling the deployment operational.
 
 ## References
 

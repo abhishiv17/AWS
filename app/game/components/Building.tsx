@@ -16,9 +16,8 @@ import {
   type RoomDef,
   type WallDef,
 } from "../level";
-import { BLOCKED_ROUTE, isRouteBlocked } from "../smoke";
-import { clampDt, runtime } from "../runtime";
-import { useGame, useRoomVisible } from "../store";
+import { clampDt } from "../runtime";
+import { useGame, useSectorVisible } from "../store";
 import { Label } from "./Markers";
 
 type Box = { pos: [number, number, number]; size: [number, number, number] };
@@ -53,8 +52,8 @@ function wallBoxes(def: WallDef): Box[] {
 }
 
 function Shell() {
-  const thiefView = useGame((s) => s.view === "thief");
-  const spectator = useGame((s) => s.mode.kind === "spectator");
+  const evacueeView = useGame((s) => s.view === "evacuee");
+  const warden = useGame((s) => s.mode.kind === "warden");
 
   return (
     <RigidBody type="fixed" colliders={false}>
@@ -73,7 +72,7 @@ function Shell() {
             {s.ceiling && (
               <mesh
                 position={[cx, ROOM_H + WALL_T / 2, cz]}
-                visible={thiefView}
+                 visible={evacueeView}
               >
                 <boxGeometry args={[w, WALL_T, d]} />
                 <meshStandardMaterial color="#b3b0a8" roughness={1} />
@@ -90,17 +89,17 @@ function Shell() {
           <mesh
               position={[
                 b.pos[0],
-                spectator ? Math.min(b.size[1], 0.7) / 2 : b.pos[1],
+                 warden ? Math.min(b.size[1], 0.7) / 2 : b.pos[1],
                 b.pos[2],
               ]}
-              visible={thiefView || !def.cutaway}
+               visible={evacueeView || !def.cutaway}
               castShadow
               receiveShadow
             >
               <boxGeometry
                 args={[
                   b.size[0],
-                  spectator ? Math.min(b.size[1], 0.7) : b.size[1],
+                   warden ? Math.min(b.size[1], 0.7) : b.size[1],
                   b.size[2],
                 ]}
               />
@@ -120,13 +119,13 @@ function Shell() {
           <mesh
             position={[
               (m.x1 + m.x2) / 2,
-              spectator ? 0.35 : ROOM_H / 2,
+               warden ? 0.35 : ROOM_H / 2,
               (m.z1 + m.z2) / 2,
             ]}
             receiveShadow
           >
             <boxGeometry
-              args={[m.x2 - m.x1, spectator ? 0.7 : ROOM_H, m.z2 - m.z1]}
+                 args={[m.x2 - m.x1, warden ? 0.7 : ROOM_H, m.z2 - m.z1]}
             />
             <meshStandardMaterial color="#7f7c75" roughness={0.95} />
           </mesh>
@@ -143,20 +142,12 @@ function Shell() {
 /* -------------------------------------------------------------------- door */
 
 function Door({ def }: { def: DoorDef }) {
-  const open = useGame((s) => !!s.doorsOpen[def.id]);
-  const keycard = useGame((s) => s.keycard);
-  const openDoor = useGame((s) => s.openDoor);
+  const open = true;
   const pivot = useRef<THREE.Group>(null);
   const [x, , z] = def.at;
 
   useFrame((_, rawDt) => {
     const dt = clampDt(rawDt);
-    if (!open) {
-      const near =
-        Math.hypot(runtime.thief.x - x, runtime.thief.z - z) < 2.1 &&
-        (!def.lock || keycard);
-      if (near) openDoor(def.id);
-    }
     if (pivot.current) {
       const target = open ? (def.swing * Math.PI) / 2.2 : 0;
       pivot.current.rotation.y +=
@@ -228,13 +219,8 @@ function Door({ def }: { def: DoorDef }) {
 
 /** A lightweight physical closure for the authored east route after the cue. */
 function RouteBlock() {
-  const elapsed = useGame((s) => s.hazardElapsed);
+  const blocked = useGame((s) => s.routeBlocked);
   const view = useGame((s) => s.view);
-  const blocked = isRouteBlocked(
-    BLOCKED_ROUTE.from,
-    BLOCKED_ROUTE.to,
-    elapsed,
-  );
   if (!blocked) return null;
 
   return (
@@ -254,7 +240,7 @@ function RouteBlock() {
             <meshBasicMaterial color="#ef4444" />
           </mesh>
         ))}
-        {view !== "thief" && (
+        {view !== "evacuee" && (
           <Label
             position={[0, 1.55, 0]}
             color="#ef4444"
@@ -274,9 +260,9 @@ function RouteBlock() {
  * inside a sector until the evacuee has entered it.
  */
 function RoomFog({ room }: { room: RoomDef }) {
-  const explored = useRoomVisible(room.id);
-  const thiefView = useGame((s) => s.view === "thief");
-  const posted = useGame((s) => s.mode.kind === "spectator");
+  const explored = useSectorVisible(room.id);
+  const evacueeView = useGame((s) => s.view === "evacuee");
+  const posted = useGame((s) => s.mode.kind === "warden");
   const mat = useRef<THREE.MeshBasicMaterial>(null);
   const [mounted, setMounted] = useState(!explored);
 
@@ -289,11 +275,11 @@ function RoomFog({ room }: { room: RoomDef }) {
     if (explored && mat.current.opacity < 0.02 && mounted) setMounted(false);
   });
 
-  // Do not leave the room's own fog volume mounted during the spectator role
+  // Do not leave the room's own fog volume mounted during the warden role
   // handoff; it reads as a giant wall until the fade has completed.
-  if (!mounted || thiefView || explored) return null;
+  if (!mounted || evacueeView || explored) return null;
 
-  // A posted spectator gets nothing here at all. `Rooms.tsx` already mounts no
+  // A fixed-sector warden gets nothing here at all. `Rooms.tsx` already mounts no
   // contents for a room they were not given, so there is nothing to hide - and
   // marking it up actively hurt them: their camera sits over the neighbouring
   // room looking into their own, so the neighbour's volume landed between them

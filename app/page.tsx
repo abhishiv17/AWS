@@ -6,8 +6,8 @@ import LandingCounter from "./components/LandingCounter";
 /* ── data ─────────────────────────────────────────────────────────────── */
 
 const STEPS = [
-  "Create a drill room and share the link. Up to four participants.",
-  "A short countdown assigns the evacuee and wardens.",
+  "Create a two-seat drill room and share the link.",
+  "A short countdown assigns one evacuee and one warden.",
   "The evacuee enters a compromised campus sector.",
   "Wardens scan their assigned feeds and verify hazards.",
   "The evacuee hears the guidance and chooses a route.",
@@ -55,8 +55,8 @@ export default function Home() {
             <div className="text-lg font-black uppercase leading-none tracking-tight">
               <LandingCounter />
             </div>
-            <div className="mt-1 text-[9px] font-bold uppercase tracking-[0.16em] text-[#6c6b70]">
-               Drills logged
+             <div className="mt-1 text-[9px] font-bold uppercase tracking-[0.16em] text-[#6c6b70]">
+                Demo signal
             </div>
           </div>
           <div className="border-b-2 border-[#111216] py-3 sm:border-b-0 sm:border-r-2 sm:px-4">
@@ -156,7 +156,7 @@ export default function Home() {
               </Link>
               <div className="flex gap-5">
                 {[
-                  { value: "2\u20134", label: "Players" },
+                  { value: "2", label: "Players" },
                   { value: "~10 Min", label: "Per Run" },
                   { value: "Pure", label: "Teamwork" },
                 ].map((m) => (

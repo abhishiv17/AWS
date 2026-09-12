@@ -94,26 +94,27 @@ The question to test is:
 | --- | --- | --- |
 | 3D renderer and physics | [IMPLEMENTED] React Three Fiber, Three.js, and Rapier foundation. | Preserve and retarget the engine. |
 | Local interaction | [IMPLEMENTED] Existing first-person, fixed-view, touch, and interaction surfaces. | Keep the input model; replace facility content. |
-| Room transport | [IMPLEMENTED] SpacetimeDB bridge and generated bindings. | Replace with the AWS realtime contract. |
-| Gameplay state | [IN PROGRESS] Legacy facility-shaped state remains. | Server-authoritative smoke, route, intervention, and drill state. |
-| AWS services | [PLANNED] No production AppSync, Fargate, Bedrock, Polly, or DynamoDB path is wired. | Use only where each service proves a visible MVP responsibility. |
-| AAR | [PLANNED] No target report pipeline is implemented. | Three-question coordination report and replay failure. |
+| Room transport | [IMPLEMENTED] Deterministic local adapter and AppSync adapter boundary. | Deploy the AWS realtime contract. |
+| Gameplay state | [IN PROGRESS] Local authored state is implemented; browser is not production authority. | Server-authoritative smoke, route, intervention, and drill state. |
+| AWS services | [IN PROGRESS] CDK, AppSync schema, Lambda, DynamoDB, Bedrock, and Polly scaffolding exists; not deployed. | Use only where each service proves a visible MVP responsibility. |
+| AAR | [IN PROGRESS] Deterministic Lambda report scaffold exists; browser report UI is pending. | Three-question coordination report and replay failure. |
 | User evidence | [VALIDATION PENDING] | Run the documented study before claiming measured impact. |
 
 ## AWS Proof
 
-AWS is part of the target implementation, not a claim about the current browser prototype.
+AWS is part of the target implementation, not a claim that the current local browser fallback is
+production-authoritative.
 The demo should prove only these responsibilities:
 
 | Service | MVP responsibility | Judge-visible proof | Status |
 | --- | --- | --- | --- |
-| AppSync | Authenticated drill commands and role-scoped realtime events. | A warden command is acknowledged by the evacuee client. | [PLANNED] |
+| AppSync | Authenticated drill commands and role-scoped realtime events. | A warden command is acknowledged by the evacuee client. | [IN PROGRESS] Scaffolded; deployment proof pending. |
 | ECS Fargate | Authority for the active room's route block and intervention state. | One command changes the shared environment for both views. | [PLANNED] |
-| Lambda | Validate commands, prepare scenarios, and calculate the AAR. | Invalid command rejection or report generation trace. | [PLANNED] |
-| DynamoDB | Durable drill metadata, event ledger, checkpoint, and AAR. | One drill record and ordered event sequence. | [PLANNED] |
-| Bedrock | Propose bounded scenario parameters before the drill. | Valid JSON scenario or deterministic fallback. | [PLANNED] |
-| Polly | Synthesize short cached operational phrases. | Captioned audio phrase with cache hit or fallback. | [PLANNED] |
-| Cognito/IAM | Authenticate and authorize role and drill access. | Evacuee cannot subscribe to warden evidence. | [PLANNED] |
+| Lambda | Validate commands, prepare scenarios, and calculate the AAR. | Invalid command rejection or report generation trace. | [IN PROGRESS] Scaffolded; deployment proof pending. |
+| DynamoDB | Durable drill metadata, event ledger, checkpoint, and AAR. | One drill record and ordered event sequence. | [IN PROGRESS] Scaffolded; deployment proof pending. |
+| Bedrock | Propose bounded scenario parameters before the drill. | Valid JSON scenario or deterministic fallback. | [IN PROGRESS] Scaffolded; deployment proof pending. |
+| Polly | Synthesize short cached operational phrases. | Captioned audio phrase with cache hit or fallback. | [IN PROGRESS] Scaffolded; deployment proof pending. |
+| Cognito/IAM | Authenticate and authorize role and drill access. | Evacuee cannot subscribe to warden evidence. | [IN PROGRESS] User pool scaffolded; client auth pending. |
 | Amplify/CloudFront | Deliver the web application and assets. | Public demo URL with repeatable deployment. | [PLANNED] |
 
 ## Three-Minute Demo Story

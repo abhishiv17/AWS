@@ -1,7 +1,7 @@
 # CampusEvac AI And Cloud Integration
 
-**Status:** [PLANNED] These are target integrations. The current repository does not have the
-AWS path wired.
+**Status:** [IN PROGRESS] The repository contains the target schema, CDK resources, and Lambda
+fallbacks. Deployment, Cognito client wiring, and the authoritative room worker remain pending.
 
 ## Integration Rule
 

@@ -178,7 +178,7 @@ input {
 }
 
 /* ── touch play ──────────────────────────────────────────────────────────
-   A thumb dragging the look pad or the stick must move the thief, not pan
+   A thumb dragging the look pad or the stick must move the evacuee, not pan
    the page or fire the browser's pull-to-refresh. */
 html,
 body {

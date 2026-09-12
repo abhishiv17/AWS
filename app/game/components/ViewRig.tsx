@@ -23,10 +23,10 @@ function roomCorners(room: RoomDef) {
 /**
  * How far back this room has to be viewed from to hold all of it on screen.
  *
- * The pose in `level.ts` fixes the *direction* - behind the door the thief
+ * The pose in `level.ts` fixes the direction - behind the door the evacuee
  * walks in through - but the distance that fits depends on the window: a tall
  * narrow window has a much narrower horizontal field than a wide one, and the
- * far corners slide off the sides. Solving for it here means the spectator
+ * far corners slide off the sides. Solving for it here means the warden
  * always gets the whole room whatever shape their window is, instead of a
  * framing that only works on the laptop it was authored on.
  */
@@ -63,7 +63,7 @@ function fitDistance(room: RoomDef, aspect: number, fov: number) {
 }
 
 /**
- * Mouse look for the thief. Uses pointer lock when the browser allows it and
+ * Mouse look for the evacuee. Uses pointer lock when the browser allows it and
  * falls back to click-drag when it does not (embedded frames, some previews).
  */
 function FirstPersonLook({ touch }: { touch: boolean }) {
@@ -132,13 +132,13 @@ function FirstPersonLook({ touch }: { touch: boolean }) {
 }
 
 /**
- * The spectator camera rides along with the thief: whenever the thief moves
+ * The warden camera follows the evacuee sector: whenever the evacuee moves
  * into another room the framing slides over to that room, so the map reveals
  * itself as the run goes on instead of being handed over all at once.
  *
- * A posted spectator's framing is bolted down - no orbit, no pan. Their room is
- * always drawn from the same angle, so "left" and "right" mean the same thing
- * to them and to the thief every time they call one out. Solo play keeps the
+ * A warden's framing is bolted down - no orbit, no pan. Their sector is
+ * always drawn from the same angle, so route directions stay consistent for
+ * the warden and evacuee. Solo play keeps the
  * free camera, since there is nobody to give directions to.
  */
 const FOV = 45;
@@ -146,7 +146,7 @@ const FOV = 45;
 /** Cheap distance fog: smoke changes readability without a volumetric pass. */
 function SmokeAtmosphere() {
   const view = useGame((s) => s.view);
-  const room = useGame((s) => s.room);
+  const room = useGame((s) => s.sector);
   const fog = useRef<THREE.FogExp2>(null);
   const current = useRef(0);
   const clear = useMemo(() => new THREE.Color("#0d141d"), []);
@@ -158,9 +158,9 @@ function SmokeAtmosphere() {
 
     const state = useGame.getState();
     const target =
-      view === "thief"
+      view === "evacuee"
         ? getSectorSmoke(room, state.hazardElapsed) *
-          (state.alarmDisabled ? VENTILATION_SMOKE_FACTOR : 1)
+          (state.interventionApplied ? VENTILATION_SMOKE_FACTOR : 1)
         : 0;
     const k = 1 - Math.exp(-clampDt(rawDt) * 4);
     current.current += (target - current.current) * k;
@@ -171,13 +171,13 @@ function SmokeAtmosphere() {
   return <fogExp2 ref={fog} attach="fog" args={["#0d141d", 0.018]} />;
 }
 
-function SpectatorRig({ active }: { active: boolean }) {
+function WardenRig({ active }: { active: boolean }) {
   const mode = useGame((s) => s.mode);
-  const thiefRoom = useGame((s) => s.room);
-  // a spectator stays on their own room; solo follows the thief around
-  const room = mode.kind === "spectator" ? mode.watching : thiefRoom;
-  // a spectator's framing is bolted down - only solo may turn it
-  const posted = mode.kind === "spectator";
+  const evacueeSector = useGame((s) => s.sector);
+  // a warden stays on their assigned sector; solo follows the evacuee around
+  const room = mode.kind === "warden" ? mode.sectorId : evacueeSector;
+  // a warden's framing is bolted down - only solo may turn it
+  const posted = mode.kind === "warden";
   // re-fit when the window changes shape, so a resize never crops the room
   const aspect = useThree((s) => s.viewport.aspect);
   const cam = useRef<THREE.PerspectiveCamera>(null);
@@ -212,7 +212,7 @@ function SpectatorRig({ active }: { active: boolean }) {
     } else {
       want.current.pos.set(...r.cam.pos);
     }
-    // a posted spectator never turns the camera, so there is nothing to ease:
+    // a warden never turns the camera, so there is nothing to ease:
     // put the aim on the room at once and let only the position slide
     if (posted && orbit.current) {
       orbit.current.target.copy(want.current.target);
@@ -265,12 +265,12 @@ function SpectatorRig({ active }: { active: boolean }) {
         <OrbitControls
           ref={orbit}
           makeDefault
-          /* posted spectators get a fixed frame: zoom only, so the room never
-             turns under them and the thief's heading stays readable */
+           /* Wardens get a fixed frame: zoom only, so the sector never turns
+              under them and the evacuee heading stays readable. */
           enableRotate={!posted}
           enablePan={!posted}
-          /* the posted framing already starts wide enough to see the whole
-             room and the door the thief comes through; this is only headroom
+           /* the assigned framing already starts wide enough to see the whole
+              sector and its entry; this is only headroom
              to lean in or pull further back, measured off that fitted distance
              so it means the same thing on every window shape */
           minDistance={posted ? fitted * 0.45 : 4}
@@ -279,7 +279,7 @@ function SpectatorRig({ active }: { active: boolean }) {
           enableDamping
           dampingFactor={0.08}
           onStart={() => {
-            // a posted spectator can only dolly, and that must not cancel the
+            // a warden can only dolly, and that must not cancel the
             // slide back to their room's framing
             if (!posted) following.current = false;
           }}
@@ -296,17 +296,17 @@ function SpectatorRig({ active }: { active: boolean }) {
 export default function ViewRig() {
   const view = useGame((s) => s.view);
   const touch = useCoarsePointer();
-  const first = view === "thief";
+  const first = view === "evacuee";
 
   return (
     <>
       <SmokeAtmosphere />
 
-      {/* thief: eyes inside the character, driven by Thief.tsx */}
+      {/* Evacuee: eyes inside the character, driven by Evacuee.tsx. */}
       <PerspectiveCamera makeDefault={first} fov={74} near={0.06} far={400} />
       {first && <FirstPersonLook key="fps" touch={touch} />}
 
-      <SpectatorRig active={!first} />
+      <WardenRig active={!first} />
 
       <ambientLight
         intensity={first ? 0.52 : 0.44}

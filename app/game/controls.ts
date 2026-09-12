@@ -11,22 +11,22 @@ import { useGame } from "./store";
  * they both call in here.
  */
 
-/** `E` / the INTERACT button: whatever the evacuee is standing next to. */
+/** `E` / the INTERACT button: a visible panel or the assembly beacon. */
 export function pressUse() {
   const game = useGame.getState();
-  if (game.hp <= 0) return;
+  if (game.air <= 0 || game.failed || game.assemblyConfirmed) return;
   const target = runtime.useTarget;
-  if (target?.kind === "keypad") game.tryKeypad();
-  else if (target?.kind === "alarm") game.disableAlarm();
+  if (target?.kind === "intervention") {
+    if (game.mode.kind === "solo") game.applyIntervention();
+    else game.push("The warden must authorize the ventilation intervention.", "info");
+  } else if (target?.kind === "assembly") {
+    game.confirmAssembly();
+  }
 }
 
-/** `Space` / the JUMP button: the service exit if stood in it, else a hop. */
+/** `Space` / the JUMP button: a small hop for route readability. */
 export function pressJump() {
   const game = useGame.getState();
-  if (game.hp <= 0) return;
-  if (runtime.useTarget?.kind === "vent") {
-    game.ventExit();
-    return;
-  }
+  if (game.air <= 0 || game.failed || game.assemblyConfirmed) return;
   runtime.jumpAt = performance.now();
 }

@@ -1,27 +1,46 @@
 export type CommandCode =
-  | "LEFT"
-  | "RIGHT"
-  | "FORWARD"
-  | "BACK"
-  | "RUN"
-  | "HIDE"
-  | "STOP";
+  | "VERIFY_EAST_ROUTE"
+  | "SEND_WEST_ROUTE"
+  | "MARK_EAST_UNSAFE"
+  | "APPLY_VENTILATION";
 
 export interface CommandDef {
   code: CommandCode;
   label: string;
   detail: string;
   color: string;
+  target: string;
 }
 
 export const COMMANDS: CommandDef[] = [
-  { code: "LEFT", label: "Route west", detail: "take the west corridor", color: "#4aa8ff" },
-  { code: "RIGHT", label: "Route east", detail: "take the east corridor", color: "#39ff88" },
-  { code: "FORWARD", label: "Move deeper", detail: "continue into the sector", color: "#ffd23b" },
-  { code: "BACK", label: "Fall back", detail: "reverse toward clear air", color: "#ff9f43" },
-  { code: "RUN", label: "Move fast", detail: "sprint — time is short", color: "#ff7ad9" },
-  { code: "HIDE", label: "Take cover", detail: "shelter from exposure", color: "#c8ff3b" },
-  { code: "STOP", label: "Hold", detail: "hold position and wait", color: "#ff5b55" },
+  {
+    code: "VERIFY_EAST_ROUTE",
+    label: "Verify east route",
+    detail: "confirm the route evidence before messaging",
+    target: "east route",
+    color: "#facc15",
+  },
+  {
+    code: "SEND_WEST_ROUTE",
+    label: "Send west route",
+    detail: "send a verified alternate route with an expiry",
+    target: "west route",
+    color: "#10b981",
+  },
+  {
+    code: "MARK_EAST_UNSAFE",
+    label: "Mark east unsafe",
+    detail: "share the confirmed route block",
+    target: "east route",
+    color: "#ef4444",
+  },
+  {
+    code: "APPLY_VENTILATION",
+    label: "Apply ventilation",
+    detail: "change the panel state for one bounded intervention",
+    target: "ventilation panel",
+    color: "#38bdf8",
+  },
 ];
 
 export const commandByCode = (code: CommandCode) =>

@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { CuboidCollider, RigidBody } from "@react-three/rapier";
 import * as THREE from "three";
-import { ESCAPE_Z } from "../level";
+import { ASSEMBLY_Z } from "../level";
 import { useGame } from "../store";
 import { Label } from "./Markers";
 
@@ -136,23 +136,27 @@ function Skyline() {
   );
 }
 
-/** Where the drill ends - only the warden layers draw the marker. */
-function ExtractionPad() {
+/** The assembly beacon is visible to wardens and becomes a physical objective. */
+function AssemblyBeacon() {
   const view = useGame((s) => s.view);
-  if (view === "thief") return null;
   return (
-    <group position={[0, 0, ESCAPE_Z + 2]}>
+    <group position={[0, 0, ASSEMBLY_Z + 2]}>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
         <ringGeometry args={[1.5, 1.8, 40]} />
         <meshBasicMaterial color="#39ff88" transparent opacity={0.5} />
       </mesh>
-      <Label position={[0, 1.2, 0]} color="#39ff88" text="Assembly point" />
+      <Label
+        position={[0, 1.2, 0]}
+        color="#10b981"
+        text="Assembly point"
+        faint={view === "evacuee"}
+      />
     </group>
   );
 }
 
 export default function Exterior() {
-  const thiefView = useGame((s) => s.view === "thief");
+  const evacueeView = useGame((s) => s.view === "evacuee");
 
   return (
     <>
@@ -182,7 +186,7 @@ export default function Exterior() {
       </mesh>
 
       {/* entrance canopy and sign */}
-      <group visible={thiefView}>
+      <group visible={evacueeView}>
         <mesh position={[0, 3.5, 11.6]} castShadow>
           <boxGeometry args={[7.4, 0.25, 2.6]} />
           <meshStandardMaterial color="#33383e" roughness={0.8} />
@@ -213,7 +217,7 @@ export default function Exterior() {
       ))}
 
       <Skyline />
-      <ExtractionPad />
+      <AssemblyBeacon />
 
       {/* moonlight */}
       <directionalLight

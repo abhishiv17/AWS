@@ -8,22 +8,23 @@ actionable after-action report.
 > CampusEvac is a controlled training simulation, not live emergency guidance, a safety
 > certification system, or proof of real-world evacuation outcomes.
 
-**Status:** [IN PROGRESS] The engine foundation exists; the CampusEvac scenario and AWS target
-are still being migrated.
+**Status:** [IN PROGRESS] The engine, deterministic local drill, AppSync boundary, and AWS CDK
+scaffold exist; the production room worker and deployment proof are still pending.
 
 ## Current Status
 
-**Repository state:** The renderer, physics, input surfaces, and legacy SpacetimeDB room bridge
-are present. The CampusEvac scenario model, AWS realtime adapter, and AAR pipeline are still in
-migration.
+**Repository state:** The renderer, physics, input surfaces, CampusEvac scenario model, local
+network adapter, AppSync adapter, and AWS integration scaffold are present. The production room
+worker and deployed AWS proof path are still pending.
 
 | Area | Status |
 | --- | --- |
 | React Three Fiber, Three.js, Rapier | `[IMPLEMENTED]` Existing engine foundation. |
 | Local first-person/fixed-view/touch interaction | `[IMPLEMENTED]` Existing interaction surfaces. |
-| SpacetimeDB room bridge | `[IMPLEMENTED]` Current migration bridge, not target architecture. |
-| CampusEvac smoke/route/intervention state | `[IN PROGRESS]` Legacy facility-shaped state remains. |
-| AWS AppSync, Fargate, DynamoDB, Bedrock, Polly | `[PLANNED]` No production path is wired. |
+| Deterministic local drill adapter | `[IMPLEMENTED]` Browser-local two-seat fallback using role-scoped events. |
+| CampusEvac smoke/route/intervention state | `[IMPLEMENTED]` One authored smoke scenario and bounded intervention. |
+| AppSync adapter and CDK scaffold | `[IN PROGRESS]` Contracts, schema, Lambda, DynamoDB, Bedrock, and Polly boundaries exist; not deployed. |
+| Fargate active room worker | `[PLANNED]` Required before treating AWS as authoritative for live room state. |
 | Validation evidence | `[VALIDATION PENDING]` See `docs/validation-plan.md`. |
 
 The scope, terminology, demo story, and limitations are defined in [`docs/product-truth.md`](docs/product-truth.md).
@@ -61,14 +62,15 @@ coordination, and institutional dashboards are outside the MVP.
 npm install
 ```
 
-### Configure the current local bridge
+### Configure the local adapter
 
 ```bash
 copy .env.example .env
 ```
 
-On macOS/Linux, use `cp .env.example .env` instead. The current browser prototype uses the
-SpacetimeDB variables. The AWS variables are placeholders for the planned adapter.
+On macOS/Linux, use `cp .env.example .env` instead. The browser defaults to the deterministic
+local adapter. Set `NEXT_PUBLIC_NETWORK_MODE=appsync` only after the deployed Cognito and AppSync
+configuration is ready.
 
 Do not put long-lived AWS access keys in `.env`, the browser bundle, or source control. Use IAM
 roles, AWS SSO, or deployment-provided credentials.
@@ -85,15 +87,17 @@ Open `http://localhost:3000`.
 
 ```bash
 npm run lint
+npx tsc --noEmit
 npm run build
 ```
 
-There is no `npm test` script in the current package. The deterministic scenario, event ledger,
-and AAR tests are part of the planned migration gates.
+The infrastructure package has its own checks; run `npm run build` and `npm run synth` from
+`infra/`. There is no `npm test` script yet.
 
 ## Deployment
 
-The current repository has no committed AWS infrastructure or production AWS adapter.
+The repository contains a committed AWS CDK scaffold, but it is not a production deployment and
+does not yet include the authoritative Fargate room worker.
 
 For a local/self-hosted build:
 
@@ -102,28 +106,28 @@ npm run build
 npm run start
 ```
 
-For the planned AWS deployment:
+For the AWS scaffold:
 
-1. Deploy the Next.js app through Amplify Hosting or the approved CloudFront/origin path.
-2. Inject target environment variables through the deployment system, not the browser bundle.
-3. Configure Cognito, AppSync, the Fargate room worker, Lambda, and DynamoDB according to
+1. Run `npm install` and `npm run build` inside `infra/`.
+2. Run `npm run synth`, review the generated template, then deploy with an approved AWS role.
+3. Inject target environment variables through the deployment system, not the browser bundle.
+4. Configure Cognito, AppSync, the Fargate room worker, Lambda, and DynamoDB according to
    [`docs/architecture-design.md`](docs/architecture-design.md).
-4. Configure Bedrock and Polly fallbacks before enabling either provider in a live drill.
-5. Verify role-scoped subscriptions, command denial, reconnect behavior, durable events, and the
+5. Configure Bedrock and Polly fallbacks before enabling either provider in a live drill.
+6. Verify role-scoped subscriptions, command denial, reconnect behavior, durable events, and the
    three-question AAR before calling the target path operational.
 
-Until those steps are complete, describe the deployment as `[PLANNED]` and use the current
-SpacetimeDB bridge for the browser prototype.
+Until those steps are complete, describe the AWS deployment as `[IN PROGRESS]` and use the local
+adapter for the browser prototype.
 
 ## Environment Variables
 
 | Variable | Current use | Status |
 | --- | --- | --- |
-| `NEXT_PUBLIC_SPACETIME_HOST` | Current room/landing bridge endpoint. | `[IMPLEMENTED]` |
-| `NEXT_PUBLIC_SPACETIME_MODULE_NAME` | Current bridge module identifier. | `[IMPLEMENTED]` |
-| `AWS_REGION` | Target AWS region. | `[PLANNED]` |
-| `NEXT_PUBLIC_APPSYNC_URL` | Target AppSync GraphQL endpoint. | `[PLANNED]` |
+| `NEXT_PUBLIC_NETWORK_MODE` | `mock` by default; `appsync` selects the target adapter. | `[IMPLEMENTED]` |
+| `NEXT_PUBLIC_APPSYNC_URL` | Target AppSync GraphQL endpoint. | `[IN PROGRESS]` |
 | `NEXT_PUBLIC_APPSYNC_EVENTS_URL` | Target AppSync Events endpoint. | `[PLANNED]` |
+| `AWS_REGION` | Target AWS region, preferably `us-east-1` or `us-west-2`. | `[IN PROGRESS]` |
 | `COGNITO_USER_POOL_ID` / `COGNITO_APP_CLIENT_ID` | Target identity configuration. | `[PLANNED]` |
 | `BEDROCK_MODEL_ID` | Target bounded scenario generator. | `[PLANNED]` |
 | `POLLY_VOICE_ID` / `POLLY_ENGINE` | Target short phrase synthesis. | `[PLANNED]` |
@@ -137,14 +141,12 @@ the AWS integration is active.
 | Route | Current behavior |
 | --- | --- |
 | `/` | Mission brief, product framing, and entry points. |
-| `/rooms` | Create or join a room using the current bridge flow. |
-| `/room/[code]` | Room lobby and current multiplayer game shell. |
-| `/play` | Solo training sandbox using the current game shell. |
-| `/api/voice` | Existing voice helper endpoint; not the planned Polly path. |
-| `/api/puzzle` | Existing puzzle helper endpoint; not part of the CampusEvac MVP contract. |
+| `/rooms` | Create or join a two-seat room using the local adapter or AppSync adapter. |
+| `/room/[code]` | Room lobby and multiplayer game shell. |
+| `/play` | Solo training sandbox using the deterministic local game shell. |
 
-Legacy route/state identifiers may remain in executable code during migration. They are not the
-CampusEvac product terminology.
+Historical role translations remain in the design dossiers for migration context; executable
+routes and state use CampusEvac terminology.
 
 ## Controls
 
@@ -164,7 +166,7 @@ CampusEvac product terminology.
 
 ## Architecture Boundary
 
-The current bridge is SpacetimeDB. The target AWS path is AppSync for commands/events, a small
+The current browser fallback is `MockNet`. The target AWS path is AppSync for commands/events, a small
 Fargate worker for active mutable room state, Lambda for validation/AAR jobs, DynamoDB for
 meaningful events and checkpoints, Bedrock for bounded pre-drill proposals, and Polly for short
 cached phrases with captions.
@@ -199,6 +201,6 @@ or drill outcome.
 
 ## Repository Notes
 
-- The current generated SpacetimeDB binding is kept only as migration support.
+- The former generated room bindings and server module have been removed from the executable tree.
 - The local environment template contains no long-lived AWS credentials.
 - AWS work must follow the status labels above and update `docs/mvp-status.md` with evidence.

@@ -10,8 +10,8 @@ export interface SmokeProfile {
   peakIntensity: number;
 }
 
-export const SMOKE_ORIGIN: RoomId = "sec";
-export const SMOKE_SOURCE = "Control sector ventilation fault";
+export const SMOKE_ORIGIN: RoomId = "annex";
+export const SMOKE_SOURCE = "Electrical service ventilation fault";
 export const SMOKE_EXPOSURE_THRESHOLD = 0.2;
 export const ROUTE_BLOCK_AFTER_SECONDS = 52;
 
@@ -33,13 +33,13 @@ export const SMOKE_PROFILES: Record<RoomId, SmokeProfile> = {
   ecorr: { startSeconds: 28, riseSeconds: 50, peakIntensity: 0.7 },
   sec: { startSeconds: 0, riseSeconds: 70, peakIntensity: 1 },
   vault: { startSeconds: 42, riseSeconds: 55, peakIntensity: 0.42 },
-  annex: { startSeconds: 68, riseSeconds: 42, peakIntensity: 0.18 },
+  annex: { startSeconds: 0, riseSeconds: 42, peakIntensity: 0.5 },
 };
 
 /** The logical east route is represented physically by the east passage. */
 export const BLOCKED_ROUTE = {
   from: "lobby" as const,
-  to: "vault" as const,
+  to: "ecorr" as const,
   label: "East route",
   afterSeconds: ROUTE_BLOCK_AFTER_SECONDS,
 };

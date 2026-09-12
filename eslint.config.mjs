@@ -12,7 +12,7 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
-    "app/game/net/spacetime_bindings/**",
+    "infra/cdk.out/**",
   ]),
 ]);
 
