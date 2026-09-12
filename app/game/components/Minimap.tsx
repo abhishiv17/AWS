@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { ESCAPE_Z, PATROLS, ROOMS, roomById, type RoomId } from "../level";
-import { guardState, runtime } from "../runtime";
+import { ESCAPE_Z, ROOMS, roomById, type RoomId } from "../level";
+import { runtime } from "../runtime";
 import { useGame } from "../store";
 
 const MIN_X = -23.5;
@@ -32,11 +32,8 @@ export default function Minimap() {
   const mode = useGame((s) => s.mode);
   const thiefRoom = useGame((s) => s.room);
   const watching = mode.kind === "spectator" ? mode.watching : null;
-  // the thief must not get guard positions for free
-  const showGuards = mode.kind !== "thief";
   const thief = useRef<SVGCircleElement>(null);
   const thiefDirection = useRef<SVGLineElement>(null);
-  const guards = useRef<(SVGCircleElement | null)[]>([]);
 
   useEffect(() => {
     let raf = 0;
@@ -62,20 +59,10 @@ export default function Minimap() {
           String(sy(runtime.thief.z) + Math.cos(runtime.thiefYaw) * length),
         );
       }
-      PATROLS.forEach((p, i) => {
-        const el = guards.current[i];
-        if (!el) return;
-        const g = guardState(p.id);
-        el.setAttribute("cx", String(sx(g.pos.x)));
-        el.setAttribute("cy", String(sy(g.pos.z)));
-        const visible =
-          showGuards && (watching ? watching === p.room : true);
-        el.setAttribute("opacity", visible ? "0.9" : "0");
-      });
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [watching, showGuards]);
+  }, []);
 
   return (
     <div className="hud-panel hud-panel-blue p-2">
@@ -145,18 +132,6 @@ export default function Minimap() {
           strokeWidth={0.35}
         />
 
-        {PATROLS.map((p, i) => (
-          <circle
-            key={p.id}
-            ref={(el) => {
-              guards.current[i] = el;
-            }}
-            r={0.8}
-            fill="#4aa8ff"
-            opacity={0}
-          />
-        ))}
-
         <line
           ref={thiefDirection}
           x1={sx(0)}
@@ -172,7 +147,6 @@ export default function Minimap() {
       <div className="mt-1 flex gap-3 text-[9px] text-zinc-500">
         <span className="text-yellow-300">● evacuee</span>
         <span className="text-yellow-300">→ heading</span>
-        {showGuards && <span className="text-sky-400">● patrol</span>}
         {watching && <span className="text-emerald-400">▭ your room</span>}
       </div>
       <div className="mt-1 text-[9px] uppercase tracking-widest text-zinc-600">

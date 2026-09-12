@@ -8,8 +8,6 @@ import Building from "./components/Building";
 import Exterior from "./components/Exterior";
 import Rooms from "./components/Rooms";
 import Interactables from "./components/Interactables";
-import SecurityCameras from "./components/SecurityCameras";
-import Guards from "./components/Guard";
 import Thief from "./components/Thief";
 import Systems from "./components/Systems";
 import NetSync from "./components/NetSync";
@@ -72,8 +70,6 @@ export default function GameCanvas() {
             <Building />
             <Rooms />
             <Interactables />
-            <SecurityCameras />
-            <Guards />
             <Thief />
             {isHost && <Systems />}
           </Physics>

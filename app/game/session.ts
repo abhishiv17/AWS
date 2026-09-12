@@ -26,7 +26,6 @@ export type SessionStatus =
   | "notfound"
   | "full"
   | "unavailable"
-  | "auth"
   | "timeout"
   | "connection";
 
@@ -39,7 +38,7 @@ interface SessionState {
   /** true while this tab owns the room record */
   isHost: boolean;
   startError: string | null;
-  /** latest snapshot received from the thief's client (spectators only) */
+  /** latest snapshot received from the evacuee's client (wardens only) */
   lastSnapshot: Snapshot | null;
   /** local receive time, so live status is not affected by device clock skew */
   lastSnapshotAt: number;
@@ -155,24 +154,13 @@ export const useSession = create<SessionState>()((set, get) => ({
           unsubscribe?.();
           unsubscribe = null;
           // Surface the actual module refusal so users know what went wrong.
-          let errorStatus: SessionStatus = "notfound";
-          if (
-            refusal.includes("sign in") ||
-            refusal.includes("profile") ||
-            refusal.includes("unauthorized") ||
-            refusal.includes("invalid token") ||
-            refusal.includes("jwt") ||
-            refusal.includes("401")
-          ) {
-            errorStatus = "auth";
-          } else if (refusal.includes("taken")) {
+          let errorStatus: SessionStatus = refusal ? "connection" : "notfound";
+          if (refusal.includes("taken")) {
             errorStatus = "unavailable";
           } else if (refusal.includes("timed out") || refusal.includes("timeout")) {
             errorStatus = "timeout";
-          } else {
-            errorStatus = "connection";
           }
-          
+
           console.warn("[campusevac] room creation failed:", refusal || "unknown");
           set({ status: errorStatus, net: null });
           return;
@@ -185,16 +173,9 @@ export const useSession = create<SessionState>()((set, get) => ({
       const message = error instanceof Error ? error.message.toLowerCase() : "";
       set({
         status:
-          message.includes("sign in") ||
-          message.includes("profile") ||
-          message.includes("unauthorized") ||
-          message.includes("invalid token") ||
-          message.includes("jwt") ||
-          message.includes("401")
-            ? "auth"
-            : message.includes("timed out") || message.includes("timeout")
-              ? "timeout"
-              : "connection",
+          message.includes("timed out") || message.includes("timeout")
+            ? "timeout"
+            : "connection",
         net: null,
       });
       return;
@@ -211,13 +192,11 @@ export const useSession = create<SessionState>()((set, get) => ({
             ? "full"
             : result.error === "unavailable"
               ? "unavailable"
-              : result.error === "auth"
-                ? "auth"
-                : result.error === "timeout"
-                  ? "timeout"
-                  : result.error === "connection"
-                    ? "connection"
-                    : "notfound",
+              : result.error === "timeout"
+                ? "timeout"
+                : result.error === "connection"
+                  ? "connection"
+                  : "notfound",
         net: null,
       });
       return;
@@ -292,7 +271,7 @@ export const useSession = create<SessionState>()((set, get) => ({
     const me = room?.players.find((player) => player.id === s.myId);
     if (!s.code || !s.myId || !s.net || room?.phase !== "playing" || me?.role !== "spectator") return;
     // the room the thief is standing in owns the channel; everyone else is off
-    // air, so two spectators can never talk over each other
+    // air, so two wardens can never talk over each other
     if (!channelOpen(useGame.getState().room, me.watching)) return;
     s.net.send({ type: "command", command, by: s.myId, t: Date.now() });
   },

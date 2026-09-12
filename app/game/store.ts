@@ -4,14 +4,29 @@ import { create } from "zustand";
 import type { RoomId } from "./level";
 import type { Snapshot } from "./net/types";
 import type { CommandCode } from "./commands";
+import {
+  AIR_DRAIN_PER_SECOND,
+  HAZARD_EXPOSURE_PER_SECOND,
+  BLOCKED_ROUTE,
+  SMOKE_EXPOSURE_THRESHOLD,
+  VENTILATION_SMOKE_FACTOR,
+  getSectorSmoke,
+  isRouteBlocked,
+} from "./smoke";
 
+/**
+ * Internal view identifiers.
+ *
+ * The string values "thief" and "spectator" are wire-format constants shared
+ * with SpacetimeDB and must not be renamed. UI-facing labels live in VIEWS.
+ */
 export type ViewMode = "thief" | "spectator" | "discovery";
 
 /**
  * How this client is taking part.
  * - solo: sandbox, you drive the evacuee and may inspect all three views
- * - thief: legacy transport role for the active evacuee simulation
- * - spectator: legacy transport role for a warden posted to exactly one room
+ * - thief: wire-format role for the active evacuee
+ * - spectator: wire-format role for a warden posted to exactly one sector
  */
 export type GameMode =
   | { kind: "solo" }
@@ -29,20 +44,20 @@ export const VIEWS: {
     id: "thief",
     n: "1",
     title: "Evacuee View",
-    blurb: "Only sees immediate conditions and route-level information.",
+    blurb: "Only sees immediate conditions and route-level guidance.",
     color: "#4aa8ff",
   },
   {
     id: "spectator",
     n: "2",
-    title: "Warden View",
-    blurb: "Sees useful sector information and emergency controls.",
+    title: "Warden Station",
+    blurb: "Sector evidence, verification, and bounded intervention.",
     color: "#39ff88",
   },
   {
     id: "discovery",
     n: "3",
-    title: "Warden - Signal Scan",
+    title: "Warden — Evidence Scan",
     blurb: "Reveals unverified hazards, clues, and safety resources.",
     color: "#ffd23b",
   },
@@ -68,11 +83,17 @@ export interface GameState {
   view: ViewMode;
   hp: number;
   alarm: number;
+  /** current sector smoke, kept separate from the cumulative hazard level */
+  smokeIntensity: number;
+  /** seconds since the active drill began */
+  hazardElapsed: number;
+  /** whether the authored east route has become unsafe */
+  routeBlocked: boolean;
   spotted: boolean;
   room: RoomId;
-  /** thief position on the floorplan, for the minimap (~10hz) */
+  /** evacuee position on the floorplan, for the minimap (~10 Hz) */
   thiefXZ: [number, number];
-  /** authoritative thief facing, in radians; +Z points south on the map */
+  /** authoritative evacuee facing, in radians; +Z points south on the map */
   thiefYaw: number;
   explored: Partial<Record<RoomId, boolean>>;
   discovered: Record<string, boolean>;
@@ -105,6 +126,8 @@ export interface GameState {
   drain: (n: number) => void;
   heal: (n: number, reason: string) => void;
   setAlarm: (v: number, spotted: boolean) => void;
+  /** Tick the local smoke field and apply its light pressure model. */
+  applySmokeExposure: (elapsedSeconds: number, intensity: number, dt: number) => void;
   discover: (id: string, label: string) => void;
   collect: (id: string, label: string, value?: number) => void;
   openDoor: (id: string) => void;
@@ -116,7 +139,7 @@ export interface GameState {
   push: (text: string, tone?: LogEntry["tone"]) => void;
   receiveCommand: (code: CommandCode, by: string, at?: number) => void;
   reset: () => void;
-  /** spectators mirror the thief client's world */
+  /** wardens mirror the evacuee client's world */
   applySnapshot: (s: Snapshot) => void;
   addIntel: (n: number) => void;
   spendIntel: (n: number) => void;
@@ -126,6 +149,9 @@ export interface GameState {
 const initial = {
   hp: 100,
   alarm: 0,
+  smokeIntensity: 0,
+  hazardElapsed: 0,
+  routeBlocked: false,
   spotted: false,
   room: "outside" as RoomId,
   thiefXZ: [0, 15.5] as [number, number],
@@ -194,19 +220,19 @@ export const useGame = create<GameState>()((set, get) => ({
     if (first) {
       const named: Partial<Record<RoomId, string>> = {
          lobby: "the Central Lobby",
-         sec: "the Control Sector",
-         vault: "the Archives Sector",
-         annex: "the Exit Annex",
-       };
-       if (named[room]) get().push(`Evacuee entered ${named[room]}`, "info");
+          sec: "the Control Sector",
+          vault: "the Archives Sector",
+          annex: "the Exit Annex",
+        };
+        if (named[room]) get().push(`Entered ${named[room]}`, "info");
     }
   },
 
   damage: (n, reason) => {
     const hp = Math.max(0, get().hp - n);
     set({ hp });
-    get().push(`-${Math.round(n)} HP - ${reason}`, "bad");
-     if (hp === 0) get().push("The evacuee is down. Drill has ended.", "bad");
+    get().push(`-${Math.round(n)} AIR - ${reason}`, "bad");
+     if (hp === 0) get().push("Air quality critical — drill ended.", "bad");
   },
 
   drain: (n) => {
@@ -214,18 +240,63 @@ export const useGame = create<GameState>()((set, get) => ({
     const hp = Math.max(0, before - n);
     set({ hp });
     if (hp === 0 && before > 0)
-       get().push("The evacuee is down. Drill has ended.", "bad");
+        get().push("Air quality critical — drill ended.", "bad");
   },
 
   heal: (n, reason) => {
     set({ hp: Math.min(100, get().hp + n) });
-    get().push(`+${n} HP - ${reason}`, "good");
+    get().push(`+${n} AIR - ${reason}`, "good");
   },
 
   setAlarm: (alarm, spotted) => {
     const was = get().spotted;
     set({ alarm: Math.max(0, Math.min(100, alarm)), spotted });
-     if (spotted && !was) get().push("The evacuee is exposed to a hazard!", "bad");
+      if (spotted && !was) get().push("Hazard exposure detected!", "bad");
+  },
+
+  applySmokeExposure: (elapsedSeconds, intensity, dt) => {
+    const state = get();
+    const nextIntensity = Math.max(0, Math.min(1, intensity));
+    const safeDt = Math.max(0, Math.min(0.25, dt));
+    const exposureIntensity =
+      nextIntensity > SMOKE_EXPOSURE_THRESHOLD ? nextIntensity : 0;
+    const routeBlocked = isRouteBlocked(
+      BLOCKED_ROUTE.from,
+      BLOCKED_ROUTE.to,
+      elapsedSeconds,
+    );
+    const hpBefore = state.hp;
+    const alarmBefore = state.alarm;
+    const hp = Math.max(
+      0,
+      hpBefore - exposureIntensity * AIR_DRAIN_PER_SECOND * safeDt,
+    );
+    const alarm = Math.min(
+      100,
+      alarmBefore + exposureIntensity * HAZARD_EXPOSURE_PER_SECOND * safeDt,
+    );
+
+    set({
+      hazardElapsed: Math.max(0, elapsedSeconds),
+      smokeIntensity: nextIntensity,
+      routeBlocked,
+      hp,
+      alarm,
+    });
+
+    if (
+      state.smokeIntensity <= SMOKE_EXPOSURE_THRESHOLD &&
+      nextIntensity > SMOKE_EXPOSURE_THRESHOLD
+    )
+      get().push("Smoke detected — move toward clear air.", "bad");
+    if (!state.routeBlocked && routeBlocked)
+      get().push("East route is unsafe — use the west route.", "bad");
+    if (alarmBefore < 65 && alarm >= 65)
+      get().push("Hazard level rising — route guidance needed.", "bad");
+    if (hpBefore >= 35 && hp < 35)
+      get().push("Air quality low — move toward clear air.", "bad");
+    if (hp === 0 && hpBefore > 0)
+      get().push("Air quality critical — drill ended.", "bad");
   },
 
   discover: (id, label) => {
@@ -237,7 +308,7 @@ export const useGame = create<GameState>()((set, get) => ({
     }));
     get().push(`Discovered: ${label}`, "good");
     if (id === "note")
-       get().push("Route code relayed to the evacuee: 4-7-1-2", "good");
+        get().push("Route code verified and relayed: 4-7-1-2", "good");
   },
 
   collect: (id, label, value = 0) => {
@@ -259,22 +330,22 @@ export const useGame = create<GameState>()((set, get) => ({
   disableAlarm: () => {
     if (get().alarmDisabled) return;
     set((s) => ({ alarmDisabled: true, alarm: 0, score: s.score + 100 }));
-    get().push("Alarm panel disabled. Cameras are blind now.", "good");
+    get().push("Ventilation override active. Smoke dispersal engaged.", "good");
   },
 
   /**
-   * The emergency panel by the exit, and the one step that opens the way out.
+   * The emergency panel by the exit — one step that opens the way out.
    *
-    * It takes the access key from the control sector, or the 4-digit code if
-    * the crew read the note. Accepting it releases the service exit, so an
-    * evacuee who got this far always has a clear way to finish.
+   * It takes the access key from the control sector, or the 4-digit route
+   * code if the warden read the note. Accepting it releases the service
+   * exit, so an evacuee who got this far always has a clear way to finish.
    */
   tryKeypad: () => {
     const s = get();
     if (s.vaultOpen) return;
     if (!s.keycard && !s.codeFound) {
       s.push(
-         "Emergency panel is locked. Bring the access key from the control sector.",
+          "Emergency panel locked. Locate the access key in the control sector.",
         "bad",
       );
       return;
@@ -282,11 +353,11 @@ export const useGame = create<GameState>()((set, get) => ({
     set({ vaultOpen: true, ventOpen: true, score: s.score + 250 });
     s.push(
       s.codeFound
-         ? "Route code accepted. Exit unlocked and service route released."
-         : "Access key accepted. Exit unlocked and service route released.",
-      "good",
+          ? "Route code accepted — exit unlocked, service route released."
+          : "Access key accepted — exit unlocked, service route released.",
+       "good",
     );
-     s.push("The marked service exit is your way to the assembly point.", "info");
+      s.push("Follow the marked service exit to the assembly point.", "info");
   },
 
   escape: (via = "entrance") => {
@@ -297,9 +368,9 @@ export const useGame = create<GameState>()((set, get) => ({
     get().push(
       via === "vent"
            ? withLoot
-           ? "Through the service exit with the supplies secured. Drill complete."
-           : "Through the service exit and out of the building. Drill complete."
-         : "Out of the building with the supplies secured. Drill complete.",
+            ? "Assembly reached via service exit — supplies secured. Drill complete."
+            : "Assembly reached via service exit. Drill complete."
+          : "Assembly reached — supplies secured. Drill complete.",
       "good",
     );
   },
@@ -307,9 +378,9 @@ export const useGame = create<GameState>()((set, get) => ({
   /**
    * The service exit is the way this drill ends.
    *
-   * The exit only exists once a warden has found it, so reaching this point
-   * already required shared information. Securing optional supplies is useful,
-   * but it is not required for a safe evacuation.
+   * The exit only appears once a warden has verified it, so reaching this
+   * point already required coordination. Securing optional supplies is useful
+   * but not required for a safe evacuation.
    */
   ventExit: () => {
     const s = get();
@@ -324,8 +395,8 @@ export const useGame = create<GameState>()((set, get) => ({
 
   addIntel: (n) => set((s) => ({ intelPoints: s.intelPoints + n })),
 
-  // charging for a power-up only; the caller sends the net message that makes
-  // it happen, so a spectator with too few points never fires one off
+  // charging for a support action only; the caller sends the net message that makes
+  // it happen, so a warden with too few points never fires one off
   spendIntel: (n) => {
     const s = get();
     if (s.intelPoints >= n) set({ intelPoints: s.intelPoints - n });
@@ -336,16 +407,27 @@ export const useGame = create<GameState>()((set, get) => ({
       get().heal(25, `Power-up from ${by}`);
     } else if (effect === "invis") {
       set({ invisibleUntil: Date.now() + 10000 });
-       get().push(`Safe passage (10s) active - Support action from ${by}`, "good");
+        get().push(`Safe passage (10 s) active — support from ${by}`, "good");
     }
   },
 
   applySnapshot: (snap) => {
     const toMap = (ids: string[]) =>
       Object.fromEntries(ids.map((i) => [i, true]));
+    const hazardElapsed = snap.hazardElapsed ?? get().hazardElapsed;
+    const routeBlocked = isRouteBlocked(
+      BLOCKED_ROUTE.from,
+      BLOCKED_ROUTE.to,
+      hazardElapsed,
+    );
     set({
       hp: snap.hp,
       alarm: snap.alarm,
+      hazardElapsed,
+      routeBlocked,
+      smokeIntensity:
+        getSectorSmoke(snap.room, hazardElapsed) *
+        (snap.alarmDisabled ? VENTILATION_SMOKE_FACTOR : 1),
       spotted: snap.spotted,
       room: snap.room,
       thiefXZ: [snap.thief[0], snap.thief[2]],
@@ -367,19 +449,19 @@ export const useGame = create<GameState>()((set, get) => ({
   },
 }));
 
-/** Does this client get to see inside the given room? */
+/** Does this client get to see inside the given sector? */
 export function useRoomVisible(room: RoomId): boolean {
   const mode = useGame((s) => s.mode);
   const explored = useGame((s) => !!s.explored[room]);
-  // a spectator sees exactly the one room they were posted to
+  // a warden sees exactly the one sector they were posted to
   if (mode.kind === "spectator") return mode.watching === room;
   return explored;
 }
 
-/** The one room this spectator was posted to. */
+/** The one sector this warden was posted to. */
 export const watchedRoom = (mode: GameMode): RoomId | null =>
   mode.kind === "spectator" ? mode.watching : null;
 
-/** This client owns the simulation (thief input, guards, detection). */
+/** This client owns the simulation (evacuee input, hazards, detection). */
 export const useIsHost = () =>
   useGame((s) => s.mode.kind === "solo" || s.mode.kind === "thief");

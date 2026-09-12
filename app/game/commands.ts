@@ -15,13 +15,13 @@ export interface CommandDef {
 }
 
 export const COMMANDS: CommandDef[] = [
-  { code: "LEFT", label: "Move left", detail: "take the west side", color: "#4aa8ff" },
-  { code: "RIGHT", label: "Move right", detail: "take the east side", color: "#39ff88" },
-  { code: "FORWARD", label: "Go forward", detail: "push deeper", color: "#ffd23b" },
-  { code: "BACK", label: "Go back", detail: "fall back", color: "#ff9f43" },
-  { code: "RUN", label: "Run now", detail: "move fast", color: "#ff7ad9" },
-  { code: "HIDE", label: "Break sight", detail: "get out of view", color: "#c8ff3b" },
-  { code: "STOP", label: "Stop", detail: "hold position", color: "#ff5b55" },
+  { code: "LEFT", label: "Route west", detail: "take the west corridor", color: "#4aa8ff" },
+  { code: "RIGHT", label: "Route east", detail: "take the east corridor", color: "#39ff88" },
+  { code: "FORWARD", label: "Move deeper", detail: "continue into the sector", color: "#ffd23b" },
+  { code: "BACK", label: "Fall back", detail: "reverse toward clear air", color: "#ff9f43" },
+  { code: "RUN", label: "Move fast", detail: "sprint — time is short", color: "#ff7ad9" },
+  { code: "HIDE", label: "Take cover", detail: "shelter from exposure", color: "#c8ff3b" },
+  { code: "STOP", label: "Hold", detail: "hold position and wait", color: "#ff5b55" },
 ];
 
 export const commandByCode = (code: CommandCode) =>

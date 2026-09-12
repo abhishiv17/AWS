@@ -16,6 +16,7 @@ import {
   type RoomDef,
   type WallDef,
 } from "../level";
+import { BLOCKED_ROUTE, isRouteBlocked } from "../smoke";
 import { clampDt, runtime } from "../runtime";
 import { useGame, useRoomVisible } from "../store";
 import { Label } from "./Markers";
@@ -225,6 +226,47 @@ function Door({ def }: { def: DoorDef }) {
   );
 }
 
+/** A lightweight physical closure for the authored east route after the cue. */
+function RouteBlock() {
+  const elapsed = useGame((s) => s.hazardElapsed);
+  const view = useGame((s) => s.view);
+  const blocked = isRouteBlocked(
+    BLOCKED_ROUTE.from,
+    BLOCKED_ROUTE.to,
+    elapsed,
+  );
+  if (!blocked) return null;
+
+  return (
+    <>
+      <CuboidCollider
+        position={[5.62, 1.25, 2.5]}
+        args={[0.18, 1.25, 0.78]}
+      />
+      <group position={[5.62, 1.25, 2.5]}>
+        <mesh>
+          <boxGeometry args={[0.16, 2.35, 1.48]} />
+          <meshBasicMaterial color="#ef4444" transparent opacity={0.16} />
+        </mesh>
+        {[-0.48, 0, 0.48].map((z) => (
+          <mesh key={z} position={[0, 0, z]}>
+            <boxGeometry args={[0.2, 2.25, 0.08]} />
+            <meshBasicMaterial color="#ef4444" />
+          </mesh>
+        ))}
+        {view !== "thief" && (
+          <Label
+            position={[0, 1.55, 0]}
+            color="#ef4444"
+            text="EAST ROUTE BLOCKED"
+            sub="unsafe / use west route"
+          />
+        )}
+      </group>
+    </>
+  );
+}
+
 /* --------------------------------------------------------------- fog of war */
 
 /**
@@ -288,6 +330,7 @@ export default function Building() {
       {DOORS.map((d) => (
         <Door key={d.id} def={d} />
       ))}
+      <RouteBlock />
       {ROOMS.filter((r) => r.fog).map((r) => (
         <RoomFog key={r.id} room={r} />
       ))}

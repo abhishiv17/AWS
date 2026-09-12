@@ -121,8 +121,6 @@ SpacetimeDB bridge for the browser prototype.
 | --- | --- | --- |
 | `NEXT_PUBLIC_SPACETIME_HOST` | Current room/landing bridge endpoint. | `[IMPLEMENTED]` |
 | `NEXT_PUBLIC_SPACETIME_MODULE_NAME` | Current bridge module identifier. | `[IMPLEMENTED]` |
-| `NEXT_PUBLIC_SITE_URL` | Local/public site URL. | `[IMPLEMENTED]` |
-| `NEXT_PUBLIC_SPACETIME_AUTH_CLIENT_ID` | Optional current bridge auth client. | `[IMPLEMENTED]` |
 | `AWS_REGION` | Target AWS region. | `[PLANNED]` |
 | `NEXT_PUBLIC_APPSYNC_URL` | Target AppSync GraphQL endpoint. | `[PLANNED]` |
 | `NEXT_PUBLIC_APPSYNC_EVENTS_URL` | Target AppSync Events endpoint. | `[PLANNED]` |

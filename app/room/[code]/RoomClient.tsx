@@ -10,12 +10,6 @@ import {
   useSyncExternalStore,
 } from "react";
 import GameShell from "../../game/GameShell";
-import AuthControls from "../../components/AuthControls";
-import {
-  PROFILE_NAME_KEY,
-  readAuthToken,
-  subscribeAuthToken,
-} from "../../lib/auth";
 import { roomById } from "../../game/level";
 import {
   COUNTDOWN_MS,
@@ -24,7 +18,7 @@ import {
 import { resolveRoom, useSession } from "../../game/session";
 import { useGame } from "../../game/store";
 
-const NAME_KEY = PROFILE_NAME_KEY;
+const NAME_KEY = "campusevac:name";
 /** Read browser storage without tripping hydration or effect-ordering rules. */
 const noSubscribe = () => () => {};
 function useStored<T>(read: () => T, serverValue: T): T {
@@ -82,13 +76,6 @@ export default function RoomClient({ code }: { code: string }) {
   const readShare = useCallback(() => typeof navigator.share === "function", []);
 
   const storedName = useStored(readName, "");
-  // must be a live subscription: the token lands after this page mounts
-  const authToken = useSyncExternalStore(
-    subscribeAuthToken,
-    readAuthToken,
-    () => "",
-  );
-  void authToken;
   const hostSize = useStored(readSeat, null);
   const link = useStored(readLink, "");
   const canShare = useStored(readShare, false);
@@ -238,30 +225,6 @@ export default function RoomClient({ code }: { code: string }) {
         <div className="flex items-center gap-3 border-2 border-[#111216] bg-[#e9ff4f] p-4 shadow-[4px_4px_0_#111216]">
           <span className="signal-pulse h-3 w-3 rounded-full bg-[#3b63ff]" />
           <div><p className="text-xs font-black uppercase tracking-widest">Opening secure room</p><p className="mt-1 text-xs font-medium text-[#4e4d53]">Finding the facility signal for {code}...</p></div>
-        </div>
-      </Frame>
-    );
-  }
-
-  // A rejected profile is not a missing room. Say so, and offer the one thing
-  // that fixes it, rather than sending them to look for a room code.
-  if (status === "auth") {
-    return (
-      <Frame code={code} onBack={backAction}>
-        <div className="mb-4 inline-block border-2 border-[#111216] bg-[#ffd23b] px-2 py-1 text-[10px] font-black uppercase tracking-[0.18em] shadow-[3px_3px_0_#111216]">Sign-in required</div>
-        <h1 className="text-4xl font-black uppercase leading-none tracking-[-0.06em] sm:text-5xl">
-          Sign in before joining
-        </h1>
-        <p className="mt-4 max-w-lg border-l-4 border-[#ffd23b] pl-4 text-sm font-medium leading-relaxed text-[#5a5960]">
-          You must sign in with Google before joining room {code}. If you were
-          already signed in, that session expired; sign in again and you will
-          drop straight back into the room.
-        </p>
-        <div className="mt-8 flex items-center gap-4">
-          <AuthControls />
-          <button onClick={() => window.location.reload()} className="text-[10px] font-black uppercase tracking-[0.16em] text-[#6c6b70] hover:text-[#111216]">
-            Retry
-          </button>
         </div>
       </Frame>
     );
@@ -425,7 +388,6 @@ export default function RoomClient({ code }: { code: string }) {
           <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#77757a]">
             Share this link to join room {code}.
           </p>
-          <AuthControls />
         </div>
         </div>
       </div>

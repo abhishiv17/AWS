@@ -16,14 +16,13 @@ import type {
   VoiceTransmission,
 } from "./types";
 import { WATCHABLE } from "./types";
-import { SPACETIME_AUTH_TOKEN_KEY } from "../../lib/auth";
 
 const PHASES: Phase[] = ["lobby", "countdown", "playing", "ended"];
 const COMMAND_CODES: CommandCode[] = ["LEFT", "RIGHT", "FORWARD", "BACK", "RUN", "HIDE", "STOP"];
 
 type SnapshotExtra = Pick<
   Snapshot,
-  "guards" | "cams" | "collected" | "doorsOpen" | "explored" | "ventOpen"
+  "hazardElapsed" | "guards" | "cams" | "collected" | "doorsOpen" | "explored" | "ventOpen"
 >;
 
 type RoomWaiter = {
@@ -55,19 +54,6 @@ function tokenIsExpired(token: string) {
 const joinFailure = (error: unknown): JoinFailure => {
   const message = error instanceof Error ? error.message : String(error);
   const lower = message.toLowerCase();
-  // the module refuses anyone it has no profile for. That is not a missing
-  // room, and calling it one sent people hunting for a room code that was
-  // fine - it means the connection carried no signed-in identity, usually a
-  // token that expired while the tab was open.
-  if (
-    lower.includes("sign in") ||
-    lower.includes("profile") ||
-    lower.includes("unauthorized") ||
-    lower.includes("invalid token") ||
-    lower.includes("jwt") ||
-    lower.includes("401")
-  )
-    return "auth";
   if (lower.includes("full")) return "full";
   if (lower.includes("started") || lower.includes("over") || lower.includes("countdown"))
     return "unavailable";
@@ -122,11 +108,10 @@ const voiceFromEvent = (text: string): VoiceTransmission | null => {
 /**
  * One SpacetimeDB identity per tab.
  *
- * A seat is `${code}:${identity}`, so every tab has to authenticate as somebody
- * different or two people on one machine claim the same seat and the room looks
- * like it only ever filled once. The suffix lives in sessionStorage: it
- * survives a refresh - which is how a player gets their seat back - and a new
- * tab starts a new person.
+ * A seat is `${code}:${identity}`, so every tab needs a separate anonymous
+ * session or two people on one machine claim the same seat. The suffix lives in
+ * sessionStorage: it survives a refresh - which is how a player gets their seat
+ * back - and a new tab starts a new person.
  */
 function identitySuffix() {
   const key = "campusevac:spacetime-tab";
@@ -168,19 +153,13 @@ export class SpacetimeNet implements NetClient {
     const database = process.env.NEXT_PUBLIC_SPACETIME_MODULE_NAME || "one-heist-spacetime";
     const tokenKey = `campusevac:spacetime-token:${host}:${database}:${identitySuffix()}`;
     let token = "";
-    let authenticated = false;
     try {
-      // Prefer the OIDC auth token if the user is signed in (optional,
-      // enriches the experience). Otherwise use a cached anonymous token
-      // so the tab can reclaim its seat across refreshes. Guest access
-      // works without any stored token — SpacetimeDB issues one on connect.
-      token = localStorage.getItem(SPACETIME_AUTH_TOKEN_KEY) ?? "";
-      authenticated = Boolean(token);
-      if (!authenticated) token = localStorage.getItem(tokenKey) ?? "";
+      // Reuse only SpacetimeDB's anonymous session credential so this tab can
+      // reclaim its seat after a refresh. No external identity is required.
+      token = localStorage.getItem(tokenKey) ?? "";
       if (token && tokenIsExpired(token)) {
-        if (authenticated) localStorage.removeItem(SPACETIME_AUTH_TOKEN_KEY);
+        localStorage.removeItem(tokenKey);
         token = "";
-        authenticated = false;
       }
     } catch {
       /* anonymous identity can still connect without persistence */
@@ -198,12 +177,12 @@ export class SpacetimeNet implements NetClient {
       const conn = DbConnection.builder()
         .withUri(host)
         .withDatabaseName(database)
-        .withToken(token)
+        .withToken(token || undefined)
         .onConnect((connectedConn, identity, nextToken) => {
           void connectedConn;
           this.identity = identity.toHexString();
-           try {
-             if (!authenticated) localStorage.setItem(tokenKey, nextToken);
+          try {
+            localStorage.setItem(tokenKey, nextToken);
           } catch {
             /* private browsing can still use this live connection */
           }
@@ -445,8 +424,7 @@ export class SpacetimeNet implements NetClient {
     const conn = this.conn;
     if (!conn) return null;
     try {
-      // Guest-friendly: pass the player name so the module can use it even
-      // without a Google profile. Auth profiles still take priority server-side.
+      // Pass the player-selected display name to the anonymous room reducer.
       await conn.reducers.createRoom({
         code: room.code,
         maxPlayers: room.maxPlayers,
@@ -531,6 +509,7 @@ export class SpacetimeNet implements NetClient {
         extra: JSON.stringify({
           guards: snap.guards,
           cams: snap.cams,
+          hazardElapsed: snap.hazardElapsed,
           collected: snap.collected,
           doorsOpen: snap.doorsOpen,
           explored: snap.explored,

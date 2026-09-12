@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { DbConnection } from "../game/net/spacetime";
-import { SPACETIME_AUTH_TOKEN_KEY } from "../lib/auth";
 
 /**
  * The live "moonshots landed" figure.
@@ -27,15 +26,11 @@ export default function LandingCounter() {
       process.env.NEXT_PUBLIC_SPACETIME_HOST || "wss://maincloud.spacetimedb.com";
     const database =
       process.env.NEXT_PUBLIC_SPACETIME_MODULE_NAME || "one-heist-spacetime";
-    // Signed in or not, everyone is counted - an anonymous identity is still a
-    // distinct visitor, and the landing page must work before you sign in.
+    // The landing page uses an anonymous SpacetimeDB identity.
     const tokenKey = `campusevac:landing-token:${host}:${database}`;
     let token = "";
     try {
-      token =
-        localStorage.getItem(SPACETIME_AUTH_TOKEN_KEY) ||
-        localStorage.getItem(tokenKey) ||
-        "";
+      token = localStorage.getItem(tokenKey) || "";
     } catch {
       // A private window still connects, it just gets a new identity each time.
     }

@@ -25,9 +25,13 @@ export const runtime = {
   seenBy: new Set<string>(),
   /** live alarm level 0..100, mirrored into the store at ~12hz */
   alert: 0,
-  /** seconds (perf clock) the thief was last in someone's line of sight */
+  /** epoch milliseconds at which this local drill became active */
+  drillStartedAt: 0,
+  /** authoritative hazard clock, also sent in the optional snapshot extra */
+  hazardElapsed: 0,
+  /** seconds (perf clock) the evacuee was last in a hazard zone */
   lastSeen: -100,
-  /** targets streamed in from the thief's client (spectator clients only) */
+  /** targets streamed in from the evacuee's client (warden clients only) */
   netThief: null as null | { x: number; y: number; z: number; yaw: number },
   netGuards: {} as Record<string, [number, number, number]>,
   /** what pressing E - or, for a vent, Space - would do right now */
@@ -37,7 +41,7 @@ export const runtime = {
   },
   lastTrapHit: -10,
 
-  /* --- input the thief's client reads, whatever device produced it ------- */
+  /* --- input the evacuee's client reads, whatever device produced it ------- */
   /** perf-clock stamp of the last jump press, consumed by the next frame */
   jumpAt: -1e9,
   /** on-screen stick, -1..1 on each axis; zero when nothing is touching it */

@@ -2,8 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { CAMERAS, MARKERS, PATROLS, type RoomId } from "../level";
-import { guardState, runtime } from "../runtime";
+import { MARKERS, type RoomId } from "../level";
+import { runtime } from "../runtime";
 import { useSession } from "../session";
 import { useGame, useIsHost } from "../store";
 import type { Snapshot } from "../net/types";
@@ -30,8 +30,7 @@ export default function NetSync() {
   useEffect(() => {
     if (!isHost || !inRoom) return;
     return onDiscover((itemId) => {
-      const def = MARKERS.find((m) => m.id === itemId) ??
-        CAMERAS.find((c) => c.id === itemId);
+      const def = MARKERS.find((m) => m.id === itemId);
       useGame.getState().discover(itemId, def?.label ?? itemId);
     });
   }, [isHost, inRoom, onDiscover]);
@@ -47,9 +46,7 @@ export default function NetSync() {
         yaw: snap.thief[3],
       };
       runtime.thiefYaw = snap.thief[3];
-      runtime.netGuards = snap.guards;
-      for (const [id, yaw] of Object.entries(snap.cams))
-        runtime.camYaw[id] = yaw;
+      runtime.hazardElapsed = snap.hazardElapsed ?? runtime.hazardElapsed;
       runtime.room = snap.room;
       runtime.alert = snap.alarm;
       useGame.getState().applySnapshot(snap);
@@ -63,16 +60,9 @@ export default function NetSync() {
     acc.current = 0;
 
     const s = useGame.getState();
-    const guards: Record<string, [number, number, number]> = {};
-    for (const p of PATROLS) {
-      const g = guardState(p.id);
-      guards[p.id] = [g.pos.x, g.pos.z, g.yaw];
-    }
-    const cams: Record<string, number> = {};
-    for (const c of CAMERAS) cams[c.id] = runtime.camYaw[c.id] ?? c.baseYaw;
-
     publish({
       t: Date.now(),
+      hazardElapsed: runtime.hazardElapsed,
       thief: [
         runtime.thief.x,
         runtime.thief.y,
@@ -83,8 +73,8 @@ export default function NetSync() {
       hp: s.hp,
       alarm: s.alarm,
       spotted: s.spotted,
-      guards,
-      cams,
+      guards: {},
+      cams: {},
       keycard: s.keycard,
       codeFound: s.codeFound,
       vaultOpen: s.vaultOpen,

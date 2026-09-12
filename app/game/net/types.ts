@@ -4,13 +4,13 @@ import type { CommandCode } from "../commands";
 export type Role = "thief" | "spectator";
 export type Phase = "lobby" | "countdown" | "playing" | "ended";
 
-/** Rooms a spectator can be posted to. One each, no overlap while there are seats. */
+/** Sectors a warden can be posted to. One each, no overlap while there are seats. */
 export const WATCHABLE: RoomId[] = ["lobby", "sec", "vault"];
 
 export const MAX_PLAYERS = 4;
 export const MIN_PLAYERS = 2;
 export const COUNTDOWN_MS = 10_000;
-export const SPECTATOR_REJOIN_MS = 20_000;
+export const WARDEN_REJOIN_MS = 20_000;
 
 export type RoomResult = "escaped" | "down" | "thief-left" | "spectator-left";
 
@@ -18,10 +18,10 @@ export interface PlayerInfo {
   id: string;
   name: string;
   role: Role | null;
-  /** the single room this spectator is posted to */
+  /** the single sector this warden is posted to */
   watching: RoomId | null;
   joinedAt: number;
-  /** Set by the authoritative transport while a spectator is in grace. */
+  /** Set by the authoritative transport while a warden is in grace. */
   connected?: boolean;
   rejoinUntil?: number;
 }
@@ -48,9 +48,11 @@ export interface VoiceTransmission {
   t: number;
 }
 
-/** Everything a viewer needs to draw the run. Published by the thief's client. */
+/** Everything a viewer needs to draw the run. Published by the evacuee's client. */
 export interface Snapshot {
   t: number;
+  /** local hazard clock; carried in transport extras for old table compatibility */
+  hazardElapsed?: number;
   /** x, y, z, yaw */
   thief: [number, number, number, number];
   room: RoomId;
@@ -84,11 +86,11 @@ export type NetMessage =
   | { type: "room"; room: RoomState }
   /** the thief's client publishing the world */
   | { type: "world"; snap: Snapshot }
-  /** a spectator scanning something hidden */
+  /** a warden scanning something hidden */
   | { type: "discover"; itemId: string; by: string }
-  /** a spectator sending a short call sign to the thief */
+  /** a warden sending a short call sign to the evacuee */
   | { type: "command"; command: CommandCode; by: string; t: number }
-  /** a spectator sending a powerup to the thief */
+  /** a warden sending a support action to the evacuee */
   | { type: "powerup"; effect: "heal" | "invis"; by: string; t: number }
   /** a server-hosted TTS reference for the same room-scoped command */
   | ({ type: "voice" } & VoiceTransmission)
@@ -98,7 +100,6 @@ export type JoinFailure =
   | "notfound"
   | "full"
   | "unavailable"
-  | "auth"
   | "timeout"
   | "connection";
 export type StartFailure = "notfound" | "not-host" | "not-ready" | "started";

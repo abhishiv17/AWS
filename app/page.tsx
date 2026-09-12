@@ -2,7 +2,6 @@ import Link from "next/link";
 import Image from "next/image";
 import mascotImg from "../ChatGPT Image Sep 6, 2026, 12_03_22 AM.png";
 import LandingCounter from "./components/LandingCounter";
-import AuthControls from "./components/AuthControls";
 
 /* ── data ─────────────────────────────────────────────────────────────── */
 
@@ -47,7 +46,6 @@ export default function Home() {
             <span className="hidden text-[10px] font-bold uppercase tracking-[0.16em] text-[#6c6b70] md:block">Features</span>
             <Link href="/play" className="hidden text-[10px] font-bold uppercase tracking-[0.16em] text-[#6c6b70] md:block">Play Now</Link>
             <Link href="/rooms#join" className="hidden border-2 border-[#111216] px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] hover:bg-[#111216] hover:text-[#f2eee5] sm:block">Join a Room</Link>
-            <AuthControls />
             <Link href="/rooms" className="brutal-button px-4 py-2 text-[10px]">Play Game</Link>
           </div>
         </nav>

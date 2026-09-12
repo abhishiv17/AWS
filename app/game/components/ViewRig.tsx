@@ -5,6 +5,7 @@ import { OrbitControls, PerspectiveCamera } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { roomById, type RoomDef } from "../level";
+import { getSectorSmoke, VENTILATION_SMOKE_FACTOR } from "../smoke";
 import { clampDt, runtime } from "../runtime";
 import { useGame } from "../store";
 import { useCoarsePointer } from "../useCoarsePointer";
@@ -142,6 +143,34 @@ function FirstPersonLook({ touch }: { touch: boolean }) {
  */
 const FOV = 45;
 
+/** Cheap distance fog: smoke changes readability without a volumetric pass. */
+function SmokeAtmosphere() {
+  const view = useGame((s) => s.view);
+  const room = useGame((s) => s.room);
+  const fog = useRef<THREE.FogExp2>(null);
+  const current = useRef(0);
+  const clear = useMemo(() => new THREE.Color("#0d141d"), []);
+  const smoke = useMemo(() => new THREE.Color("#5d625f"), []);
+
+  useFrame((_, rawDt) => {
+    const fogInstance = fog.current;
+    if (!fogInstance) return;
+
+    const state = useGame.getState();
+    const target =
+      view === "thief"
+        ? getSectorSmoke(room, state.hazardElapsed) *
+          (state.alarmDisabled ? VENTILATION_SMOKE_FACTOR : 1)
+        : 0;
+    const k = 1 - Math.exp(-clampDt(rawDt) * 4);
+    current.current += (target - current.current) * k;
+    fogInstance.density = 0.018 + current.current * 0.1;
+    fogInstance.color.copy(clear).lerp(smoke, current.current);
+  });
+
+  return <fogExp2 ref={fog} attach="fog" args={["#0d141d", 0.018]} />;
+}
+
 function SpectatorRig({ active }: { active: boolean }) {
   const mode = useGame((s) => s.mode);
   const thiefRoom = useGame((s) => s.room);
@@ -271,7 +300,7 @@ export default function ViewRig() {
 
   return (
     <>
-      <fogExp2 attach="fog" args={["#0d141d", 0.006]} />
+      <SmokeAtmosphere />
 
       {/* thief: eyes inside the character, driven by Thief.tsx */}
       <PerspectiveCamera makeDefault={first} fov={74} near={0.06} far={400} />

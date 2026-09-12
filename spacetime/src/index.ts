@@ -140,7 +140,7 @@ const spacetimedb = schema({
     }
   ),
 
-  /** Public display profile; contact details stay in the private table below. */
+  /** Legacy table retained for compatibility with the published bridge schema. */
   user_profile: table(
     { public: true },
     {
@@ -152,7 +152,7 @@ const spacetimedb = schema({
     }
   ),
 
-  /** Google email is persisted for the account but never exposed to clients. */
+  /** Legacy private table retained for compatibility with the published schema. */
   account_email: table(
     {},
     {
@@ -173,48 +173,8 @@ export default spacetimedb;
 const nowMs = (ts: { toMillis(): bigint }) => ts.toMillis();
 type CampusEvacBridgeContext = ReducerCtx<typeof spacetimedb.schemaType>;
 
-type AuthClaims = Record<string, unknown>;
-
-function authClaims(ctx: CampusEvacBridgeContext): AuthClaims | null {
-  const jwt = ctx.senderAuth.jwt;
-  if (!jwt) return null;
-  return jwt.fullPayload as AuthClaims;
-}
-
-function claim(claims: AuthClaims, key: string) {
-  const value = claims[key];
-  return typeof value === 'string' ? value.trim() : '';
-}
-
-function profileFromAuth(ctx: CampusEvacBridgeContext) {
-  const claims = authClaims(ctx);
-  if (!claims) return null;
-
-  const email = claim(claims, 'email');
-  // Every connection carries a JWT - SpacetimeDB issues one for anonymous
-  // clients too - so the presence of a token proves nothing. A signed-in user
-  // is one the issuer told us an email address for. Without that we were
-  // writing a "Player" row for every browser that opened the site, which both
-  // filled the signups table with visitors and let requireProfile wave anyone
-  // through into creating and joining rooms.
-  if (!email) return null;
-  const name = (claim(claims, 'name') || claim(claims, 'preferred_username') || email.split('@')[0] || 'Player')
-    .replace(/\s+/g, ' ')
-    .slice(0, 16);
-  const picture = claim(claims, 'picture');
-
-  return { name, email, picture };
-}
-
-/**
- * Resolve a display name for this player. Uses the authenticated Google profile
- * name when available (best experience for returning users), otherwise falls
- * back to the name the client supplied. This means guests can play without
- * signing in — the hackathon requirement is "name only, skip passwords."
- */
+/** Resolve and bound the display name supplied by the anonymous client. */
 function resolvePlayerName(ctx: CampusEvacBridgeContext, clientName: string): string {
-  const profile = ctx.db.user_profile.identity.find(ctx.sender.toHexString());
-  if (profile) return profile.name;
   const trimmed = clientName.trim().replace(/\s+/g, ' ').slice(0, 16);
   return trimmed || `Player-${ctx.sender.toHexString().slice(0, 6)}`;
 }
@@ -289,34 +249,6 @@ function mulberry32(seed: number) {
 /* -------------------------------------------------------------------------- */
 /* reducers                                                                    */
 /* -------------------------------------------------------------------------- */
-
-/** Persist the authenticated Google profile when its SpacetimeDB identity connects. */
-export const on_connect = spacetimedb.clientConnected((ctx) => {
-  const profile = profileFromAuth(ctx);
-  if (!profile) return;
-
-  const identity = ctx.sender.toHexString();
-  const at = nowMs(ctx.timestamp);
-  const existing = ctx.db.user_profile.identity.find(identity);
-  if (existing) {
-    ctx.db.user_profile.identity.update({ ...existing, ...profile, updated_at: at });
-  } else {
-    ctx.db.user_profile.insert({
-      identity,
-      ...profile,
-      created_at: at,
-      updated_at: at,
-    });
-  }
-
-  if (!profile.email) return;
-  const email = ctx.db.account_email.identity.find(identity);
-  if (email) {
-    ctx.db.account_email.identity.update({ ...email, email: profile.email, updated_at: at });
-  } else {
-    ctx.db.account_email.insert({ identity, email: profile.email, updated_at: at });
-  }
-});
 
 export const create_room = spacetimedb.reducer(
   { code: t.string(), max_players: t.u32(), seed: t.u32(), name: t.string() },

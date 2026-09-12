@@ -278,12 +278,12 @@ function FloorTrap({ id }: { id: string }) {
   );
 }
 
-/* ------------------------------------------------------------- alarm panel */
+/* --------------------------------------------------------- ventilation panel */
 
 function AlarmPanel() {
   const def = byId("alarm");
   const [x, y, z] = def.position;
-  const alarm = useGame((s) => s.alarm);
+  const hazard = useGame((s) => s.alarm);
   const disabled = useGame((s) => s.alarmDisabled);
   const lamp = useRef<THREE.MeshStandardMaterial>(null);
 
@@ -291,7 +291,7 @@ function AlarmPanel() {
     if (lamp.current) {
       const target = disabled
         ? 0.05
-        : alarm > 60
+        : hazard > 60
           ? 1.1 + (Math.sin(clock.elapsedTime * 5) * 0.5 + 0.5) * 0.9
           : 0.3;
       lamp.current.emissiveIntensity +=
