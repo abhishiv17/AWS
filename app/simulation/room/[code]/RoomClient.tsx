@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import GameShell from "../../game/GameShell";
-import { roomById } from "../../game/level";
-import { COUNTDOWN_MS, type DrillRoom } from "../../game/net/types";
-import { resolveRoom, useSession } from "../../game/session";
-import { useGame } from "../../game/store";
+import DrillShell from "../../DrillShell";
+import { roomById } from "../../level";
+import { COUNTDOWN_MS, type DrillRoom } from "../../net/types";
+import { resolveRoom, useSession } from "../../session";
+import { useSimulation } from "../../store";
 
 const NAME_KEY = "campusevac:name";
 const noSubscribe = () => () => {};
@@ -49,7 +49,7 @@ export default function RoomClient({ code }: { code: string }) {
   const readHost = useCallback(() => {
     try { return sessionStorage.getItem(`campusevac:host:${code}`) !== null; } catch { return false; }
   }, [code]);
-  const readLink = useCallback(() => `${window.location.origin}/room/${code}`, [code]);
+  const readLink = useCallback(() => `${window.location.origin}/simulation/room/${code}`, [code]);
   const readShare = useCallback(() => typeof navigator.share === "function", []);
   const storedName = useStored(readName, "");
   const isHostInvite = useStored(readHost, false);
@@ -64,9 +64,9 @@ export default function RoomClient({ code }: { code: string }) {
 
   useEffect(() => {
     if (room?.phase !== "active" || !me?.role) return;
-    const game = useGame.getState();
-    game.reset();
-    game.setMode(
+    const sim = useSimulation.getState();
+    sim.reset();
+    sim.setMode(
       me.role === "evacuee"
         ? { kind: "evacuee" }
         : { kind: "warden", sectorId: me.sectorId ?? "sec" },
@@ -114,7 +114,7 @@ export default function RoomClient({ code }: { code: string }) {
     await copyLink();
   };
 
-  const leaveAndGo = () => { leave(); router.push("/rooms"); };
+  const leaveAndGo = () => { leave(); router.push("/simulation/rooms"); };
   const backAction = status === "connected" ? leaveAndGo : undefined;
 
   if (status === "idle") {
@@ -127,11 +127,11 @@ export default function RoomClient({ code }: { code: string }) {
 
   if (["notfound", "full", "unavailable", "timeout", "connection"].includes(status)) {
     const unavailable = status === "timeout" || status === "connection";
-    return <Frame code={code} onBack={backAction}><div className="mb-4 inline-block border-2 border-[#111216] bg-[#ef4444] px-2 py-1 text-[10px] font-black uppercase tracking-[0.18em] shadow-[3px_3px_0_#111216]">{unavailable ? "Signal unavailable" : "Drill error"}</div><h1 className="text-4xl font-black uppercase leading-none tracking-[-0.06em] sm:text-5xl">{unavailable ? "Could not reach drill" : status === "full" ? "Drill is full" : status === "unavailable" ? "Drill is unavailable" : "No such drill"}</h1><p className="mt-4 max-w-lg border-l-4 border-[#ef4444] pl-4 text-sm font-medium leading-relaxed text-[#5a5960]">{status === "timeout" ? "The room took too long to respond. Try the invite again." : status === "connection" ? "The room service could not be reached. Check the connection and try again." : status === "full" ? "Both drill seats are occupied." : status === "unavailable" ? "This drill is no longer accepting participants." : "Check the invite code or ask the coordinator to open a new drill."}</p><Link href="/rooms" className="brutal-button mt-8 px-5 py-3">Back to drills -&gt;</Link></Frame>;
+    return <Frame code={code} onBack={backAction}><div className="mb-4 inline-block border-2 border-[#111216] bg-[#ef4444] px-2 py-1 text-[10px] font-black uppercase tracking-[0.18em] shadow-[3px_3px_0_#111216]">{unavailable ? "Signal unavailable" : "Drill error"}</div><h1 className="text-4xl font-black uppercase leading-none tracking-[-0.06em] sm:text-5xl">{unavailable ? "Could not reach drill" : status === "full" ? "Drill is full" : status === "unavailable" ? "Drill is unavailable" : "No such drill"}</h1><p className="mt-4 max-w-lg border-l-4 border-[#ef4444] pl-4 text-sm font-medium leading-relaxed text-[#5a5960]">{status === "timeout" ? "The room took too long to respond. Try the invite again." : status === "connection" ? "The room service could not be reached. Check the connection and try again." : status === "full" ? "Both drill seats are occupied." : status === "unavailable" ? "This drill is no longer accepting participants." : "Check the invite code or ask the coordinator to open a new drill."}</p><Link href="/simulation/rooms" className="brutal-button mt-8 px-5 py-3">Back to drills -&gt;</Link></Frame>;
   }
 
   if (["active", "assembly", "failed", "reported"].includes(room?.phase ?? "") && me?.role) {
-    return <main className="relative flex-1"><GameShell title={me.role === "evacuee" ? `Evacuee / drill ${code}` : `Warden / ${roomById(me.sectorId ?? "sec").name} / drill ${code}`} /></main>;
+    return <main className="relative flex-1"><DrillShell title={me.role === "evacuee" ? `Evacuee / drill ${code}` : `Warden / ${roomById(me.sectorId ?? "sec").name} / drill ${code}`} /></main>;
   }
 
   if (room?.phase === "failed" || room?.phase === "reported") {
@@ -148,5 +148,5 @@ export default function RoomClient({ code }: { code: string }) {
 }
 
 function Frame({ code, children, onBack }: { code: string; children: React.ReactNode; onBack?: () => void }) {
-  return <main className="brutal-grid relative min-h-0 flex-1 overflow-y-auto text-[#111216]"><div className="mx-auto flex min-h-full max-w-5xl flex-col px-5 py-5 sm:px-8 sm:py-8"><Link href="/rooms" onClick={onBack} className="border-b-2 border-[#111216] pb-4 text-[11px] font-black uppercase tracking-[0.18em] hover:text-[#2563eb]">&lt;- drills</Link><div className="mt-12 max-w-3xl">{children}</div><div className="mt-auto pt-16 text-[10px] font-bold uppercase tracking-[0.16em] text-[#77757a]">drill / {code} / local or AppSync signal</div></div></main>;
+  return <main className="brutal-grid relative min-h-0 flex-1 overflow-y-auto text-[#111216]"><div className="mx-auto flex min-h-full max-w-5xl flex-col px-5 py-5 sm:px-8 sm:py-8"><Link href="/simulation/rooms" onClick={onBack} className="border-b-2 border-[#111216] pb-4 text-[11px] font-black uppercase tracking-[0.18em] hover:text-[#2563eb]">&lt;- drills</Link><div className="mt-12 max-w-3xl">{children}</div><div className="mt-auto pt-16 text-[10px] font-bold uppercase tracking-[0.16em] text-[#77757a]">drill / {code} / local or AppSync signal</div></div></main>;
 }

@@ -11,14 +11,14 @@ import { roomById } from "./level";
 import { playSignal } from "./audio";
 import { useSession } from "./session";
 import {
-  useGame,
+  useSimulation,
   watchedSector,
   VIEWS,
   type ViewMode,
 } from "./store";
 import type { EvidenceStatus, RouteMessage } from "./net/types";
 
-const GameCanvas = dynamic(() => import("./GameCanvas"), {
+const DrillCanvas = dynamic(() => import("./DrillCanvas"), {
   ssr: false,
   loading: () => (
     <div className="absolute inset-0 grid place-items-center text-xs tracking-widest text-zinc-500">
@@ -62,9 +62,9 @@ function statusColor(status: EvidenceStatus) {
 }
 
 function EvidencePanel() {
-  const mode = useGame((state) => state.mode);
-  const view = useGame((state) => state.view);
-  const evidenceMap = useGame((state) => state.evidence);
+  const mode = useSimulation((state) => state.mode);
+  const view = useSimulation((state) => state.view);
+  const evidenceMap = useSimulation((state) => state.evidence);
   const observeEvidence = useSession((state) => state.observeEvidence);
   const sendCommand = useSession((state) => state.sendCommand);
   const evidence = Object.values(evidenceMap);
@@ -122,7 +122,7 @@ function EvidencePanel() {
 }
 
 function Log() {
-  const log = useGame((state) => state.log);
+  const log = useSimulation((state) => state.log);
   if (!log.length) return null;
   return (
     <div className="hud-panel w-[min(20rem,calc(100vw-1.5rem))] p-3">
@@ -148,8 +148,8 @@ function ConnectionBadge() {
 }
 
 function RouteMessageCard() {
-  const mode = useGame((state) => state.mode);
-  const message = useGame((state) => state.latestMessage);
+  const mode = useSimulation((state) => state.mode);
+  const message = useSimulation((state) => state.latestMessage);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 250);
@@ -173,12 +173,12 @@ function RouteMessageCard() {
 }
 
 function HazardBanner() {
-  const mode = useGame((state) => state.mode);
-  const air = useGame((state) => state.air);
-  const smoke = useGame((state) => state.smokeIntensity);
-  const routeStatus = useGame((state) => state.routeStatus);
-  const failed = useGame((state) => state.failed);
-  const complete = useGame((state) => state.assemblyConfirmed);
+  const mode = useSimulation((state) => state.mode);
+  const air = useSimulation((state) => state.air);
+  const smoke = useSimulation((state) => state.smokeIntensity);
+  const routeStatus = useSimulation((state) => state.routeStatus);
+  const failed = useSimulation((state) => state.failed);
+  const complete = useSimulation((state) => state.assemblyConfirmed);
   const previous = useRef<string | null>(null);
   const warden = mode.kind === "warden";
   const alert = complete
@@ -209,10 +209,10 @@ function HazardBanner() {
 }
 
 function CommandDeck() {
-  const mode = useGame((state) => state.mode);
-  const evidence = useGame((state) => state.evidence["east-route-evidence"]);
-  const interventionApplied = useGame((state) => state.interventionApplied);
-  const lastAcknowledgement = useGame((state) => state.lastAcknowledgement);
+  const mode = useSimulation((state) => state.mode);
+  const evidence = useSimulation((state) => state.evidence["east-route-evidence"]);
+  const interventionApplied = useSimulation((state) => state.interventionApplied);
+  const lastAcknowledgement = useSimulation((state) => state.lastAcknowledgement);
   const sendCommand = useSession((state) => state.sendCommand);
   const [sent, setSent] = useState<CommandCode | null>(null);
   if (mode.kind !== "warden") return null;
@@ -255,13 +255,13 @@ function CommandDeck() {
 }
 
 function EndCard({ onReset, onLeave }: { onReset: () => void; onLeave: () => void }) {
-  const complete = useGame((state) => state.assemblyConfirmed);
-  const failed = useGame((state) => state.failed);
-  const solo = useGame((state) => state.mode.kind === "solo");
-  const routeStatus = useGame((state) => state.routeStatus);
-  const interventionApplied = useGame((state) => state.interventionApplied);
-  const latestMessage = useGame((state) => state.latestMessage);
-  const reset = useGame((state) => state.reset);
+  const complete = useSimulation((state) => state.assemblyConfirmed);
+  const failed = useSimulation((state) => state.failed);
+  const solo = useSimulation((state) => state.mode.kind === "solo");
+  const routeStatus = useSimulation((state) => state.routeStatus);
+  const interventionApplied = useSimulation((state) => state.interventionApplied);
+  const latestMessage = useSimulation((state) => state.latestMessage);
+  const reset = useSimulation((state) => state.reset);
   if (!complete && !failed) return null;
   const safeOutcome = complete && !failed;
   const coordinationFailure = failed
@@ -296,7 +296,7 @@ function readOnboardingOpen() {
 }
 
 function Onboarding() {
-  const mode = useGame((state) => state.mode);
+  const mode = useSimulation((state) => state.mode);
   const storedOpen = useSyncExternalStore(noExternalStoreSubscribe, readOnboardingOpen, () => false);
   const [dismissed, setDismissed] = useState(false);
   const open = storedOpen && !dismissed;
@@ -321,19 +321,19 @@ function Onboarding() {
   );
 }
 
-export default function GameShell({ title }: { title?: string }) {
+export default function DrillShell({ title }: { title?: string }) {
   const router = useRouter();
-  const mode = useGame((state) => state.mode);
-  const view = useGame((state) => state.view);
-  const setView = useGame((state) => state.setView);
-  const air = useGame((state) => state.air);
-  const smoke = useGame((state) => state.smokeIntensity);
-  const stamina = useGame((state) => state.stamina);
-  const sector = useGame((state) => state.sector);
-  const routeStatus = useGame((state) => state.routeStatus);
-  const interventionApplied = useGame((state) => state.interventionApplied);
-  const prompt = useGame((state) => state.prompt);
-  const reset = useGame((state) => state.reset);
+  const mode = useSimulation((state) => state.mode);
+  const view = useSimulation((state) => state.view);
+  const setView = useSimulation((state) => state.setView);
+  const air = useSimulation((state) => state.air);
+  const smoke = useSimulation((state) => state.smokeIntensity);
+  const stamina = useSimulation((state) => state.stamina);
+  const sector = useSimulation((state) => state.sector);
+  const routeStatus = useSimulation((state) => state.routeStatus);
+  const interventionApplied = useSimulation((state) => state.interventionApplied);
+  const prompt = useSimulation((state) => state.prompt);
+  const reset = useSimulation((state) => state.reset);
   const leave = useSession((state) => state.leave);
   const onRouteMessage = useSession((state) => state.onRouteMessage);
   const onAcknowledgement = useSession((state) => state.onAcknowledgement);
@@ -355,15 +355,15 @@ export default function GameShell({ title }: { title?: string }) {
   }, [setView, solo]);
 
   useEffect(() => {
-    return onRouteMessage((message: RouteMessage) => useGame.getState().receiveRouteMessage(message));
+    return onRouteMessage((message: RouteMessage) => useSimulation.getState().receiveRouteMessage(message));
   }, [onRouteMessage]);
 
   useEffect(() => {
-    return onAcknowledgement((acknowledgement) => useGame.getState().receiveAcknowledgement(acknowledgement));
+    return onAcknowledgement((acknowledgement) => useSimulation.getState().receiveAcknowledgement(acknowledgement));
   }, [onAcknowledgement]);
 
   useEffect(() => {
-    return onEvidence((evidence) => useGame.getState().observeEvidence(evidence));
+    return onEvidence((evidence) => useSimulation.getState().observeEvidence(evidence));
   }, [onEvidence]);
 
   useEffect(() => {
@@ -389,8 +389,8 @@ export default function GameShell({ title }: { title?: string }) {
   const roomName = roomById(sector).name;
 
   return (
-    <div className="game-surface absolute inset-0 overflow-hidden bg-[#06080c] text-zinc-100">
-      <GameCanvas />
+    <div className="drill-surface absolute inset-0 overflow-hidden bg-[#06080c] text-zinc-100">
+      <DrillCanvas />
       <HazardBanner />
       <RouteMessageCard />
       <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-3 p-3 sm:gap-4 sm:p-4">
@@ -404,7 +404,7 @@ export default function GameShell({ title }: { title?: string }) {
             {solo && <select value={view} onChange={(event) => setView(event.target.value as ViewMode)} className="w-[8.5rem] border-2 border-white/30 bg-zinc-950/90 px-2 py-2 text-[11px] text-zinc-100 outline-none focus:border-[#facc15] sm:w-auto sm:px-3 sm:text-xs">{VIEWS.map((item) => <option key={item.id} value={item.id}>{item.n}. {item.title}</option>)}</select>}
             {warden && <div className="flex overflow-hidden border-2 border-white/30">{(["warden", "evidence"] as ViewMode[]).map((id) => <button key={id} onClick={() => setView(id)} className={`px-3 py-2 text-[11px] uppercase tracking-widest ${view === id ? "bg-[#facc15] text-[#111216]" : "bg-zinc-950/90 text-zinc-400 hover:bg-white/10"}`}>{id === "warden" ? "Watch" : "Evidence"}</button>)}</div>}
             {solo && <button onClick={reset} className="border-2 border-white/30 bg-zinc-950/90 px-3 py-2 text-[10px] uppercase tracking-widest text-zinc-300 hover:bg-white/10">Reset</button>}
-            {!solo && <button onClick={() => { leave(); router.push("/rooms"); }} className="border-2 border-white/30 bg-zinc-950/90 px-3 py-2 text-[10px] uppercase tracking-widest text-zinc-300 hover:bg-white/10">Leave drill</button>}
+            {!solo && <button onClick={() => { leave(); router.push("/simulation/rooms"); }} className="border-2 border-white/30 bg-zinc-950/90 px-3 py-2 text-[10px] uppercase tracking-widest text-zinc-300 hover:bg-white/10">Leave drill</button>}
           </div>
           <Minimap />
         </div>
@@ -431,7 +431,7 @@ export default function GameShell({ title }: { title?: string }) {
       {view === "evacuee" && !showStick && <div className="pointer-events-none absolute left-1/2 top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 border border-white/45"><span className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 bg-[#facc15]" /></div>}
       {showStick && <TouchControls />}
       <Onboarding />
-       <EndCard onReset={() => setView("evacuee")} onLeave={() => { leave(); router.push("/rooms"); }} />
+       <EndCard onReset={() => setView("evacuee")} onLeave={() => { leave(); router.push("/simulation/rooms"); }} />
     </div>
   );
 }

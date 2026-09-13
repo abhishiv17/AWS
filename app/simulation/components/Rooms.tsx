@@ -1,7 +1,7 @@
 "use client";
 
 import { RigidBody } from "@react-three/rapier";
-import { useGame } from "../store";
+import { useSimulation } from "../store";
 import {
   Cabinet,
   CeilingLight,
@@ -46,7 +46,7 @@ function RoomSign({
   color: string;
   rotationY?: number;
 }) {
-  const showLabel = useGame((state) => state.view !== "evacuee");
+  const showLabel = useSimulation((state) => state.view !== "evacuee");
   return (
     <group position={position} rotation={[0, rotationY, 0]}>
       <mesh castShadow>
@@ -98,7 +98,7 @@ function RoomContents({
   room: "lobby" | "sec" | "vault";
   children: React.ReactNode;
 }) {
-  const mode = useGame((state) => state.mode);
+  const mode = useSimulation((state) => state.mode);
   const visible = mode.kind !== "warden" || mode.sectorId === room;
   return visible ? <group>{children}</group> : null;
 }
@@ -114,7 +114,7 @@ function PortalFrame({
   color: string;
   rotationY?: number;
 }) {
-  const showLabel = useGame((state) => state.view !== "evacuee");
+  const showLabel = useSimulation((state) => state.view !== "evacuee");
   return (
     <group position={position} rotation={[0, rotationY, 0]}>
       <mesh position={[-0.95, 1.3, 0]} castShadow>

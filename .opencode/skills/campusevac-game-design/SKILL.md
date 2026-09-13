@@ -43,8 +43,6 @@ Executable code still establishes the migration baseline:
 - `app/game/store.ts` and `app/game/runtime.ts` own local state and simulation.
 - `app/game/GameShell.tsx` owns current HUD, onboarding, and end-state policy.
 - `app/game/components/TouchControls.tsx` owns coarse-pointer controls.
-- `app/game/net/spacetimeNet.ts` is the temporary network adapter.
-- `spacetime/src/index.ts` and generated bindings are the temporary room backend.
 
 ## Design Principles
 

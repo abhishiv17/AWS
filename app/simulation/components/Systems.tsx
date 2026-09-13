@@ -7,7 +7,7 @@ import { ASSEMBLY_Z, MARKERS, roomAt, type MarkerDef } from "../level";
 import { getSectorSmoke, VENTILATION_SMOKE_FACTOR } from "../smoke";
 import { clampDt, runtime } from "../runtime";
 import { useSession } from "../session";
-import { useGame } from "../store";
+import { useSimulation } from "../store";
 
 const markerPosition = (id: string) =>
   new THREE.Vector3(...(MARKERS.find((marker) => marker.id === id) as MarkerDef).position);
@@ -22,7 +22,7 @@ const flatDistance = (a: THREE.Vector3, b: THREE.Vector3) =>
 export default function Systems() {
   const accumulator = useRef(0);
   const hazardAccumulator = useRef(0);
-  const resetSeq = useGame((state) => state.resetSeq);
+  const resetSeq = useSimulation((state) => state.resetSeq);
 
   useEffect(() => {
     hazardAccumulator.current = 0;
@@ -34,8 +34,8 @@ export default function Systems() {
 
   useFrame((_, rawDt) => {
     const dt = clampDt(rawDt);
-    const game = useGame.getState();
-    if (game.failed || game.assemblyConfirmed) return;
+    const sim = useSimulation.getState();
+    if (sim.failed || sim.assemblyConfirmed) return;
 
     const room = useSession.getState().room;
     if (room && room.phase !== "active") return;
@@ -46,13 +46,13 @@ export default function Systems() {
 
     const intensity =
       getSectorSmoke(runtime.sector, elapsed) *
-      (game.interventionApplied ? VENTILATION_SMOKE_FACTOR : 1);
+      (sim.interventionApplied ? VENTILATION_SMOKE_FACTOR : 1);
     runtime.alert = intensity * 100;
     hazardAccumulator.current += dt;
     if (hazardAccumulator.current >= 0.08) {
       const tickDt = hazardAccumulator.current;
       hazardAccumulator.current = 0;
-      game.applySmokeExposure(elapsed, intensity, tickDt);
+      sim.applySmokeExposure(elapsed, intensity, tickDt);
     }
 
     let useTarget: typeof runtime.useTarget = null;
@@ -66,17 +66,17 @@ export default function Systems() {
     accumulator.current += dt;
     if (accumulator.current > 0.08) {
       accumulator.current = 0;
-      game.enterSector(runtime.sector);
+      sim.enterSector(runtime.sector);
       const prompt = useTarget?.kind === "assembly"
         ? "Press E to confirm assembly at the beacon"
         : useTarget?.kind === "intervention"
-          ? game.mode.kind === "solo"
+          ? sim.mode.kind === "solo"
             ? "Press E to apply the ventilation override"
             : "Warden authorization is required for this intervention"
-          : game.routeBlocked
+          : sim.routeBlocked
             ? "East route is unsafe. Choose the west stair."
             : "Move toward the corridor junction and watch for route guidance.";
-      game.setPrompt(prompt);
+      sim.setPrompt(prompt);
     }
   });
 

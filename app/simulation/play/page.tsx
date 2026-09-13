@@ -1,19 +1,19 @@
 "use client";
 
 import { useEffect } from "react";
-import GameShell from "../game/GameShell";
-import { useGame } from "../game/store";
+import DrillShell from "../DrillShell";
+import { useSimulation } from "../store";
 
 export default function PlayPage() {
   useEffect(() => {
-    const g = useGame.getState();
+    const g = useSimulation.getState();
     g.setMode({ kind: "solo" });
     g.reset();
   }, []);
 
   return (
     <main className="relative flex-1">
-      <GameShell title="Solo sandbox" />
+      <DrillShell title="Solo sandbox" />
     </main>
   );
 }

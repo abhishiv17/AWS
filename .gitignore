@@ -2,8 +2,6 @@
 
 # dependencies
 /node_modules*
-/spacetime/node_modules/
-/spacetime/dist/
 /infra/node_modules/
 /infra/cdk.out/
 /infra/dist/

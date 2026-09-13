@@ -1,9 +1,9 @@
 import Link from "next/link";
 import Image from "next/image";
-import mascotImg from "../ChatGPT Image Sep 6, 2026, 12_03_22 AM.png";
+import mascotImg from "../public/mascot.png";
 import LandingCounter from "./components/LandingCounter";
 
-/* ── data ─────────────────────────────────────────────────────────────── */
+/* -- data --------------------------------------------------------------- */
 
 const STEPS = [
   "Create a two-seat drill room and share the link.",
@@ -15,14 +15,14 @@ const STEPS = [
   "Review the drill result and readiness signals.",
 ];
 
-/* ── page ─────────────────────────────────────────────────────────────── */
+/* -- page --------------------------------------------------------------- */
 
 export default function Home() {
   return (
     <main className="brutal-grid relative min-h-0 flex-1 overflow-y-auto text-[#111216]">
       <div className="mx-auto flex min-h-full max-w-[1200px] flex-col px-5 py-5 sm:px-8 sm:py-8">
 
-        {/* ═══════════════ NAV ═══════════════ */}
+        {/* --------------- NAV --------------- */}
         <nav className="flex items-center justify-between border-b-2 border-[#111216] pb-4">
           <Link
             href="/"
@@ -44,9 +44,9 @@ export default function Home() {
           <div className="flex items-center gap-6">
             <span className="hidden text-[10px] font-bold uppercase tracking-[0.16em] text-[#6c6b70] md:block">How to Play</span>
             <span className="hidden text-[10px] font-bold uppercase tracking-[0.16em] text-[#6c6b70] md:block">Features</span>
-            <Link href="/play" className="hidden text-[10px] font-bold uppercase tracking-[0.16em] text-[#6c6b70] md:block">Play Now</Link>
-            <Link href="/rooms#join" className="hidden border-2 border-[#111216] px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] hover:bg-[#111216] hover:text-[#f2eee5] sm:block">Join a Room</Link>
-            <Link href="/rooms" className="brutal-button px-4 py-2 text-[10px]">Play Game</Link>
+            <Link href="/simulation/play" className="hidden text-[10px] font-bold uppercase tracking-[0.16em] text-[#6c6b70] md:block">Play Now</Link>
+            <Link href="/simulation/rooms#join" className="hidden border-2 border-[#111216] px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] hover:bg-[#111216] hover:text-[#f2eee5] sm:block">Join a Room</Link>
+            <Link href="/simulation/rooms" className="brutal-button px-4 py-2 text-[10px]">Start Drill</Link>
           </div>
         </nav>
 
@@ -73,10 +73,10 @@ export default function Home() {
           </div>
         </div>
 
-        {/* ═══════════════ HERO ═══════════════ */}
+        {/* --------------- HERO --------------- */}
         <section className="grid items-start gap-8 pt-8 pb-6 lg:grid-cols-[1.2fr_0.8fr] lg:gap-12 lg:pt-10 lg:pb-8">
 
-          {/* ── LEFT: headline + mascot + copy ── */}
+          {/* -- LEFT: headline + mascot + copy -- */}
           <div className="flex flex-col items-start">
             {/* tags */}
             <div className="mb-4 flex flex-wrap items-center gap-3 text-[10px] font-black uppercase tracking-[0.22em]">
@@ -145,11 +145,11 @@ export default function Home() {
 
             {/* CTA + meta */}
             <div className="mt-6 flex flex-wrap items-end gap-6">
-              <Link href="/rooms" className="brutal-button px-5 py-3">
-                Play Game <span className="ml-2">&rarr;</span>
+              <Link href="/simulation/rooms" className="brutal-button px-5 py-3">
+                Start Drill <span className="ml-2">&rarr;</span>
               </Link>
               <Link
-                href="/rooms#join"
+                href="/simulation/rooms#join"
                 className="border-2 border-[#111216] bg-[#fffdf7] px-5 py-3 text-[11px] font-black uppercase tracking-[0.16em] shadow-[4px_4px_0_#111216] transition hover:bg-[#111216] hover:text-[#f2eee5] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0_#111216]"
               >
                 Join a Room <span className="ml-2">&rarr;</span>
@@ -169,7 +169,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* ── RIGHT: facility panel ── */}
+          {/* -- RIGHT: facility panel -- */}
           <div className="relative mx-auto w-full max-w-md lg:max-w-none">
             <Image
               src="/facility.png"
@@ -187,10 +187,10 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ═══════════════ BOTTOM ROW: How to Play + Run Protocol ═══════════════ */}
+        {/* --------------- BOTTOM ROW: How to Play + Run Protocol --------------- */}
         <section className="grid gap-4 border-t-2 border-[#111216] pt-6 pb-6 lg:grid-cols-[1fr_1.2fr]">
 
-          {/* ── LEFT: How to Play ── */}
+          {/* -- LEFT: How to Play -- */}
           <div className="brutal-panel p-4 sm:p-5">
             <h2 className="mb-4 text-xs font-black uppercase tracking-[0.22em]">How to Play</h2>
             <div className="grid grid-cols-3 gap-3">
@@ -263,7 +263,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* ── RIGHT: Run Protocol + mascot tagline ── */}
+          {/* -- RIGHT: Run Protocol + mascot tagline -- */}
           <div className="brutal-panel flex flex-col p-4 sm:p-5">
             <div className="flex items-start justify-between">
               <div className="flex-1">
@@ -301,7 +301,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ═══════════════ FOOTER ═══════════════ */}
+        {/* --------------- FOOTER --------------- */}
         <footer className="flex flex-col gap-3 border-t-2 border-[#111216] pb-3 pt-4 text-[10px] font-bold uppercase tracking-[0.14em] text-[#6c6b70] sm:flex-row sm:items-center sm:justify-between">
            <span>CampusEvac // Make the safer call</span>
           <span className="flex items-center gap-2">
@@ -314,7 +314,7 @@ export default function Home() {
             Real People. Real Time.
           </span>
           <span className="flex items-center gap-2">
-            A game about teamwork
+            A drill about teamwork
             <span className="relative inline-block h-5 w-5">
               <Image src={mascotImg} alt="" width={20} height={20} className="object-contain" />
             </span>

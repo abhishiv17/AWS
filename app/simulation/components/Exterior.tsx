@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { CuboidCollider, RigidBody } from "@react-three/rapier";
 import * as THREE from "three";
 import { ASSEMBLY_Z } from "../level";
-import { useGame } from "../store";
+import { useSimulation } from "../store";
 import { Label } from "./Markers";
 
 function Sky() {
@@ -138,7 +138,7 @@ function Skyline() {
 
 /** The assembly beacon is visible to wardens and becomes a physical objective. */
 function AssemblyBeacon() {
-  const view = useGame((s) => s.view);
+  const view = useSimulation((s) => s.view);
   return (
     <group position={[0, 0, ASSEMBLY_Z + 2]}>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
@@ -156,7 +156,7 @@ function AssemblyBeacon() {
 }
 
 export default function Exterior() {
-  const evacueeView = useGame((s) => s.view === "evacuee");
+  const evacueeView = useSimulation((s) => s.view === "evacuee");
 
   return (
     <>

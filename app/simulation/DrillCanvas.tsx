@@ -27,7 +27,7 @@ const MAP = [
 /**
  * Space is the jump key, and the browser has its own ideas about it: it scrolls
  * the page, and if the player last clicked a HUD button it re-presses that
- * button. Swallow it over the game, but leave it alone in a text field.
+ * button. Swallow it over the drill canvas, but leave it alone in a text field.
  */
 function useSpaceForJumpOnly() {
   useEffect(() => {
@@ -49,7 +49,7 @@ function useSpaceForJumpOnly() {
   }, []);
 }
 
-export default function GameCanvas() {
+export default function DrillCanvas() {
   const ownsSimulation = useIsSimulationOwner();
   useSpaceForJumpOnly();
 

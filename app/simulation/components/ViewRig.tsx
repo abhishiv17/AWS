@@ -7,7 +7,7 @@ import * as THREE from "three";
 import { roomById, type RoomDef } from "../level";
 import { getSectorSmoke, VENTILATION_SMOKE_FACTOR } from "../smoke";
 import { clampDt, runtime } from "../runtime";
-import { useGame } from "../store";
+import { useSimulation } from "../store";
 import { useCoarsePointer } from "../useCoarsePointer";
 
 /** Corners of a room, at floor level and at head height. */
@@ -145,8 +145,8 @@ const FOV = 45;
 
 /** Cheap distance fog: smoke changes readability without a volumetric pass. */
 function SmokeAtmosphere() {
-  const view = useGame((s) => s.view);
-  const room = useGame((s) => s.sector);
+  const view = useSimulation((s) => s.view);
+  const room = useSimulation((s) => s.sector);
   const fog = useRef<THREE.FogExp2>(null);
   const current = useRef(0);
   const clear = useMemo(() => new THREE.Color("#0d141d"), []);
@@ -156,7 +156,7 @@ function SmokeAtmosphere() {
     const fogInstance = fog.current;
     if (!fogInstance) return;
 
-    const state = useGame.getState();
+    const state = useSimulation.getState();
     const target =
       view === "evacuee"
         ? getSectorSmoke(room, state.hazardElapsed) *
@@ -172,8 +172,8 @@ function SmokeAtmosphere() {
 }
 
 function WardenRig({ active }: { active: boolean }) {
-  const mode = useGame((s) => s.mode);
-  const evacueeSector = useGame((s) => s.sector);
+  const mode = useSimulation((s) => s.mode);
+  const evacueeSector = useSimulation((s) => s.sector);
   // a warden stays on their assigned sector; solo follows the evacuee around
   const room = mode.kind === "warden" ? mode.sectorId : evacueeSector;
   // a warden's framing is bolted down - only solo may turn it
@@ -294,7 +294,7 @@ function WardenRig({ active }: { active: boolean }) {
  * camera and the amount of information drawn on top of the world changes.
  */
 export default function ViewRig() {
-  const view = useGame((s) => s.view);
+  const view = useSimulation((s) => s.view);
   const touch = useCoarsePointer();
   const first = view === "evacuee";
 

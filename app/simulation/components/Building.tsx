@@ -17,7 +17,7 @@ import {
   type WallDef,
 } from "../level";
 import { clampDt } from "../runtime";
-import { useGame, useSectorVisible } from "../store";
+import { useSimulation, useSectorVisible } from "../store";
 import { Label } from "./Markers";
 
 type Box = { pos: [number, number, number]; size: [number, number, number] };
@@ -52,8 +52,8 @@ function wallBoxes(def: WallDef): Box[] {
 }
 
 function Shell() {
-  const evacueeView = useGame((s) => s.view === "evacuee");
-  const warden = useGame((s) => s.mode.kind === "warden");
+  const evacueeView = useSimulation((s) => s.view === "evacuee");
+  const warden = useSimulation((s) => s.mode.kind === "warden");
 
   return (
     <RigidBody type="fixed" colliders={false}>
@@ -219,8 +219,8 @@ function Door({ def }: { def: DoorDef }) {
 
 /** A lightweight physical closure for the authored east route after the cue. */
 function RouteBlock() {
-  const blocked = useGame((s) => s.routeBlocked);
-  const view = useGame((s) => s.view);
+  const blocked = useSimulation((s) => s.routeBlocked);
+  const view = useSimulation((s) => s.view);
   if (!blocked) return null;
 
   return (
@@ -261,8 +261,8 @@ function RouteBlock() {
  */
 function RoomFog({ room }: { room: RoomDef }) {
   const explored = useSectorVisible(room.id);
-  const evacueeView = useGame((s) => s.view === "evacuee");
-  const posted = useGame((s) => s.mode.kind === "warden");
+  const evacueeView = useSimulation((s) => s.view === "evacuee");
+  const posted = useSimulation((s) => s.mode.kind === "warden");
   const mat = useRef<THREE.MeshBasicMaterial>(null);
   const [mounted, setMounted] = useState(!explored);
 

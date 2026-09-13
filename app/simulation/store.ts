@@ -21,7 +21,7 @@ import type {
 
 export type ViewMode = "evacuee" | "warden" | "evidence";
 
-export type GameMode =
+export type SimulationMode =
   | { kind: "solo" }
   | { kind: "evacuee" }
   | { kind: "warden"; sectorId: RoomId };
@@ -58,8 +58,8 @@ export const VIEWS: {
 
 let logSeq = 0;
 
-export interface GameState {
-  mode: GameMode;
+export interface SimulationState {
+  mode: SimulationMode;
   view: ViewMode;
   air: number;
   smokeIntensity: number;
@@ -82,7 +82,7 @@ export interface GameState {
   resetSeq: number;
   log: LogEntry[];
 
-  setMode: (mode: GameMode) => void;
+  setMode: (mode: SimulationMode) => void;
   setView: (view: ViewMode) => void;
   setPrompt: (prompt: string | null) => void;
   setEvacueeXZ: (x: number, z: number) => void;
@@ -130,7 +130,7 @@ const initial = {
   log: [] as LogEntry[],
 };
 
-export const useGame = create<GameState>()((set, get) => ({
+export const useSimulation = create<SimulationState>()((set, get) => ({
   mode: { kind: "solo" },
   view: "evacuee",
   resetSeq: 0,
@@ -343,18 +343,18 @@ function sectorLabel(sector: RoomId) {
 
 /** Only the assigned warden sector is visible outside solo practice. */
 export function useSectorVisible(sector: RoomId): boolean {
-  const mode = useGame((state) => state.mode);
-  const explored = useGame((state) => !!state.explored[sector]);
+  const mode = useSimulation((state) => state.mode);
+  const explored = useSimulation((state) => !!state.explored[sector]);
   if (mode.kind === "warden") return mode.sectorId === sector;
   return explored;
 }
 
-export const watchedSector = (mode: GameMode): RoomId | null =>
+export const watchedSector = (mode: SimulationMode): RoomId | null =>
   mode.kind === "warden" ? mode.sectorId : null;
 
 /** The evacuee and solo practice own local movement and deterministic fallback simulation. */
 export const useIsSimulationOwner = () =>
-  useGame((state) => state.mode.kind === "solo" || state.mode.kind === "evacuee");
+  useSimulation((state) => state.mode.kind === "solo" || state.mode.kind === "evacuee");
 
 export function wardenSmoke(state: WardenState) {
   return state.smokeIntensity * (state.interventionApplied ? VENTILATION_SMOKE_FACTOR : 1);

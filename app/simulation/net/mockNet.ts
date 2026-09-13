@@ -40,28 +40,33 @@ const ROOM_PREFIX = "campusevac:mock-room:";
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
-function storageRead(code: string): MockProjection | null {
+async function storageRead(code: string): Promise<MockProjection | null> {
   try {
-    const raw = localStorage.getItem(`${ROOM_PREFIX}${code}`);
-    return raw ? (JSON.parse(raw) as MockProjection) : null;
-  } catch {
-    return null;
+    const res = await fetch(`/api/mockNet?code=${code}`);
+    if (res.ok) {
+      const data = await res.json();
+      return data.projection as MockProjection | null;
+    }
+  } catch (e) {
+    console.error(e);
+  }
+  return null;
+}
+
+async function storageWrite(projection: MockProjection) {
+  try {
+    await fetch('/api/mockNet', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(projection)
+    });
+  } catch (e) {
+    console.error(e);
   }
 }
 
-function storageWrite(projection: MockProjection) {
-  try {
-    localStorage.setItem(
-      `${ROOM_PREFIX}${projection.room.code}`,
-      JSON.stringify(projection),
-    );
-  } catch {
-    // The in-memory adapter remains useful in private browsing and tests.
-  }
-}
-
-function getProjection(code: string) {
-  const stored = storageRead(code);
+async function getProjection(code: string) {
+  const stored = await storageRead(code);
   if (stored) memory.set(code, stored);
   return stored ?? memory.get(code) ?? null;
 }
@@ -101,9 +106,9 @@ function newProjection(room: DrillRoom): MockProjection {
   };
 }
 
-function save(projection: MockProjection) {
+async function save(projection: MockProjection) {
   memory.set(projection.room.code, projection);
-  storageWrite(projection);
+  await storageWrite(projection);
 }
 
 function connectedClients(code: string) {
@@ -157,7 +162,7 @@ function wardenStateFor(
   };
 }
 
-function activeRoom(projection: MockProjection): MockProjection {
+async function activeRoom(projection: MockProjection): Promise<MockProjection> {
   const room = resolveRoom(projection.room);
   if (room === projection.room) return projection;
   projection.room = room!;
@@ -166,7 +171,7 @@ function activeRoom(projection: MockProjection): MockProjection {
     projection.room.seed,
   );
   projection.stateVersion += 1;
-  save(projection);
+  await save(projection);
   return projection;
 }
 
@@ -206,6 +211,23 @@ export class MockNet implements NetClient {
     roomClients.add(this);
     clients.set(code, roomClients);
 
+    // Listen for room discovery broadcasts from other tabs
+    if (typeof BroadcastChannel !== "undefined") {
+      const discoveryChannel = new BroadcastChannel(`campusevac:discovery:${code}`);
+      discoveryChannel.onmessage = async (event: MessageEvent<{ type: string; room: DrillRoom }>) => {
+        if (event.data.type === "room-available") {
+          const existing = await getProjection(code);
+          if (!existing) {
+            const projection = newProjection(event.data.room);
+            await save(projection);
+          }
+        }
+      };
+      // Request room info from any tab that already has it
+      discoveryChannel.postMessage({ type: "room-request" });
+      // Clean up after connection is established
+      setTimeout(() => discoveryChannel.close(), 5000);
+    }
   }
 
   disconnect() {
@@ -223,22 +245,49 @@ export class MockNet implements NetClient {
   }
 
   async createRoom(room: DrillRoom) {
-    const existing = getProjection(room.code);
+    const existing = await getProjection(room.code);
     if (existing) {
       this.scheduleActivation(existing.room);
+      this.broadcastDiscovery(existing.room);
       return existing.room;
     }
     const projection = newProjection({ ...room, drillId: room.drillId || `drill_${room.code}` });
-    save(projection);
+    await save(projection);
     this.scheduleActivation(projection.room);
     this.emitProjection(projection);
+    this.broadcastDiscovery(projection.room);
     return projection.room;
   }
 
+  private broadcastDiscovery(room: DrillRoom) {
+    if (typeof BroadcastChannel === "undefined") return;
+    const discoveryChannel = new BroadcastChannel(`campusevac:discovery:${room.code}`);
+    discoveryChannel.postMessage({ type: "room-available", room });
+    // Also listen for future requests
+    discoveryChannel.onmessage = async (event: MessageEvent<{ type: string }>) => {
+      if (event.data.type === "room-request") {
+        const projection = await getProjection(room.code);
+        if (projection) {
+          discoveryChannel.postMessage({ type: "room-available", room: projection.room });
+        }
+      }
+    };
+    // Keep open for the session
+    setTimeout(() => discoveryChannel.close(), 120_000);
+  }
+
   async join(code: string, participant: Participant) {
-    let projection = getProjection(code);
+    let projection = await getProjection(code);
+    // Retry a few times to handle cross-tab localStorage propagation delays
+    if (!projection) {
+      for (let attempt = 0; attempt < 5; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        projection = await getProjection(code);
+        if (projection) break;
+      }
+    }
     if (!projection) return { error: "notfound" as const };
-    projection = activeRoom(projection);
+    projection = await await activeRoom(projection);
     const existing = participantFor(projection, participant.id);
     if (!existing && projection.room.phase !== "lobby" && projection.room.phase !== "preparing")
       return { error: "unavailable" as const };
@@ -266,15 +315,15 @@ export class MockNet implements NetClient {
       projection.room.startsAt = Date.now() + COUNTDOWN_MS;
     }
     projection.stateVersion += 1;
-    save(projection);
+    await save(projection);
     this.scheduleActivation(projection.room);
     this.emitProjection(projection);
     this.broadcastProjection(projection);
     return { room: projection.room } as const;
   }
 
-  leave(code: string, playerId: string) {
-    const projection = getProjection(code);
+  async leave(code: string, playerId: string) {
+    const projection = await getProjection(code);
     if (!projection) return;
     projection.room.participants = projection.room.participants.filter(
       (participant) => participant.id !== playerId,
@@ -290,15 +339,15 @@ export class MockNet implements NetClient {
       }
     }
     projection.stateVersion += 1;
-    save(projection);
+    await save(projection);
     this.emitProjection(projection);
     this.broadcastProjection(projection);
   }
 
   async start(code: string, playerId: string): Promise<StartResult> {
-    const projection = getProjection(code);
+    const projection = await getProjection(code);
     if (!projection) return { ok: false, error: "notfound" };
-    activeRoom(projection);
+    await activeRoom(projection);
     if (projection.room.hostId !== playerId)
       return { ok: false, error: "not-host" };
     if (projection.room.participants.length < projection.room.maxPlayers)
@@ -315,16 +364,16 @@ export class MockNet implements NetClient {
       projection.room.seed,
     );
     projection.stateVersion += 1;
-    save(projection);
+    await save(projection);
     this.emitProjection(projection);
     this.broadcastProjection(projection);
     return { ok: true };
   }
 
-  send(intent: ClientIntent) {
-    const projection = getProjection(this.code);
+  async send(intent: ClientIntent) {
+    const projection = await getProjection(this.code);
     if (!projection) return;
-    activeRoom(projection);
+    await activeRoom(projection);
     if (intent.type === "evacuee-state") {
       const participant = participantFor(projection, this.myId);
       if (participant?.role !== "evacuee") return;
@@ -351,7 +400,7 @@ export class MockNet implements NetClient {
         projection.stateVersion + 1,
         intent.state.stateVersion,
       );
-      save(projection);
+      await save(projection);
       this.emitProjection(projection);
       this.broadcastProjection(projection);
       return;
@@ -368,7 +417,7 @@ export class MockNet implements NetClient {
       evidence.updatedAt = now;
       projection.eventSequence += 1;
       projection.stateVersion += 1;
-      save(projection);
+      await save(projection);
       this.emitProjection(projection);
       this.broadcastProjection(projection);
       return;
@@ -386,7 +435,7 @@ export class MockNet implements NetClient {
     if (intent.type === "warden-command")
       projection.processedCommands[intent.idempotencyKey] = ack;
     projection.stateVersion += 1;
-    save(projection);
+    await save(projection);
     this.emit({ type: "command-ack", acknowledgement: ack });
     this.emitProjection(projection);
     this.broadcastProjection(projection);
@@ -537,11 +586,11 @@ export class MockNet implements NetClient {
     this.clearActivationTimer();
     if (room.phase !== "preparing" || room.startsAt === null) return;
 
-    this.activationTimer = setTimeout(() => {
+    this.activationTimer = setTimeout(async () => {
       this.activationTimer = null;
-      const projection = getProjection(room.code);
+      const projection = await getProjection(room.code);
       if (!projection) return;
-      const active = activeRoom(projection);
+      const active = await activeRoom(projection);
       if (active.room.phase !== "active") return;
       this.emitProjection(active);
       this.broadcastProjection(active);

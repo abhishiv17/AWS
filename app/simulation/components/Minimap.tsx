@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { ASSEMBLY_Z, ROOMS, roomById, type RoomId } from "../level";
 import { runtime } from "../runtime";
-import { useGame } from "../store";
+import { useSimulation } from "../store";
 
 const MIN_X = -23.5;
 const MAX_X = 23.5;
@@ -27,8 +27,8 @@ const SHORT: Partial<Record<RoomId, string>> = {
 
 /** Lightweight floorplan layer; the 3D scene remains the only world view. */
 export default function Minimap() {
-  const mode = useGame((state) => state.mode);
-  const evacueeSector = useGame((state) => state.sector);
+  const mode = useSimulation((state) => state.mode);
+  const evacueeSector = useSimulation((state) => state.sector);
   const assignedSector = mode.kind === "warden" ? mode.sectorId : null;
   const evacuee = useRef<SVGCircleElement>(null);
   const direction = useRef<SVGLineElement>(null);

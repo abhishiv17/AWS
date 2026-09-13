@@ -184,7 +184,7 @@ export type JoinResult =
   | { error: JoinFailure };
 
 /**
- * The game speaks intent and receives role-scoped events. The local adapter and
+ * The simulation speaks intent and receives role-scoped events. The local adapter and
  * AppSync implementation share this contract so the renderer does not know
  * which provider owns the room.
  */

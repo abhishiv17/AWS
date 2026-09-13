@@ -5,7 +5,7 @@ import { Html, Edges } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { isRevealed, type MarkerDef, type Vec3 } from "../level";
-import { useGame, useSectorVisible } from "../store";
+import { useSimulation, useSectorVisible } from "../store";
 
 /** Screen-space neon chip, same language as the reference mock. */
 export function Label({
@@ -203,8 +203,8 @@ export interface MarkerViewState {
 }
 
 export function useMarker(def: MarkerDef): MarkerViewState {
-  const view = useGame((s) => s.view);
-  const evidence = useGame((s) => s.evidence[def.id]);
+  const view = useSimulation((s) => s.view);
+  const evidence = useSimulation((s) => s.evidence[def.id]);
   const observed = evidence?.status !== undefined && evidence.status !== "UNKNOWN";
   const visible = useSectorVisible(def.room);
   const revealed = visible && isRevealed(def.reveal, view, observed);

@@ -4,14 +4,14 @@ import { useEffect, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { runtime } from "../runtime";
 import { useSession } from "../session";
-import { useGame, useIsSimulationOwner } from "../store";
+import { useSimulation, useIsSimulationOwner } from "../store";
 import type { EvacueeState } from "../net/types";
 
 const PUBLISH_HZ = 12;
 
 /** Converts local prediction into the small role-scoped state sent to the room. */
 function readEvacueeState(version: number): EvacueeState {
-  const game = useGame.getState();
+  const sim = useSimulation.getState();
   return {
     kind: "evacuee",
     t: Date.now(),
@@ -25,22 +25,22 @@ function readEvacueeState(version: number): EvacueeState {
       runtime.evacueeYaw,
     ],
     sectorId: runtime.sector,
-    air: game.air,
-    smokeIntensity: game.smokeIntensity,
-    stamina: game.stamina,
-    routeStatus: game.routeStatus,
-    interventionApplied: game.interventionApplied,
-    assemblyProgress: game.assemblyProgress,
-    assemblyConfirmed: game.assemblyConfirmed,
-    failed: game.failed,
-    routeMessage: game.latestMessage,
-    log: game.log,
+    air: sim.air,
+    smokeIntensity: sim.smokeIntensity,
+    stamina: sim.stamina,
+    routeStatus: sim.routeStatus,
+    interventionApplied: sim.interventionApplied,
+    assemblyProgress: sim.assemblyProgress,
+    assemblyConfirmed: sim.assemblyConfirmed,
+    failed: sim.failed,
+    routeMessage: sim.latestMessage,
+    log: sim.log,
   };
 }
 
 export default function NetSync() {
   const ownsSimulation = useIsSimulationOwner();
-  const inRoom = useGame((state) => state.mode.kind !== "solo");
+  const inRoom = useSimulation((state) => state.mode.kind !== "solo");
   const publish = useSession((state) => state.publish);
   const onEvacueeState = useSession((state) => state.onEvacueeState);
   const onWardenState = useSession((state) => state.onWardenState);
@@ -50,8 +50,8 @@ export default function NetSync() {
   useEffect(() => {
     if (!ownsSimulation || !inRoom) return;
     return onEvacueeState((state) => {
-      if (useGame.getState().mode.kind === "evacuee")
-        useGame.getState().applyEvacueeState(state);
+      if (useSimulation.getState().mode.kind === "evacuee")
+        useSimulation.getState().applyEvacueeState(state);
     });
   }, [inRoom, onEvacueeState, ownsSimulation]);
 
@@ -71,7 +71,7 @@ export default function NetSync() {
         runtime.netEvacuee = null;
       }
       runtime.alert = state.smokeIntensity * 100;
-      useGame.getState().applyWardenState(state);
+      useSimulation.getState().applyWardenState(state);
     });
   }, [inRoom, onWardenState, ownsSimulation]);
 

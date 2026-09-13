@@ -1,7 +1,7 @@
 "use client";
 
 import { MARKERS, type MarkerDef } from "../level";
-import { useGame, useSectorVisible } from "../store";
+import { useSimulation, useSectorVisible } from "../store";
 import { Label, MarkerOverlay } from "./Markers";
 
 const byId = (id: string) => MARKERS.find((marker) => marker.id === id) as MarkerDef;
@@ -9,7 +9,7 @@ const byId = (id: string) => MARKERS.find((marker) => marker.id === id) as Marke
 function EvidenceTarget({ def }: { def: MarkerDef }) {
   const [x, y, z] = def.position;
   const visible = useSectorVisible(def.room);
-  const status = useGame((state) => state.evidence[def.id]?.status ?? "UNKNOWN");
+  const status = useSimulation((state) => state.evidence[def.id]?.status ?? "UNKNOWN");
   if (!visible) return null;
   return (
     <group>
@@ -31,7 +31,7 @@ function VentilationPanel() {
   const def = byId("ventilation-panel");
   const [x, y, z] = def.position;
   const visible = useSectorVisible(def.room);
-  const applied = useGame((state) => state.interventionApplied);
+  const applied = useSimulation((state) => state.interventionApplied);
   if (!visible) return null;
   return (
     <group>

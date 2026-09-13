@@ -142,8 +142,8 @@ the AWS integration is active.
 | --- | --- |
 | `/` | Mission brief, product framing, and entry points. |
 | `/rooms` | Create or join a two-seat room using the local adapter or AppSync adapter. |
-| `/room/[code]` | Room lobby and multiplayer game shell. |
-| `/play` | Solo training sandbox using the deterministic local game shell. |
+| `/room/[code]` | Room lobby and multiplayer drill shell. |
+| `/play` | Solo training sandbox using the deterministic local drill shell. |
 
 Historical role translations remain in the design dossiers for migration context; executable
 routes and state use CampusEvac terminology.

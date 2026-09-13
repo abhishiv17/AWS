@@ -9,7 +9,7 @@ import { EVACUEE_SPAWN, roomAt } from "../level";
 import { pressJump, pressUse } from "../controls";
 import { clampDt, runtime } from "../runtime";
 import { useSession } from "../session";
-import { useGame, useIsSimulationOwner } from "../store";
+import { useSimulation, useIsSimulationOwner } from "../store";
 import { Label, NeonBox } from "./Markers";
 
 export type Controls =
@@ -89,9 +89,9 @@ function LocalEvacuee() {
   const eyeTarget = useRef(new THREE.Vector3());
   const bobT = useRef(0);
   const [sub, get] = useKeyboardControls<Controls>();
-  const view = useGame((state) => state.view);
-  const air = useGame((state) => state.air);
-  const resetSeq = useGame((state) => state.resetSeq);
+  const view = useSimulation((state) => state.view);
+  const air = useSimulation((state) => state.air);
+  const resetSeq = useSimulation((state) => state.resetSeq);
   const firstPerson = view === "evacuee";
 
   useEffect(
@@ -231,8 +231,8 @@ function LocalEvacuee() {
 
 function RemoteEvacuee() {
   const group = useRef<THREE.Group>(null);
-  const mode = useGame((state) => state.mode);
-  const evacueeSector = useGame((state) => state.sector);
+  const mode = useSimulation((state) => state.mode);
+  const evacueeSector = useSimulation((state) => state.sector);
   const assigned = mode.kind === "warden" ? mode.sectorId : null;
   const inAssignedSector = assigned !== null && evacueeSector === assigned;
   const onWardenState = useSession((state) => state.onWardenState);

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { newCode } from "../game/net/types";
+import { newCode } from "../net/types";
 
 export default function RoomsPage() {
   const router = useRouter();
@@ -25,7 +25,7 @@ export default function RoomsPage() {
     } catch {
       /* private mode: the room still works, just not across a refresh */
     }
-    router.push(`/room/${c}`);
+    router.push(`/simulation/room/${c}`);
   };
 
   const join = () => {
@@ -34,7 +34,7 @@ export default function RoomsPage() {
       setError("That does not look like a room code.");
       return;
     }
-    router.push(`/room/${c}`);
+    router.push(`/simulation/room/${c}`);
   };
 
   return (

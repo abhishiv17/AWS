@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { pressJump, pressUse } from "../controls";
 import { runtime } from "../runtime";
-import { useGame } from "../store";
+import { useSimulation } from "../store";
 
 /**
  * Phone controls for the evacuee: a stick on the left thumb, look on the right.
@@ -176,10 +176,10 @@ function ActionButton({
 }
 
 export default function TouchControls() {
-  const prompt = useGame((s) => s.prompt);
-  const air = useGame((s) => s.air);
-  const failed = useGame((s) => s.failed);
-  const assemblyConfirmed = useGame((s) => s.assemblyConfirmed);
+  const prompt = useSimulation((s) => s.prompt);
+  const air = useSimulation((s) => s.air);
+  const failed = useSimulation((s) => s.failed);
+  const assemblyConfirmed = useSimulation((s) => s.assemblyConfirmed);
   // only label the interact button with what it would actually do
   const [action, setAction] = useState<string | null>(null);
 

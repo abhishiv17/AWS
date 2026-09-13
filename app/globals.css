@@ -177,7 +177,7 @@ input {
   }
 }
 
-/* ── touch play ──────────────────────────────────────────────────────────
+/* -- touch play ----------------------------------------------------------
    A thumb dragging the look pad or the stick must move the evacuee, not pan
    the page or fire the browser's pull-to-refresh. */
 html,
@@ -185,7 +185,7 @@ body {
   overscroll-behavior: none;
 }
 
-.game-surface {
+.drill-surface {
   touch-action: none;
   -webkit-user-select: none;
   user-select: none;
