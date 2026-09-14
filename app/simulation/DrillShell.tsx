@@ -9,7 +9,7 @@ import { useCoarsePointer } from "./useCoarsePointer";
 import { COMMANDS, commandByCode, type CommandCode } from "./commands";
 import { roomById } from "./level";
 import { playSignal } from "./audio";
-import { EVACUEE_BRIEFING, speakNarration, stopNarration } from "./narration";
+import { loadBedrockBriefing, speakNarration, stopNarration } from "./narration";
 import { runtime } from "./runtime";
 import { useSession } from "./session";
 import {
@@ -334,21 +334,25 @@ function Briefing() {
 
   useEffect(() => {
     if (mode.kind === "warden") return;
+    let disposed = false;
     const start = () => {
-      step.current = 0;
       setOpen(true);
-      const speakNext = () => {
-        const next = EVACUEE_BRIEFING[step.current];
-        if (!next) {
-          window.setTimeout(() => setOpen(false), 1400);
-          return;
-        }
-        setLine(next);
-        step.current += 1;
-        speakNarration(next, speakNext);
-      };
-      playSignal("command");
-      speakNext();
+      void loadBedrockBriefing().then((briefing) => {
+        if (disposed) return;
+        step.current = 0;
+        const speakNext = () => {
+          const next = briefing[step.current];
+          if (!next) {
+            window.setTimeout(() => setOpen(false), 1400);
+            return;
+          }
+          setLine(next);
+          step.current += 1;
+          speakNarration(next, speakNext);
+        };
+        playSignal("command");
+        speakNext();
+      });
     };
     window.addEventListener("start-briefing", start);
     let autoStart: number | undefined;
@@ -356,6 +360,7 @@ function Briefing() {
       if (localStorage.getItem("campusevac:onboarding:v2") === "complete") autoStart = window.setTimeout(start, 700);
     } catch { /* transcript remains available from the mission brief */ }
     return () => {
+      disposed = true;
       window.removeEventListener("start-briefing", start);
       if (autoStart) window.clearTimeout(autoStart);
       stopNarration();
