@@ -79,6 +79,8 @@ function LocalEvacuee() {
   );
   const view = useSimulation((state) => state.view);
   const cameraMode = useSimulation((state) => state.cameraMode);
+  const hasBackpack = useSimulation((state) => state.hasBackpack);
+  const equipped = useSimulation((state) => state.equipped);
   const air = useSimulation((state) => state.air);
   const resetSeq = useSimulation((state) => state.resetSeq);
   // the evacuee's own camera: over the right shoulder, or through the eyes
@@ -242,7 +244,7 @@ function LocalEvacuee() {
     >
       <CapsuleCollider args={[0.5, 0.32] as [number, number]} />
       <group ref={visual} position={[0, -0.85, 0]} visible={!eyes}>
-        <Student />
+        <Student hasBackpack={hasBackpack} heldItem={equipped} />
         <ContactShade />
         {!ownCamera && <HeadingBeacon />}
       </group>
@@ -267,6 +269,8 @@ function LocalEvacuee() {
 
 function RemoteEvacuee() {
   const group = useRef<THREE.Group>(null);
+  const hasBackpack = useSimulation((state) => state.hasBackpack);
+  const equipped = useSimulation((state) => state.equipped);
   useFrame((_, rawDt) => {
     const current = runtime.netEvacuee;
     const target = group.current;
@@ -283,7 +287,7 @@ function RemoteEvacuee() {
 
   return (
     <group ref={group} visible={false}>
-      <Student />
+      <Student hasBackpack={hasBackpack} heldItem={equipped} />
       <ContactShade />
       <HeadingBeacon />
       <NeonBox position={[0, 0.95, 0]} size={[0.85, 1.9, 0.55]} color="#38bdf8" opacity={0.07} />

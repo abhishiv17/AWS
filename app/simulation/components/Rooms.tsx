@@ -7,6 +7,8 @@ import {
   CeilingBeam,
   CeilingLight,
   Chair,
+  ClassroomRows,
+  ClimbableStack,
   ControlRack,
   Crate,
   Desk,
@@ -155,15 +157,15 @@ function Foyer() {
       <Plant position={[-4.7, 0, -6.2]} />
       <Plant position={[4.7, 0, -6.2]} />
       <Monitor position={[-3.9, 1.19, 4.7]} rotationY={0.2} scale={0.7} />
-      <RoomSign position={[0, 2.82, -6.82]} title="JUNCTION" code="PRIMARY ROUTE DECISION / 01" color={ROOM_COLORS.lobby} />
+      <RoomSign position={[0, 2.82, -6.82]} title="CENTRAL ENTRANCE" code="CORRIDOR / START POINT" color={ROOM_COLORS.lobby} />
       <WallTrim position={[0, 0, -6.72]} width={9.8} accent={ROOM_COLORS.lobby} />
       <CeilingBeam position={[0, 3.34, 1.5]} width={9.8} />
       <CeilingBeam position={[0, 3.34, -3.8]} width={9.8} />
       <WallPanel position={[3.75, 0, -6.72]} width={1.8} color={ROOM_COLORS.lobby} />
       <RoomEdgeLights color={ROOM_COLORS.lobby} z={-6.68} />
       <FloorMark position={[0, 0, 0.2]} size={[7.4, 0.08]} color={ROOM_COLORS.lobby} opacity={0.3} />
-      <PortalFrame position={[-5.62, 0, 2.5]} label="UTILITY" color={ROOM_COLORS.utility} rotationY={Math.PI / 2} />
-      <PortalFrame position={[5.62, 0, 2.5]} label="DORM WING" color={ROOM_COLORS.dorm} rotationY={-Math.PI / 2} />
+      <PortalFrame position={[-5.62, 0, 2.5]} label="SCIENCE BLOCK" color={ROOM_COLORS.utility} rotationY={Math.PI / 2} />
+      <PortalFrame position={[5.62, 0, 2.5]} label="ACADEMIC BLOCK" color={ROOM_COLORS.dorm} rotationY={-Math.PI / 2} />
       <group position={[0, 2.5, -6.8]}>
         <mesh>
           <boxGeometry args={[3, 0.7, 0.06]} />
@@ -197,6 +199,9 @@ function UtilityRoom() {
         <Shelf position={[-21.5, 0, 0.4]} />
         <Cabinet position={[-8.6, 0, -4.4]} rotationY={Math.PI} />
         <Cabinet position={[-8.6, 0, -3.5]} rotationY={Math.PI} />
+        <LabBench position={[-15, 0, -1.8]} width={5.7} />
+        <GlassCabinet position={[-20.8, 0, -1.7]} />
+        <GlassCabinet position={[-9.25, 0, -1.7]} rotationY={Math.PI} />
       </RigidBody>
       <WaterCooler position={[-20.6, 0, 4.8]} />
       <MonitorBank position={[-15, 0.79, -5.75]} />
@@ -207,15 +212,13 @@ function UtilityRoom() {
       <Crate position={[-19.4, 0.42, 6.2]} size={0.84} color="#6f7a3e" />
       <Crate position={[-18.5, 0.42, 6.2]} size={0.84} color="#6f7a3e" />
       <StatusLight position={[-15, 1.62, -6.4]} color="#10b981" />
-      <RoomSign position={[-15, 2.82, -6.82]} title="UTILITY" code="EVIDENCE STATION / 02" color={ROOM_COLORS.utility} />
+      <RoomSign position={[-15, 2.82, -6.82]} title="SCIENCE BLOCK" code="CHEMISTRY LAB 1A / L1" color={ROOM_COLORS.utility} />
       <WallTrim position={[-15, 0, -6.72]} width={12.8} accent={ROOM_COLORS.utility} />
       <CeilingBeam position={[-15, 3.34, -1.5]} width={12.5} />
       <CeilingBeam position={[-15, 3.34, 4.8]} width={12.5} />
       <WallPanel position={[-10.15, 0, -6.72]} width={2.2} color={ROOM_COLORS.utility} />
-      <LabBench position={[-15, 0, -1.8]} width={5.7} />
-      <GlassCabinet position={[-20.8, 0, -1.7]} />
-      <GlassCabinet position={[-9.25, 0, -1.7]} rotationY={Math.PI} />
       <HazardStripe position={[-15, 0, 5.8]} width={5.5} />
+      <ClimbableStack position={[-12.4, 0, 5.35]} color="#65733d" height={2} />
       <ControlRack position={[-20.8, 0, -5.9]} color={ROOM_COLORS.utility} />
       <ControlRack position={[-19.8, 0, -5.9]} color="#ef4444" />
       <ServerRack position={[-20.8, 0, 1.1]} color={ROOM_COLORS.utility} />
@@ -248,11 +251,14 @@ function DormRoom() {
       </RigidBody>
       <Plant position={[9, 0, 6.2]} />
       <StatusLight position={[17.6, 1.95, -6.7]} color="#facc15" speed={2.4} />
-      <RoomSign position={[15, 2.82, 6.82]} rotationY={Math.PI} title="DORM WING" code="SECONDARY SECTOR / 03" color={ROOM_COLORS.dorm} />
+      <RoomSign position={[15, 2.82, 6.82]} rotationY={Math.PI} title="ACADEMIC BLOCK" code="CLASSROOM A201 / L2" color={ROOM_COLORS.dorm} />
       <WallTrim position={[15, 0, 6.72]} width={12.8} rotationY={Math.PI} accent={ROOM_COLORS.dorm} />
       <CeilingBeam position={[15, 3.34, -1.5]} width={12.5} rotationY={Math.PI} />
       <CeilingBeam position={[15, 3.34, 4.8]} width={12.5} rotationY={Math.PI} />
       <WallPanel position={[9.2, 0, 6.72]} width={1.8} color={ROOM_COLORS.dorm} rotationY={Math.PI} />
+      <ClassroomRows position={[15, 0, -1.2]} />
+      <Whiteboard position={[15, 2.1, 6.8]} rotationY={Math.PI} />
+      <ClimbableStack position={[19.6, 0, 4.8]} color="#72563a" height={2} />
       <FloorMark position={[15, 0, 1.5]} size={[0.12, 8.2]} color={ROOM_COLORS.dorm} opacity={0.3} />
       <FloorMark position={[15, 0, -5.2]} size={[5.4, 0.12]} color={ROOM_COLORS.dorm} opacity={0.55} />
       <RoomEdgeLights color={ROOM_COLORS.dorm} z={6.68} cx={15} />

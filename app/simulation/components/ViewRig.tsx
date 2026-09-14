@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ComponentRef } from "react";
-import { OrbitControls, PerspectiveCamera } from "@react-three/drei";
+import { ContactShadows, OrbitControls, PerspectiveCamera } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { roomById, type RoomDef } from "../level";
@@ -343,6 +343,15 @@ export default function ViewRig() {
     <>
       <SmokeAtmosphere />
       <SceneLighting />
+      <ContactShadows
+        position={[0, 0.015, 4]}
+        opacity={0.3}
+        scale={48}
+        blur={1.7}
+        far={5.5}
+        resolution={512}
+        color="#05070a"
+      />
 
       {/* Evacuee: eyes inside the character, driven by Evacuee.tsx. */}
       <PerspectiveCamera makeDefault={first} fov={74} near={0.06} far={400} />

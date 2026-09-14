@@ -1,8 +1,11 @@
 "use client";
 
-import { MARKERS, type MarkerDef } from "../level";
+import { MARKERS, SCENARIO_OBJECTS, SPECTATOR_THREATS, type MarkerDef, type ScenarioObjectDef } from "../level";
 import { useSimulation, useSectorVisible } from "../store";
 import { Label, MarkerOverlay } from "./Markers";
+import { useFrame } from "@react-three/fiber";
+import { useRef } from "react";
+import * as THREE from "three";
 
 const byId = (id: string) => MARKERS.find((marker) => marker.id === id) as MarkerDef;
 
@@ -79,6 +82,142 @@ function WestRouteSign() {
   );
 }
 
+function ScenarioProp({ def }: { def: ScenarioObjectDef }) {
+  const visible = useSectorVisible(def.room);
+  const complete = useSimulation((state) => state.scenarioProgress[def.id]);
+  if (!visible || (complete && def.id !== "main-exit")) return null;
+
+  return (
+    <group position={def.position}>
+      {def.id === "emergency-backpack" && (
+        <group rotation={[0, -0.2, 0]}>
+          <mesh castShadow>
+            <boxGeometry args={[0.48, 0.58, 0.24]} />
+            <meshStandardMaterial color="#1d2630" roughness={0.8} />
+          </mesh>
+          <mesh position={[0, 0.08, 0.14]}>
+            <boxGeometry args={[0.32, 0.2, 0.04]} />
+            <meshStandardMaterial color="#2d3e4d" roughness={0.75} />
+          </mesh>
+          {[-1, 1].map((side) => (
+            <mesh key={side} position={[side * 0.15, 0.05, 0.15]} rotation={[0, 0, side * 0.1]}>
+              <boxGeometry args={[0.045, 0.5, 0.025]} />
+              <meshStandardMaterial color="#38bdf8" emissive="#1e6b91" emissiveIntensity={0.7} />
+            </mesh>
+          ))}
+        </group>
+      )}
+      {def.id === "lab-access-card" && (
+        <group rotation={[0.1, 0, -0.2]}>
+          <mesh castShadow>
+            <boxGeometry args={[0.18, 0.28, 0.025]} />
+            <meshStandardMaterial color="#facc15" emissive="#765b00" emissiveIntensity={0.4} />
+          </mesh>
+          <mesh position={[0, 0.03, 0.02]}>
+            <boxGeometry args={[0.11, 0.025, 0.01]} />
+            <meshBasicMaterial color="#fff7c2" />
+          </mesh>
+        </group>
+      )}
+      {def.id === "gas-valve" && (
+        <group rotation={[Math.PI / 2, 0, 0]}>
+          <mesh castShadow>
+            <torusGeometry args={[0.22, 0.045, 8, 16]} />
+            <meshStandardMaterial color="#ef4444" emissive="#7f1d1d" emissiveIntensity={0.5} metalness={0.45} />
+          </mesh>
+          <mesh rotation={[0, 0, Math.PI / 2]}>
+            <boxGeometry args={[0.05, 0.5, 0.05]} />
+            <meshStandardMaterial color="#d6d3d1" metalness={0.65} roughness={0.35} />
+          </mesh>
+        </group>
+      )}
+      {def.id === "first-aid-kit" && (
+        <group>
+          <mesh castShadow>
+            <boxGeometry args={[0.42, 0.28, 0.28]} />
+            <meshStandardMaterial color="#e9edf0" roughness={0.45} />
+          </mesh>
+          <mesh position={[0, 0.01, 0.145]}>
+            <boxGeometry args={[0.11, 0.19, 0.015]} />
+            <meshBasicMaterial color="#ef4444" />
+          </mesh>
+          <mesh position={[0, 0.01, 0.155]}>
+            <boxGeometry args={[0.19, 0.08, 0.015]} />
+            <meshBasicMaterial color="#ef4444" />
+          </mesh>
+        </group>
+      )}
+      {(def.id === "lab-safety-clue" || def.id === "academic-guide") && (
+        <group rotation={[0.1, 0.15, def.id === "academic-guide" ? -0.12 : 0.12]}>
+          <mesh castShadow>
+            <boxGeometry args={[0.42, 0.035, 0.3]} />
+            <meshStandardMaterial color={def.id === "academic-guide" ? "#a78bfa" : "#10b981"} roughness={0.8} />
+          </mesh>
+          <mesh position={[0, 0.022, 0]}>
+            <boxGeometry args={[0.3, 0.006, 0.02]} />
+            <meshBasicMaterial color="#f8fafc" />
+          </mesh>
+        </group>
+      )}
+      {def.id === "main-exit" && (
+        <group position={[0, 1.05, -0.08]}>
+          <mesh>
+            <boxGeometry args={[1.7, 2.3, 0.08]} />
+            <meshStandardMaterial color="#1b242b" roughness={0.65} metalness={0.35} />
+          </mesh>
+          <mesh position={[0, 0.92, 0.06]}>
+            <boxGeometry args={[0.76, 0.22, 0.025]} />
+            <meshStandardMaterial color="#39ff88" emissive="#10b981" emissiveIntensity={1.5} />
+          </mesh>
+          <Label position={[0, 1.02, 0.1]} color="#39ff88" text="EXIT" sub="marked route" />
+        </group>
+      )}
+    </group>
+  );
+}
+
+function SpectatorThreats() {
+  const view = useSimulation((state) => state.view);
+  const visible = useSimulation((state) => state.mode.kind === "warden" || view === "evidence");
+  if (!visible) return null;
+  return (
+    <>
+      {SPECTATOR_THREATS.map((threat) => (
+        <ThreatMarker key={threat.id} threat={threat} />
+      ))}
+    </>
+  );
+}
+
+function ThreatMarker({ threat }: { threat: (typeof SPECTATOR_THREATS)[number] }) {
+  const ring = useRef<THREE.Mesh>(null);
+  useFrame(({ clock }) => {
+    if (!ring.current) return;
+    ring.current.rotation.y = clock.elapsedTime * 0.8;
+    ring.current.scale.setScalar(0.9 + Math.sin(clock.elapsedTime * 3) * 0.12);
+  });
+  return (
+    <group position={threat.position}>
+      {threat.id === "gas-cloud" ? (
+        <group>
+          {[0, 1, 2, 3].map((index) => (
+            <mesh key={index} position={[Math.sin(index * 2) * 0.22, index * 0.12, Math.cos(index) * 0.18]}>
+              <sphereGeometry args={[0.18 + index * 0.035, 12, 10]} />
+              <meshBasicMaterial color="#ef4444" transparent opacity={0.12} depthWrite={false} />
+            </mesh>
+          ))}
+        </group>
+      ) : (
+        <mesh ref={ring} rotation={[-Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[0.72, 0.035, 8, 24]} />
+          <meshBasicMaterial color={threat.color} transparent opacity={0.85} />
+        </mesh>
+      )}
+      <Label position={[0, 0.9, 0]} color={threat.color} text={threat.label} sub={threat.sub} />
+    </group>
+  );
+}
+
 export default function Interactables() {
   return (
     <>
@@ -87,6 +226,10 @@ export default function Interactables() {
       ))}
       <VentilationPanel />
       <WestRouteSign />
+      {SCENARIO_OBJECTS.map((object) => (
+        <ScenarioProp key={object.id} def={object} />
+      ))}
+      <SpectatorThreats />
     </>
   );
 }

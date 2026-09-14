@@ -5,6 +5,7 @@ import { useFrame, type ThreeElements } from "@react-three/fiber";
 import { Outlines } from "@react-three/drei";
 import * as THREE from "three";
 import { clampDt } from "../runtime";
+import type { EquipmentId } from "../level";
 
 /**
  * The evacuee: a chibi university student built from primitives, drawn with toon shading and
@@ -192,7 +193,41 @@ function Torso() {
   );
 }
 
-function Arm({ side, swing }: { side: 1 | -1; swing: RefObject<THREE.Group | null> }) {
+function HeldItem({ type }: { type: EquipmentId }) {
+  return type === "access-card" ? (
+    <group rotation={[0.15, 0.2, -0.2]}>
+      <mesh castShadow>
+        <boxGeometry args={[0.12, 0.2, 0.025]} />
+        <meshStandardMaterial color="#facc15" emissive="#8a6400" emissiveIntensity={0.35} />
+      </mesh>
+      <mesh position={[0, 0.02, 0.015]}>
+        <boxGeometry args={[0.07, 0.025, 0.01]} />
+        <meshBasicMaterial color="#f8fafc" />
+      </mesh>
+    </group>
+  ) : (
+    <group rotation={[0.1, 0.1, -0.15]}>
+      <mesh castShadow>
+        <boxGeometry args={[0.16, 0.22, 0.04]} />
+        <meshStandardMaterial color="#a78bfa" roughness={0.8} />
+      </mesh>
+      <mesh position={[0, 0.04, 0.025]}>
+        <boxGeometry args={[0.1, 0.012, 0.01]} />
+        <meshBasicMaterial color="#f5f3ff" />
+      </mesh>
+    </group>
+  );
+}
+
+function Arm({
+  side,
+  swing,
+  heldItem,
+}: {
+  side: 1 | -1;
+  swing: RefObject<THREE.Group | null>;
+  heldItem: EquipmentId | null;
+}) {
   return (
     <group position={[0.28 * side, 1.38, 0]} rotation={[0, 0, 0.12 * side]}>
       <group ref={swing}>
@@ -202,6 +237,7 @@ function Arm({ side, swing }: { side: 1 | -1; swing: RefObject<THREE.Group | nul
         <Part color={COLORS.skin} ink={0.014} position={[0, -0.52, 0.01]}>
           <sphereGeometry args={[0.068, 14, 12]} />
         </Part>
+        {side === 1 && heldItem && <group position={[0, -0.56, 0.1]}><HeldItem type={heldItem} /></group>}
         {side === 1 && (
           <Detail color={COLORS.patch} position={[0.078, -0.12, 0]} rotation={[0, Math.PI / 2, 0]}>
             <boxGeometry args={[0.1, 0.06, 0.012]} />
@@ -263,7 +299,13 @@ function Backpack() {
   );
 }
 
-export default function Student() {
+export default function Student({
+  hasBackpack = true,
+  heldItem = null,
+}: {
+  hasBackpack?: boolean;
+  heldItem?: EquipmentId | null;
+}) {
   const root = useRef<THREE.Group>(null);
   const upper = useRef<THREE.Group>(null);
   const legLeft = useRef<THREE.Group>(null);
@@ -311,9 +353,9 @@ export default function Student() {
       </Part>
       <group ref={upper}>
         <Torso />
-        <Arm side={1} swing={armLeft} />
-        <Arm side={-1} swing={armRight} />
-        <Backpack />
+        <Arm side={1} swing={armLeft} heldItem={heldItem} />
+        <Arm side={-1} swing={armRight} heldItem={null} />
+        {hasBackpack && <Backpack />}
         <Head />
       </group>
     </group>

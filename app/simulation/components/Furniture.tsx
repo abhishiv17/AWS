@@ -694,3 +694,55 @@ export function HazardStripe({ position, width = 3.2, rotationY = 0 }: P & { wid
     </group>
   );
 }
+
+/** Explicit fixed colliders make these props reliable jump targets, not decoration. */
+export function ClimbableStack({
+  position,
+  color = "#7a5a34",
+  height = 2,
+}: {
+  position: Vec3;
+  color?: string;
+  height?: number;
+}) {
+  return (
+    <RigidBody type="fixed" colliders="cuboid">
+      <group position={position}>
+        {Array.from({ length: height }, (_, index) => (
+          <mesh key={index} position={[index % 2 ? 0.3 : -0.3, 0.45 + index * 0.9, 0]} castShadow receiveShadow>
+            <boxGeometry args={[0.82, 0.82, 0.82]} />
+            <meshStandardMaterial color={color} roughness={0.88} />
+          </mesh>
+        ))}
+        {Array.from({ length: height }, (_, index) => (
+          <mesh key={`band-${index}`} position={[(index % 2 ? 0.3 : -0.3), 0.45 + index * 0.9, 0.42]}>
+            <boxGeometry args={[0.66, 0.08, 0.025]} />
+            <meshStandardMaterial color="#bd8a46" roughness={0.9} />
+          </mesh>
+        ))}
+      </group>
+    </RigidBody>
+  );
+}
+
+/** A small classroom row that creates readable cover and jumpable desk surfaces. */
+export function ClassroomRows({ position }: { position: Vec3 }) {
+  return (
+    <RigidBody type="fixed" colliders="cuboid">
+      <group position={position}>
+        {[0, 1, 2].flatMap((row) =>
+          [0, 1].map((column) => {
+            const x = column * 2.6 - 1.3;
+            const z = row * 2.1 - 2.1;
+            return (
+              <group key={`${row}-${column}`}>
+                <Desk position={[x, 0, z]} size={[1.9, 0.72, 0.82]} />
+                <Chair position={[x, 0, z + 0.72]} rotationY={Math.PI} />
+              </group>
+            );
+          }),
+        )}
+      </group>
+    </RigidBody>
+  );
+}
