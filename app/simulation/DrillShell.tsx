@@ -9,7 +9,8 @@ import { useCoarsePointer } from "./useCoarsePointer";
 import { COMMANDS, commandByCode, type CommandCode } from "./commands";
 import { roomById } from "./level";
 import { playSignal } from "./audio";
-import { loadBedrockBriefing, speakNarration, stopNarration } from "./narration";
+import BriefingArtwork from "./components/BriefingArtwork";
+import { EVACUEE_BRIEFING, loadBedrockBriefing, speakNarration, stopNarration } from "./narration";
 import { runtime } from "./runtime";
 import { useSession } from "./session";
 import {
@@ -313,14 +314,14 @@ function Onboarding() {
   return (
     <div className="pointer-events-auto absolute inset-0 z-30 grid place-items-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm">
       <section role="dialog" aria-modal="true" aria-labelledby="onboarding-title" className="w-full max-w-xl border-2 border-[#facc15] bg-[#111216] p-5 text-zinc-100 shadow-[7px_7px_0_#facc15] sm:p-7">
-        <div className="flex items-start justify-between gap-4 border-b border-white/20 pb-4"><div><div className="text-[10px] font-black uppercase tracking-[0.2em] text-[#facc15]">CampusEvac / mission brief</div><h2 id="onboarding-title" className="mt-2 text-2xl font-black uppercase tracking-[-0.04em]">{mode.kind === "warden" ? "Verify. Communicate. Adapt." : "Reach the assembly point."}</h2></div><button onClick={finish} className="border border-white/30 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-zinc-300 hover:bg-white/10">Skip</button></div>
-        <div className="mt-5 grid gap-4 text-sm leading-relaxed text-zinc-300 sm:grid-cols-2">
-          <div className="border-l-2 border-[#38bdf8] pl-3"><h3 className="text-[10px] font-black uppercase tracking-widest text-[#38bdf8]">Evacuee</h3><p className="mt-2">Start in the central entrance corridor. Secure the emergency pack, decode the two blocks, control the hazard, and leave through the marked exit.</p></div>
-          <div className="border-l-2 border-[#10b981] pl-3"><h3 className="text-[10px] font-black uppercase tracking-widest text-[#10b981]">Warden</h3><p className="mt-2">Observe your assigned sector, verify evidence, send a route message, and apply one bounded intervention.</p></div>
-          <div className="border-l-2 border-[#facc15] pl-3"><h3 className="text-[10px] font-black uppercase tracking-widest text-[#facc15]">Controls</h3><p className="mt-2">WASD moves, Shift sprints, Space jumps onto desks and crates, E interacts, V switches camera, and the pointer or touch surface looks around.</p></div>
-          <div className="border-l-2 border-[#ef4444] pl-3"><h3 className="text-[10px] font-black uppercase tracking-widest text-[#ef4444]">Training boundary</h3><p className="mt-2">This is a controlled simulation, not live emergency guidance. Captions remain available if audio is unavailable.</p></div>
-        </div>
-        <button onClick={finish} className="brutal-button mt-6 w-full px-4 py-3">Understood - enter the drill</button>
+         <div className="border-b border-white/20 pb-4"><div className="text-[10px] font-black uppercase tracking-[0.2em] text-[#facc15]">CampusEvac / mission brief</div><h2 id="onboarding-title" className="mt-2 text-2xl font-black uppercase tracking-[-0.04em]">{mode.kind === "warden" ? "Verify. Communicate. Adapt." : "Listen before you move."}</h2><p className="mt-2 max-w-lg text-xs leading-relaxed text-zinc-400">{mode.kind === "warden" ? "Your station opens immediately. The evacuee receives a separate guided briefing and does not see your hazard layer." : "A narrated four-step briefing explains the campus, controls, objectives, and information boundary. Movement stays locked until the last line finishes."}</p></div>
+         <div className="mt-5 grid gap-3 text-xs leading-relaxed text-zinc-300 sm:grid-cols-2">
+           <div className="border-l-2 border-[#38bdf8] pl-3"><h3 className="text-[10px] font-black uppercase tracking-widest text-[#38bdf8]">Route</h3><p className="mt-1">Entrance &rarr; Science Block &rarr; Academic Block &rarr; green exit.</p></div>
+           <div className="border-l-2 border-[#ef4444] pl-3"><h3 className="text-[10px] font-black uppercase tracking-widest text-[#ef4444]">Hazard</h3><p className="mt-1">Read physical signs. The warden sees threats you do not.</p></div>
+           <div className="border-l-2 border-[#facc15] pl-3"><h3 className="text-[10px] font-black uppercase tracking-widest text-[#facc15]">Controls</h3><p className="mt-1">WASD move, Shift sprint, Space jump, E interact, V camera.</p></div>
+           <div className="border-l-2 border-[#10b981] pl-3"><h3 className="text-[10px] font-black uppercase tracking-widest text-[#10b981]">Promise</h3><p className="mt-1">Captions stay on screen while the audio plays. No movement starts early.</p></div>
+         </div>
+         <button onClick={finish} className="brutal-button mt-6 w-full px-4 py-3">{mode.kind === "warden" ? "Open warden station" : "Start guided briefing"}</button>
       </section>
     </div>
   );
@@ -328,24 +329,39 @@ function Onboarding() {
 
 function Briefing() {
   const mode = useSimulation((state) => state.mode);
+  const beginBriefing = useSimulation((state) => state.beginBriefing);
+  const completeBriefing = useSimulation((state) => state.completeBriefing);
   const [line, setLine] = useState("");
   const [open, setOpen] = useState(false);
+  const [slide, setSlide] = useState(0);
+  const [lines, setLines] = useState(EVACUEE_BRIEFING);
   const step = useRef(0);
 
   useEffect(() => {
     if (mode.kind === "warden") return;
     let disposed = false;
     const start = () => {
+      if (useSimulation.getState().briefingStatus === "playing") return;
+      beginBriefing();
       setOpen(true);
+      setSlide(0);
+      setLine("Preparing your guided route briefing...");
       void loadBedrockBriefing().then((briefing) => {
         if (disposed) return;
+        setLines(briefing);
         step.current = 0;
         const speakNext = () => {
           const next = briefing[step.current];
           if (!next) {
-            window.setTimeout(() => setOpen(false), 1400);
+            setLine("Briefing complete. Your route is live.");
+            window.setTimeout(() => {
+              if (disposed) return;
+              completeBriefing();
+              setOpen(false);
+            }, 900);
             return;
           }
+          setSlide(step.current);
           setLine(next);
           step.current += 1;
           speakNarration(next, speakNext);
@@ -365,17 +381,23 @@ function Briefing() {
       if (autoStart) window.clearTimeout(autoStart);
       stopNarration();
     };
-  }, [mode.kind]);
+  }, [beginBriefing, completeBriefing, mode.kind]);
 
   if (mode.kind === "warden" || !open) return null;
   return (
-    <div className="pointer-events-none absolute left-3 top-[4.5rem] z-10 max-w-[min(26rem,calc(100vw-1.5rem))] sm:left-4 sm:top-20">
-      <div className="border border-[#a78bfa]/70 bg-[#0b0e13]/90 px-3 py-2 shadow-[3px_3px_0_#a78bfa] backdrop-blur-sm">
-        <div className="text-[9px] font-black uppercase tracking-[0.18em] text-[#a78bfa]">Mission control / briefing</div>
-        <div className="mt-1 text-[11px] leading-relaxed text-zinc-200">{line}</div>
+    <div className="pointer-events-auto absolute inset-0 z-40 grid place-items-center overflow-y-auto bg-[#05070b]/85 p-4 backdrop-blur-md">
+      <section className="w-full max-w-2xl border border-[#a78bfa]/70 bg-[#0b0e13] p-4 text-zinc-100 shadow-[8px_8px_0_rgba(167,139,250,.35)] sm:p-6" role="dialog" aria-modal="true" aria-labelledby="briefing-title">
+        <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
+          <div><div className="text-[9px] font-black uppercase tracking-[0.22em] text-[#a78bfa]">CampusEvac / guided briefing</div><h2 id="briefing-title" className="mt-1 text-xl font-black uppercase tracking-[-0.03em] sm:text-2xl">Listen. Understand. Then move.</h2></div>
+          <div className="shrink-0 text-right font-mono text-[10px] uppercase tracking-widest text-zinc-500"><div>{Math.min(slide + 1, lines.length)} / {lines.length}</div><div className="mt-1 text-[#a78bfa]">movement locked</div></div>
+        </div>
+        <div className="mt-4"><BriefingArtwork slide={slide} /></div>
+        <div className="mt-4 border-l-2 border-[#a78bfa] bg-white/[0.03] px-4 py-3" aria-live="polite"><div className="text-[9px] font-black uppercase tracking-[0.18em] text-[#a78bfa]">Narration / captions</div><div className="mt-1 text-sm leading-relaxed text-zinc-100 sm:text-base">{line}</div></div>
+        <div className="mt-4 flex items-center gap-3"><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10"><div className="h-full bg-[#a78bfa] transition-[width] duration-500" style={{ width: `${Math.min(100, ((slide + 1) / Math.max(1, lines.length)) * 100)}%` }} /></div><span className="font-mono text-[9px] uppercase tracking-widest text-zinc-500">audio + captions</span></div>
+         <p className="mt-4 text-[10px] uppercase tracking-[0.16em] text-zinc-500">Keep this panel open. The controls activate automatically after the final line.</p>
+       </section>
       </div>
-    </div>
-  );
+   );
 }
 
 export default function DrillShell({ title }: { title?: string }) {
@@ -483,7 +505,7 @@ export default function DrillShell({ title }: { title?: string }) {
             <ConnectionBadge />
             {solo && <select value={view} onChange={(event) => setView(event.target.value as ViewMode)} className="w-[8.5rem] border-2 border-white/30 bg-zinc-950/90 px-2 py-2 text-[11px] text-zinc-100 outline-none focus:border-[#facc15] sm:w-auto sm:px-3 sm:text-xs">{VIEWS.map((item) => <option key={item.id} value={item.id}>{item.n}. {item.title}</option>)}</select>}
             {warden && <div className="flex overflow-hidden border-2 border-white/30">{(["warden", "evidence"] as ViewMode[]).map((id) => <button key={id} onClick={() => setView(id)} className={`px-3 py-2 text-[11px] uppercase tracking-widest ${view === id ? "bg-[#facc15] text-[#111216]" : "bg-zinc-950/90 text-zinc-400 hover:bg-white/10"}`}>{id === "warden" ? "Watch" : "Evidence"}</button>)}</div>}
-            {solo && <button onClick={reset} className="border-2 border-white/30 bg-zinc-950/90 px-3 py-2 text-[10px] uppercase tracking-widest text-zinc-300 hover:bg-white/10">Reset</button>}
+            {solo && <button onClick={() => { reset(); window.dispatchEvent(new Event("start-briefing")); }} className="border-2 border-white/30 bg-zinc-950/90 px-3 py-2 text-[10px] uppercase tracking-widest text-zinc-300 hover:bg-white/10">Reset</button>}
             {!solo && <button onClick={() => { leave(); router.push("/simulation/rooms"); }} className="border-2 border-white/30 bg-zinc-950/90 px-3 py-2 text-[10px] uppercase tracking-widest text-zinc-300 hover:bg-white/10">Leave drill</button>}
           </div>
             {view !== "evacuee" && <Minimap />}
@@ -511,7 +533,7 @@ export default function DrillShell({ title }: { title?: string }) {
       {view === "evacuee" && !showStick && <div className="pointer-events-none absolute left-1/2 top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 border border-white/45"><span className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 bg-[#facc15]" /></div>}
       {showStick && <TouchControls />}
       <Onboarding />
-       <EndCard onReset={() => setView("evacuee")} onLeave={() => { leave(); router.push("/simulation/rooms"); }} />
+       <EndCard onReset={() => { setView("evacuee"); window.dispatchEvent(new Event("start-briefing")); }} onLeave={() => { leave(); router.push("/simulation/rooms"); }} />
     </div>
   );
 }

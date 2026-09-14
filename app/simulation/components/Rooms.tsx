@@ -1,17 +1,19 @@
 "use client";
 
 import { RigidBody } from "@react-three/rapier";
-import { useSimulation } from "../store";
 import {
   Cabinet,
   CeilingBeam,
   CeilingLight,
   Chair,
   ClassroomRows,
+  ClassroomPodium,
   ClimbableStack,
   ControlRack,
   Crate,
+  CeilingPipes,
   Desk,
+  FumeHood,
   FloorMark,
   GlassCabinet,
   HazardStripe,
@@ -20,6 +22,7 @@ import {
   Locker,
   Monitor,
   MonitorBank,
+  MicroscopeStation,
   Plant,
   Reception,
   ServerRack,
@@ -28,7 +31,9 @@ import {
   StatusLight,
   WallPanel,
   WaterCooler,
+  WallClock,
   WallTrim,
+  WindowBay,
   Whiteboard,
   WoodCrate,
 } from "./Furniture";
@@ -53,7 +58,7 @@ function RoomSign({
   color: string;
   rotationY?: number;
 }) {
-  const showLabel = useSimulation((state) => state.view !== "evacuee");
+  const showLabel = true;
   return (
     <group position={position} rotation={[0, rotationY, 0]}>
       <mesh castShadow>
@@ -118,7 +123,7 @@ function PortalFrame({
   color: string;
   rotationY?: number;
 }) {
-  const showLabel = useSimulation((state) => state.view !== "evacuee");
+  const showLabel = true;
   return (
     <group position={position} rotation={[0, rotationY, 0]}>
       <mesh position={[-0.95, 1.3, 0]} castShadow>
@@ -162,6 +167,7 @@ function Foyer() {
       <CeilingBeam position={[0, 3.34, 1.5]} width={9.8} />
       <CeilingBeam position={[0, 3.34, -3.8]} width={9.8} />
       <WallPanel position={[3.75, 0, -6.72]} width={1.8} color={ROOM_COLORS.lobby} />
+      <Label position={[0, 2.24, -6.9]} color="#dcecff" text="CAMPUS EVAC" sub="READ THE SIGNS / STAY TOGETHER" />
       <RoomEdgeLights color={ROOM_COLORS.lobby} z={-6.68} />
       <FloorMark position={[0, 0, 0.2]} size={[7.4, 0.08]} color={ROOM_COLORS.lobby} opacity={0.3} />
       <PortalFrame position={[-5.62, 0, 2.5]} label="SCIENCE BLOCK" color={ROOM_COLORS.utility} rotationY={Math.PI / 2} />
@@ -207,7 +213,15 @@ function UtilityRoom() {
       <MonitorBank position={[-15, 0.79, -5.75]} />
       <Chair position={[-15, 0, -4.6]} rotationY={Math.PI} />
       <Monitor position={[-9.6, 0.76, 2.6]} rotationY={Math.PI + 0.2} scale={0.8} />
-      <Whiteboard position={[-10.6, 2.1, -6.8]} />
+      <Whiteboard position={[-18.4, 2.1, -6.8]} />
+      <FumeHood position={[-11.25, 0, -5.85]} accent="#ff6b72" />
+      <MicroscopeStation position={[-16.25, 0, -1.8]} />
+      <MicroscopeStation position={[-14.1, 0, -1.8]} rotationY={0.15} />
+      <WindowBay position={[-21.82, 0, 3.0]} rotationY={Math.PI / 2} accent="#55c7ff" />
+      <CeilingPipes position={[-15, 3.22, -3.65]} length={11.5} color="#5a727d" />
+      <CeilingPipes position={[-19.2, 3.22, 2.5]} length={6.5} rotationY={Math.PI / 2} color="#48636d" />
+      <Label position={[-11.25, 2.75, -5.24]} color="#ff8b88" text="FUME HOOD" sub="VENTILATION / GAS CONTROL" />
+      <Label position={[-15, 1.42, -1.1]} color="#a9e8e7" text="CHEMISTRY WORKSTATIONS" sub="CHECK THE BENCHES" />
       <Plant position={[-8.9, 0, 5.6]} />
       <Crate position={[-19.4, 0.42, 6.2]} size={0.84} color="#6f7a3e" />
       <Crate position={[-18.5, 0.42, 6.2]} size={0.84} color="#6f7a3e" />
@@ -257,6 +271,12 @@ function DormRoom() {
       <CeilingBeam position={[15, 3.34, 4.8]} width={12.5} rotationY={Math.PI} />
       <WallPanel position={[9.2, 0, 6.72]} width={1.8} color={ROOM_COLORS.dorm} rotationY={Math.PI} />
       <ClassroomRows position={[15, 0, -1.2]} />
+      <ClassroomPodium position={[15, 0, 5.05]} rotationY={Math.PI} />
+      <WindowBay position={[21.82, 0, 3.0]} rotationY={-Math.PI / 2} accent="#ffd45c" />
+      <WallClock position={[21.78, 2.45, -4.85]} rotationY={-Math.PI / 2} />
+      <CeilingPipes position={[15, 3.22, -3.55]} length={11.5} color="#756b61" />
+      <CeilingPipes position={[19.2, 3.22, 2.5]} length={6.5} rotationY={Math.PI / 2} color="#756b61" />
+      <Label position={[15, 2.9, 6.65]} color="#fff1b2" text="A201 / BRIEFING ROOM" sub="DECODE THE ACADEMIC GUIDE" />
       <Whiteboard position={[15, 2.1, 6.8]} rotationY={Math.PI} />
       <ClimbableStack position={[19.6, 0, 4.8]} color="#72563a" height={2} />
       <FloorMark position={[15, 0, 1.5]} size={[0.12, 8.2]} color={ROOM_COLORS.dorm} opacity={0.3} />

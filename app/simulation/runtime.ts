@@ -20,6 +20,7 @@ export const runtime = {
   alert: 0,
   drillStartedAt: 0,
   hazardElapsed: 0,
+  briefingStatus: "locked" as "locked" | "playing" | "complete",
   /** Authoritative evacuee transform received by a warden client. */
   netEvacuee: null as null | {
     x: number;

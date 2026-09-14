@@ -647,6 +647,171 @@ export function LabBench({ position, rotationY = 0, width = 3.6 }: P & { width?:
   );
 }
 
+/** A signature chemistry-lab silhouette: hood, glass sash, work light, and exhaust stack. */
+export function FumeHood({ position, rotationY = 0, accent = "#ef6b67" }: P & { accent?: string }) {
+  return (
+    <group position={position} rotation={[0, rotationY, 0]}>
+      <mesh position={[0, 0.72, 0]} castShadow receiveShadow>
+        <boxGeometry args={[2.8, 1.35, 0.95]} />
+        <meshStandardMaterial color="#58626a" roughness={0.62} metalness={0.25} />
+      </mesh>
+      <mesh position={[0, 1.7, 0.03]} castShadow>
+        <boxGeometry args={[2.8, 0.7, 0.92]} />
+        <meshStandardMaterial color="#68757d" roughness={0.58} metalness={0.22} />
+      </mesh>
+      <mesh position={[0, 1.47, 0.5]}>
+        <boxGeometry args={[2.35, 0.66, 0.025]} />
+        <meshPhysicalMaterial color="#b8e5e6" transparent opacity={0.24} roughness={0.12} metalness={0.12} />
+      </mesh>
+      <mesh position={[0, 1.13, 0.51]}>
+        <boxGeometry args={[2.35, 0.035, 0.035]} />
+        <meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={1.2} />
+      </mesh>
+      <mesh position={[0, 2.16, 0]} castShadow>
+        <boxGeometry args={[0.52, 0.75, 0.48]} />
+        <meshStandardMaterial color="#303942" roughness={0.72} metalness={0.25} />
+      </mesh>
+      <mesh position={[0, 2.54, 0]} castShadow>
+        <cylinderGeometry args={[0.25, 0.33, 0.22, 12]} />
+        <meshStandardMaterial color="#283038" roughness={0.75} metalness={0.25} />
+      </mesh>
+      <mesh position={[0, 1.08, 0.48]}>
+        <boxGeometry args={[1.55, 0.045, 0.03]} />
+        <meshStandardMaterial color="#eafcff" emissive="#b9ffff" emissiveIntensity={1.8} />
+      </mesh>
+      {[-0.7, 0, 0.7].map((x, index) => (
+        <group key={x} position={[x, 1.2, 0.2]}>
+          <mesh castShadow>
+            <cylinderGeometry args={[0.09, 0.11, 0.26 + index * 0.08, 10]} />
+            <meshStandardMaterial color={index === 1 ? "#c48a58" : "#79b7c0"} transparent opacity={0.88} roughness={0.18} />
+          </mesh>
+          <mesh position={[0, 0.18, 0]}>
+            <cylinderGeometry args={[0.025, 0.025, 0.13, 8]} />
+            <meshStandardMaterial color="#dae7e7" metalness={0.3} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+/** Small microscope clusters make the lab read as a working chemistry space, not a warehouse. */
+export function MicroscopeStation({ position, rotationY = 0 }: P) {
+  return (
+    <group position={position} rotation={[0, rotationY, 0]}>
+      <mesh position={[0, 0.92, 0]} castShadow>
+        <boxGeometry args={[0.46, 0.06, 0.34]} />
+        <meshStandardMaterial color="#202a30" roughness={0.42} metalness={0.4} />
+      </mesh>
+      <mesh position={[0, 1.15, 0]} rotation={[0, 0, -0.22]} castShadow>
+        <boxGeometry args={[0.07, 0.48, 0.08]} />
+        <meshStandardMaterial color="#d4dde0" roughness={0.3} metalness={0.55} />
+      </mesh>
+      <mesh position={[0.1, 1.35, 0]} rotation={[0.1, 0, -0.4]} castShadow>
+        <cylinderGeometry args={[0.08, 0.11, 0.34, 10]} />
+        <meshStandardMaterial color="#dce4e5" roughness={0.24} metalness={0.48} />
+      </mesh>
+      <mesh position={[0.1, 1.52, 0]} rotation={[0, 0, -0.4]}>
+        <cylinderGeometry args={[0.055, 0.055, 0.18, 10]} />
+        <meshStandardMaterial color="#202a30" roughness={0.35} metalness={0.55} />
+      </mesh>
+      <mesh position={[0, 1.05, 0]}>
+        <cylinderGeometry args={[0.16, 0.16, 0.035, 16]} />
+        <meshStandardMaterial color="#1d252b" metalness={0.5} />
+      </mesh>
+    </group>
+  );
+}
+
+/** Exposed services and conduits add ceiling depth to the block silhouette. */
+export function CeilingPipes({ position, length = 4.8, rotationY = 0, color = "#52616b" }: P & { length?: number; color?: string }) {
+  return (
+    <group position={position} rotation={[0, rotationY, 0]}>
+      <mesh rotation={[0, 0, Math.PI / 2]} castShadow>
+        <cylinderGeometry args={[0.065, 0.065, length, 10]} />
+        <meshStandardMaterial color={color} roughness={0.45} metalness={0.65} />
+      </mesh>
+      {[-length / 2 + 0.55, 0, length / 2 - 0.55].map((x) => (
+        <mesh key={x} position={[x, -0.04, 0]}>
+          <torusGeometry args={[0.13, 0.018, 6, 14]} />
+          <meshStandardMaterial color="#2b343b" roughness={0.48} metalness={0.58} />
+        </mesh>
+      ))}
+      <mesh position={[length / 2 - 0.28, -0.2, 0]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.13, 0.13, 0.38, 10]} />
+        <meshStandardMaterial color={color} roughness={0.5} metalness={0.62} />
+      </mesh>
+    </group>
+  );
+}
+
+export function WindowBay({ position, rotationY = 0, accent = "#55c7ff" }: P & { accent?: string }) {
+  return (
+    <group position={position} rotation={[0, rotationY, 0]}>
+      <mesh position={[0, 1.75, 0]} castShadow>
+        <boxGeometry args={[3.8, 2.5, 0.12]} />
+        <meshStandardMaterial color="#202a32" roughness={0.68} metalness={0.32} />
+      </mesh>
+      <mesh position={[0, 1.75, 0.08]}>
+        <boxGeometry args={[3.35, 2.05, 0.025]} />
+        <meshStandardMaterial color="#27526a" emissive="#173b52" emissiveIntensity={0.62} roughness={0.2} metalness={0.15} />
+      </mesh>
+      {[-1.1, 0, 1.1].map((x) => (
+        <mesh key={x} position={[x, 1.75, 0.11]}>
+          <boxGeometry args={[0.045, 2.05, 0.035]} />
+          <meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={0.55} />
+        </mesh>
+      ))}
+      <mesh position={[0, 0.48, 0.12]}>
+        <boxGeometry args={[3.55, 0.06, 0.12]} />
+        <meshStandardMaterial color="#8a6c4b" roughness={0.82} />
+      </mesh>
+    </group>
+  );
+}
+
+export function ClassroomPodium({ position, rotationY = 0 }: P) {
+  return (
+    <group position={position} rotation={[0, rotationY, 0]}>
+      <mesh position={[0, 0.58, 0]} castShadow>
+        <boxGeometry args={[1.15, 1.16, 0.65]} />
+        <meshStandardMaterial color="#344e61" roughness={0.68} metalness={0.18} />
+      </mesh>
+      <mesh position={[0, 1.2, 0.08]} castShadow>
+        <boxGeometry args={[1.3, 0.08, 0.85]} />
+        <meshStandardMaterial color="#bc925e" roughness={0.65} />
+      </mesh>
+      <mesh position={[0, 1.32, -0.08]}>
+        <boxGeometry args={[0.42, 0.03, 0.28]} />
+        <meshStandardMaterial color="#111821" emissive="#1f6388" emissiveIntensity={0.8} />
+      </mesh>
+    </group>
+  );
+}
+
+export function WallClock({ position, rotationY = 0 }: P) {
+  return (
+    <group position={position} rotation={[0, rotationY, 0]}>
+      <mesh rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.38, 0.38, 0.08, 24]} />
+        <meshStandardMaterial color="#c7ccd0" roughness={0.35} metalness={0.35} />
+      </mesh>
+      <mesh position={[0, 0, 0.045]}>
+        <circleGeometry args={[0.31, 24]} />
+        <meshStandardMaterial color="#f0eee4" roughness={0.7} />
+      </mesh>
+      <mesh position={[0.1, 0.03, 0.07]} rotation={[0, 0, -0.6]}>
+        <boxGeometry args={[0.035, 0.19, 0.015]} />
+        <meshBasicMaterial color="#20262c" />
+      </mesh>
+      <mesh position={[-0.04, 0.03, 0.07]} rotation={[0, 0, 0.2]}>
+        <boxGeometry args={[0.03, 0.13, 0.015]} />
+        <meshBasicMaterial color="#20262c" />
+      </mesh>
+    </group>
+  );
+}
+
 export function GlassCabinet({ position, rotationY = 0 }: P) {
   return (
     <group position={position} rotation={[0, rotationY, 0]}>

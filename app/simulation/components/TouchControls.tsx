@@ -181,6 +181,7 @@ export default function TouchControls() {
   const health = useSimulation((s) => s.health);
   const failed = useSimulation((s) => s.failed);
   const assemblyConfirmed = useSimulation((s) => s.assemblyConfirmed);
+  const briefingStatus = useSimulation((s) => s.briefingStatus);
   const cameraMode = useSimulation((s) => s.cameraMode);
   const toggleCameraMode = useSimulation((s) => s.toggleCameraMode);
   // only label the interact button with what it would actually do
@@ -193,7 +194,7 @@ export default function TouchControls() {
     return () => window.clearInterval(id);
   }, []);
 
-  if (air <= 0 || health <= 0 || failed || assemblyConfirmed) return null;
+  if (briefingStatus !== "complete" || air <= 0 || health <= 0 || failed || assemblyConfirmed) return null;
   const assemblyHere = action === "assembly";
 
   return (

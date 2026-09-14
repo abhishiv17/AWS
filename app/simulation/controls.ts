@@ -16,7 +16,7 @@ import { scenarioReady } from "./level";
 /** `E` / the INTERACT button: a visible panel or the assembly beacon. */
 export function pressUse() {
   const sim = useSimulation.getState();
-  if (sim.air <= 0 || sim.failed || sim.assemblyConfirmed) return;
+  if (sim.briefingStatus !== "complete" || sim.air <= 0 || sim.failed || sim.assemblyConfirmed) return;
   const target = runtime.useTarget;
   if (target?.kind === "intervention") {
     if (sim.mode.kind === "solo") sim.applyIntervention();
@@ -33,7 +33,7 @@ export function pressUse() {
 /** `Space` / the JUMP button: a small hop for route readability. */
 export function pressJump() {
   const sim = useSimulation.getState();
-  if (sim.air <= 0 || sim.failed || sim.assemblyConfirmed) return;
+  if (sim.briefingStatus !== "complete" || sim.air <= 0 || sim.failed || sim.assemblyConfirmed) return;
   runtime.jumpAt = performance.now();
   playSignal("jump");
 }

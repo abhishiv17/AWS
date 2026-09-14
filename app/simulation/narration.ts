@@ -2,10 +2,10 @@
 
 /** Stable local briefing used when Bedrock is not configured or temporarily unavailable. */
 export const EVACUEE_BRIEFING = [
-  "Evacuee, listen carefully. You are in the central entrance corridor.",
-  "A gas leak is spreading through the Science Block. Find the emergency backpack, retrieve the lab access card, and close the gas isolation valve.",
-  "Read the safety clues in both blocks. Use the first-aid kit if your health drops, then return to the marked exit.",
-  "The spectator sees threats you cannot. Trust physical signs, keep moving, and do not cross a route you have not decoded.",
+  "Welcome to CampusEvac. You are the evacuee, starting in the central entrance corridor. Stay calm and read the signs around you.",
+  "Your route is simple: collect the emergency backpack, find the lab access card, read one clue in each block, and close the red gas valve.",
+  "If your health drops, find the white first-aid kit and press E to use it. Then follow the marked safe route to the green exit.",
+  "The warden can see hazards that you cannot. You will see physical clues and route messages. Do not move until this briefing is complete.",
 ];
 
 export async function loadBedrockBriefing(signal?: AbortSignal) {
@@ -27,17 +27,26 @@ export async function loadBedrockBriefing(signal?: AbortSignal) {
 }
 
 export function speakNarration(text: string, onEnd: () => void) {
+  const estimatedMs = Math.max(1800, (text.split(/\s+/).length / 2.35) * 1000 + 1800);
   if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-    onEnd();
+    globalThis.setTimeout(onEnd, estimatedMs);
     return;
   }
   window.speechSynthesis.cancel();
+  let finished = false;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    window.clearTimeout(timeout);
+    onEnd();
+  };
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.rate = 0.92;
   utterance.pitch = 0.82;
   utterance.volume = 0.9;
-  utterance.onend = onEnd;
-  utterance.onerror = onEnd;
+  utterance.onend = finish;
+  utterance.onerror = finish;
+  const timeout = window.setTimeout(finish, estimatedMs);
   window.speechSynthesis.speak(utterance);
 }
 

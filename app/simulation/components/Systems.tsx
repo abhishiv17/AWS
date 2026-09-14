@@ -42,6 +42,12 @@ export default function Systems() {
     const dt = clampDt(rawDt);
     const sim = useSimulation.getState();
     if (sim.failed || sim.assemblyConfirmed) return;
+    if (sim.briefingStatus !== "complete") {
+      runtime.useTarget = null;
+      runtime.touchMove.x = 0;
+      runtime.touchMove.y = 0;
+      return;
+    }
 
     const room = useSession.getState().room;
     if (room && room.phase !== "active") return;

@@ -82,6 +82,7 @@ function LocalEvacuee() {
   const hasBackpack = useSimulation((state) => state.hasBackpack);
   const equipped = useSimulation((state) => state.equipped);
   const air = useSimulation((state) => state.air);
+  const briefingStatus = useSimulation((state) => state.briefingStatus);
   const resetSeq = useSimulation((state) => state.resetSeq);
   // the evacuee's own camera: over the right shoulder, or through the eyes
   const ownCamera = view === "evacuee";
@@ -134,8 +135,9 @@ function LocalEvacuee() {
     runtime.evacuee.set(t.x, t.y, t.z);
     runtime.sector = roomAt(t.x, t.z);
 
-    const down = air > 0 ? get() : ({} as Record<Controls, boolean>);
-    const stick = air > 0 ? runtime.touchMove : { x: 0, y: 0 };
+    const movementEnabled = briefingStatus === "complete";
+    const down = movementEnabled && air > 0 ? get() : ({} as Record<Controls, boolean>);
+    const stick = movementEnabled && air > 0 ? runtime.touchMove : { x: 0, y: 0 };
     const forward = THREE.MathUtils.clamp(
       (down.forward ? 1 : 0) - (down.back ? 1 : 0) + stick.y,
       -1,
@@ -165,7 +167,7 @@ function LocalEvacuee() {
     const speed = (down.sprint ? RUN : WALK) * (moving ? throttle : 0);
     const velocity = rb.linvel();
     const grounded = t.y <= GROUNDED_Y;
-    const wantsJump = performance.now() - runtime.jumpAt < JUMP_BUFFER_MS;
+    const wantsJump = movementEnabled && performance.now() - runtime.jumpAt < JUMP_BUFFER_MS;
     if (wantsJump && grounded && air > 0) runtime.jumpAt = -1e9;
     rb.setLinvel(
       {

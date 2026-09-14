@@ -29,6 +29,7 @@ export type ViewMode = "evacuee" | "warden" | "evidence";
 
 /** How the evacuee sees the world: over the shoulder (default) or through their own eyes. */
 export type CameraMode = "third" | "first";
+export type BriefingStatus = "locked" | "playing" | "complete";
 
 export type SimulationMode =
   | { kind: "solo" }
@@ -72,6 +73,7 @@ export interface SimulationState {
   view: ViewMode;
   /** Kept across drill resets so a player's choice sticks. */
   cameraMode: CameraMode;
+  briefingStatus: BriefingStatus;
   health: number;
   hasBackpack: boolean;
   equipped: EquipmentId | null;
@@ -96,6 +98,8 @@ export interface SimulationState {
   log: LogEntry[];
 
   setMode: (mode: SimulationMode) => void;
+  beginBriefing: () => void;
+  completeBriefing: () => void;
   setView: (view: ViewMode) => void;
   toggleCameraMode: () => void;
   interactScenario: (id: ScenarioObjectId) => void;
@@ -117,6 +121,7 @@ export interface SimulationState {
 }
 
 const initial = {
+  briefingStatus: "locked" as BriefingStatus,
   air: 100,
   health: 72,
   hasBackpack: false,
@@ -150,6 +155,7 @@ export const useSimulation = create<SimulationState>()((set, get) => ({
   setMode: (mode) =>
     set({
       mode,
+      briefingStatus: mode.kind === "warden" ? "complete" : "locked",
       view:
         mode.kind === "evacuee"
           ? "evacuee"
@@ -157,6 +163,13 @@ export const useSimulation = create<SimulationState>()((set, get) => ({
             ? "warden"
             : get().view,
     }),
+
+  beginBriefing: () => set({ briefingStatus: "playing" }),
+
+  completeBriefing: () => {
+    set({ briefingStatus: "complete" });
+    get().push("Briefing complete. You can move now. Stay with the marked route.", "good");
+  },
 
   setView: (view) => set({ view }),
 

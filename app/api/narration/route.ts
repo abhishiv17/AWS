@@ -27,9 +27,9 @@ export async function POST(request: Request) {
       messages: [{
         role: "user",
         content: [{
-          text: role === "warden"
-            ? "Write a four-line briefing for the spectator warden. They watch an evacuee in a Science Block and Academic Block, verify evidence, communicate route information, and may intervene once. Make the warden feel like a calm operations lead."
-            : "Write a four-line briefing for an evacuee starting in a central entrance corridor. They must find an emergency backpack, collect an access card, read clues in two campus blocks, close a gas isolation valve, use a first-aid kit if needed, and reach the marked exit. Mention that threats are visible to the warden but not the evacuee.",
+        text: role === "warden"
+          ? "Write a four-line briefing for the spectator warden. They watch an evacuee in a Science Block and Academic Block, verify evidence, communicate route information, and may intervene once. Make the warden feel like a calm operations lead."
+            : "Write a four-line briefing for an evacuee starting in a central entrance corridor. Explain in plain language that movement is locked until the briefing ends. Then explain WASD to move, Space to jump, E to interact, the sequence of backpack, access card, two clues, gas valve, first-aid kit, and marked exit, and that threats are visible to the warden but not the evacuee.",
         }],
       }],
       inferenceConfig: { maxTokens: 220, temperature: 0.55 },
