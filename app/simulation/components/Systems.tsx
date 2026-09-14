@@ -70,7 +70,7 @@ export default function Systems() {
     let useTarget: typeof runtime.useTarget = null;
     const scenarioTarget = SCENARIO_OBJECTS
       .filter((object) => object.id === "main-exit" || !sim.scenarioProgress[object.id])
-      .filter((object) => object.room === runtime.sector)
+      .filter((object) => object.room === runtime.sector || (object.id === "main-exit" && (runtime.sector === "entry" || runtime.sector === "outside")))
       .map((object) => ({ object, distance: flatDistance(runtime.evacuee, new THREE.Vector3(...object.position)) }))
       .filter(({ object, distance }) => distance < object.radius)
       .sort((a, b) => a.distance - b.distance)[0]?.object;

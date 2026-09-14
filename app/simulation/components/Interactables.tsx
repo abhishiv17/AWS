@@ -1,6 +1,6 @@
 "use client";
 
-import { MARKERS, SCENARIO_OBJECTS, SPECTATOR_THREATS, type MarkerDef, type ScenarioObjectDef } from "../level";
+import { MARKERS, SCENARIO_OBJECTS, SPECTATOR_THREATS, nextScenarioGuidance, type MarkerDef, type ScenarioObjectDef } from "../level";
 import { useSimulation, useSectorVisible } from "../store";
 import { Label, MarkerOverlay } from "./Markers";
 import { useFrame } from "@react-three/fiber";
@@ -64,8 +64,9 @@ function VentilationPanel() {
 function WestRouteSign() {
   const def = byId("west-route-sign");
   const [x, y, z] = def.position;
+  const view = useSimulation((state) => state.view);
   const visible = useSectorVisible(def.room);
-  if (!visible) return null;
+  if (!visible || view === "evacuee") return null;
   return (
     <group position={[x, y, z]}>
       <mesh>
@@ -82,9 +83,32 @@ function WestRouteSign() {
   );
 }
 
+function ObjectiveBeacon({ def }: { def: ScenarioObjectDef }) {
+  const ring = useRef<THREE.Mesh>(null);
+  const [, y] = def.position;
+  useFrame(({ clock }) => {
+    if (!ring.current) return;
+    const pulse = 0.88 + Math.sin(clock.elapsedTime * 4) * 0.12;
+    ring.current.scale.setScalar(pulse);
+    ring.current.rotation.z = clock.elapsedTime * 0.8;
+  });
+  return (
+    <group>
+      <mesh ref={ring} position={[0, -y + 0.035, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.52, 0.62, 32]} />
+        <meshBasicMaterial color={def.color} transparent opacity={0.9} depthWrite={false} />
+      </mesh>
+      <Label position={[0, Math.max(1.9, y + 0.9) - y, 0]} color={def.color} text="NEXT OBJECTIVE" sub={def.label} />
+    </group>
+  );
+}
+
 function ScenarioProp({ def }: { def: ScenarioObjectDef }) {
   const visible = useSectorVisible(def.room);
   const complete = useSimulation((state) => state.scenarioProgress[def.id]);
+  const nextId = useSimulation((state) => nextScenarioGuidance(state.scenarioProgress).id);
+  const view = useSimulation((state) => state.view);
+  const sector = useSimulation((state) => state.sector);
   if (!visible || (complete && def.id !== "main-exit")) return null;
 
   return (
@@ -172,6 +196,7 @@ function ScenarioProp({ def }: { def: ScenarioObjectDef }) {
           <Label position={[0, 1.02, 0.1]} color="#39ff88" text="EXIT" sub="marked route" />
         </group>
       )}
+      {view === "evacuee" && sector === def.room && nextId === def.id && <ObjectiveBeacon def={def} />}
     </group>
   );
 }

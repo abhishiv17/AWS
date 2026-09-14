@@ -792,7 +792,6 @@ export function ClassroomPodium({ position, rotationY = 0 }: P) {
 /** A visible return landing in the entry: the green stair is a route landmark, not a vague HUD instruction. */
 export function EvacuationStair({ position, color = "#39ff88" }: P & { color?: string }) {
   return (
-    <RigidBody type="fixed" colliders="cuboid">
       <group position={position}>
         {[0, 1, 2, 3].map((index) => (
           <mesh key={index} position={[0, 0.1 + index * 0.13, index * 0.48]} castShadow receiveShadow>
@@ -819,7 +818,6 @@ export function EvacuationStair({ position, color = "#39ff88" }: P & { color?: s
           </mesh>
         ))}
       </group>
-    </RigidBody>
   );
 }
 

@@ -433,7 +433,7 @@ export function nextScenarioGuidance(progress: ScenarioProgress): ScenarioGuidan
   if (id === "first-aid-kit") return { id, label: "First-aid kit", room: "sec", instruction: "In the Science Block, find the white first-aid kit beside the blue window.", color: "#fb7185" };
   if (id === "lab-safety-clue") return { id, label: "Lab safety clue", room: "sec", instruction: "Read the green safety clue on the chemistry workstation.", color: "#10b981" };
   if (id === "academic-guide") return { id, label: "Academic route guide", room: "vault", instruction: "Cross to the Academic Block and read the purple route guide in Classroom A201.", color: "#a78bfa" };
-  return { id: "complete", label: "Marked exit", room: "entry", instruction: "Return to the Main Foyer. Follow the green floor arrows to the West Stair, then use the marked exit.", color: "#39ff88" };
+  return { id: "main-exit", label: "Marked exit", room: "entry", instruction: "Return to the Main Foyer. Follow the green floor arrows to the West Stair, then use the marked exit.", color: "#39ff88" };
 }
 
 /** Threats are deliberately only rendered in the warden's view. */
