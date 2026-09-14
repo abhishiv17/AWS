@@ -2,11 +2,20 @@
   "name": "campusevac",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20.9.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "env:pull": "node -e \"const {execSync}=require('child_process');const outputs=JSON.parse(execSync('aws cloudformation describe-stacks --stack-name CampusEvacStack --output json')).Stacks[0].Outputs;const v=Object.fromEntries(outputs.map(o=>[o.OutputKey,o.OutputValue]));require('fs').writeFileSync('.env.local','NEXT_PUBLIC_EVENTS_HTTP_HOST='+v.HttpHost+'\\nNEXT_PUBLIC_EVENTS_REALTIME_URL='+v.RealtimeEndpoint+'\\nNEXT_PUBLIC_EVENTS_API_KEY='+v.ApiKey+'\\n');console.log('.env.local written from CampusEvacStack outputs')\"",
+    "infra:install": "npm --prefix infra ci",
+    "infra:bootstrap": "npm --prefix infra run bootstrap",
+    "infra:synth": "npm --prefix infra run synth",
+    "infra:deploy": "npm --prefix infra run deploy"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.8",
