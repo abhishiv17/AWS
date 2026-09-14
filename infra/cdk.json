@@ -1,6 +1,3 @@
 {
-  "app": "npx tsx bin/campusevac.ts",
-  "context": {
-    "@aws-cdk/aws-lambda:recognizeLayerVersion": true
-  }
+  "app": "npx tsx bin/campusevac.ts"
 }

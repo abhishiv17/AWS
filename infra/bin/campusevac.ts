@@ -8,6 +8,6 @@ new CampusEvacStack(app, "CampusEvacStack", {
   env: {
     account: process.env.CDK_DEFAULT_ACCOUNT,
     region:
-      process.env.CDK_DEFAULT_REGION ?? process.env.AWS_REGION ?? "us-east-1",
+      process.env.CDK_DEFAULT_REGION ?? process.env.AWS_REGION ?? "ap-south-1",
   },
 });
