@@ -1,7 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import mascotImg from "../public/mascot.png";
-import LandingCounter from "./components/LandingCounter";
+import mascotImg from "../public/mascot.webp";
 
 /* -- data --------------------------------------------------------------- */
 
@@ -53,10 +52,10 @@ export default function Home() {
         <div className="grid border-b-2 border-[#111216] sm:grid-cols-3">
           <div className="border-b-2 border-[#111216] py-3 sm:border-b-0 sm:border-r-2 sm:pr-4">
             <div className="text-lg font-black uppercase leading-none tracking-tight">
-              <LandingCounter />
+              AWS
             </div>
              <div className="mt-1 text-[9px] font-bold uppercase tracking-[0.16em] text-[#6c6b70]">
-                Demo signal
+                Realtime backbone
             </div>
           </div>
           <div className="border-b-2 border-[#111216] py-3 sm:border-b-0 sm:border-r-2 sm:px-4">
@@ -172,7 +171,7 @@ export default function Home() {
           {/* -- RIGHT: facility panel -- */}
           <div className="relative mx-auto w-full max-w-md lg:max-w-none">
             <Image
-              src="/facility.png"
+              src="/facility.webp"
               alt="The Facility"
               width={800}
               height={600}
