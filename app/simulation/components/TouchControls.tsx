@@ -178,6 +178,7 @@ function ActionButton({
 export default function TouchControls() {
   const prompt = useSimulation((s) => s.prompt);
   const air = useSimulation((s) => s.air);
+  const health = useSimulation((s) => s.health);
   const failed = useSimulation((s) => s.failed);
   const assemblyConfirmed = useSimulation((s) => s.assemblyConfirmed);
   const cameraMode = useSimulation((s) => s.cameraMode);
@@ -192,7 +193,7 @@ export default function TouchControls() {
     return () => window.clearInterval(id);
   }, []);
 
-  if (air <= 0 || failed || assemblyConfirmed) return null;
+  if (air <= 0 || health <= 0 || failed || assemblyConfirmed) return null;
   const assemblyHere = action === "assembly";
 
   return (
@@ -222,7 +223,7 @@ export default function TouchControls() {
         <ActionButton
           label="E"
           hint="use"
-          color={action === "intervention" ? "#38bdf8" : "#8b94a1"}
+           color={action === "intervention" ? "#38bdf8" : action === "scenario" ? "#facc15" : "#8b94a1"}
           onPress={pressUse}
         />
         <ActionButton

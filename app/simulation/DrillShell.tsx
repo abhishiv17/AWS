@@ -9,6 +9,7 @@ import { useCoarsePointer } from "./useCoarsePointer";
 import { COMMANDS, commandByCode, type CommandCode } from "./commands";
 import { roomById } from "./level";
 import { playSignal } from "./audio";
+import { EVACUEE_BRIEFING, speakNarration, stopNarration } from "./narration";
 import { runtime } from "./runtime";
 import { useSession } from "./session";
 import {
@@ -16,6 +17,7 @@ import {
   watchedSector,
   VIEWS,
   type ViewMode,
+  nextScenarioObjective,
 } from "./store";
 import type { EvidenceStatus, RouteMessage } from "./net/types";
 
@@ -213,6 +215,7 @@ function CommandDeck() {
   const mode = useSimulation((state) => state.mode);
   const evidence = useSimulation((state) => state.evidence["east-route-evidence"]);
   const interventionApplied = useSimulation((state) => state.interventionApplied);
+  const scenarioProgress = useSimulation((state) => state.scenarioProgress);
   const lastAcknowledgement = useSimulation((state) => state.lastAcknowledgement);
   const sendCommand = useSession((state) => state.sendCommand);
   const [sent, setSent] = useState<CommandCode | null>(null);
@@ -249,7 +252,7 @@ function CommandDeck() {
           );
         })}
       </div>
-      <div className="mt-1 text-[8px] uppercase tracking-widest text-zinc-600">Verify first. Every accepted action produces a visible acknowledgement.</div>
+       <div className="mt-1 flex justify-between gap-3 text-[8px] uppercase tracking-widest text-zinc-600"><span>Verify first. Every accepted action is acknowledged.</span><span>{Object.values(scenarioProgress).filter(Boolean).length}/7 evacuee steps</span></div>
       {lastAcknowledgement && <div className="mt-2 border-t border-white/10 pt-2 text-[10px]" style={{ color: lastAcknowledgement.accepted ? "#10b981" : "#ef4444" }}>{lastAcknowledgement.accepted ? "Accepted" : "Denied"}: {commandByCode(lastAcknowledgement.command).label}{lastAcknowledgement.reason ? ` - ${lastAcknowledgement.reason}` : ""}</div>}
     </div>
   );
@@ -304,6 +307,7 @@ function Onboarding() {
   if (!open) return null;
   const finish = () => {
     try { localStorage.setItem("campusevac:onboarding:v2", "complete"); } catch { /* session-only dismissal */ }
+    window.dispatchEvent(new Event("start-briefing"));
     setDismissed(true);
   };
   return (
@@ -311,13 +315,60 @@ function Onboarding() {
       <section role="dialog" aria-modal="true" aria-labelledby="onboarding-title" className="w-full max-w-xl border-2 border-[#facc15] bg-[#111216] p-5 text-zinc-100 shadow-[7px_7px_0_#facc15] sm:p-7">
         <div className="flex items-start justify-between gap-4 border-b border-white/20 pb-4"><div><div className="text-[10px] font-black uppercase tracking-[0.2em] text-[#facc15]">CampusEvac / mission brief</div><h2 id="onboarding-title" className="mt-2 text-2xl font-black uppercase tracking-[-0.04em]">{mode.kind === "warden" ? "Verify. Communicate. Adapt." : "Reach the assembly point."}</h2></div><button onClick={finish} className="border border-white/30 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-zinc-300 hover:bg-white/10">Skip</button></div>
         <div className="mt-5 grid gap-4 text-sm leading-relaxed text-zinc-300 sm:grid-cols-2">
-          <div className="border-l-2 border-[#38bdf8] pl-3"><h3 className="text-[10px] font-black uppercase tracking-widest text-[#38bdf8]">Evacuee</h3><p className="mt-2">Move through the compact campus block, read physical cues, receive guidance, and choose the route yourself.</p></div>
+          <div className="border-l-2 border-[#38bdf8] pl-3"><h3 className="text-[10px] font-black uppercase tracking-widest text-[#38bdf8]">Evacuee</h3><p className="mt-2">Start in the central entrance corridor. Secure the emergency pack, decode the two blocks, control the hazard, and leave through the marked exit.</p></div>
           <div className="border-l-2 border-[#10b981] pl-3"><h3 className="text-[10px] font-black uppercase tracking-widest text-[#10b981]">Warden</h3><p className="mt-2">Observe your assigned sector, verify evidence, send a route message, and apply one bounded intervention.</p></div>
-          <div className="border-l-2 border-[#facc15] pl-3"><h3 className="text-[10px] font-black uppercase tracking-widest text-[#facc15]">Controls</h3><p className="mt-2">WASD moves, Shift sprints, Space jumps, E interacts, V switches between the over-the-shoulder and first-person camera, and the pointer or touch surface looks around.</p></div>
+          <div className="border-l-2 border-[#facc15] pl-3"><h3 className="text-[10px] font-black uppercase tracking-widest text-[#facc15]">Controls</h3><p className="mt-2">WASD moves, Shift sprints, Space jumps onto desks and crates, E interacts, V switches camera, and the pointer or touch surface looks around.</p></div>
           <div className="border-l-2 border-[#ef4444] pl-3"><h3 className="text-[10px] font-black uppercase tracking-widest text-[#ef4444]">Training boundary</h3><p className="mt-2">This is a controlled simulation, not live emergency guidance. Captions remain available if audio is unavailable.</p></div>
         </div>
         <button onClick={finish} className="brutal-button mt-6 w-full px-4 py-3">Understood - enter the drill</button>
       </section>
+    </div>
+  );
+}
+
+function Briefing() {
+  const mode = useSimulation((state) => state.mode);
+  const [line, setLine] = useState("");
+  const [open, setOpen] = useState(false);
+  const step = useRef(0);
+
+  useEffect(() => {
+    if (mode.kind === "warden") return;
+    const start = () => {
+      step.current = 0;
+      setOpen(true);
+      const speakNext = () => {
+        const next = EVACUEE_BRIEFING[step.current];
+        if (!next) {
+          window.setTimeout(() => setOpen(false), 1400);
+          return;
+        }
+        setLine(next);
+        step.current += 1;
+        speakNarration(next, speakNext);
+      };
+      playSignal("command");
+      speakNext();
+    };
+    window.addEventListener("start-briefing", start);
+    let autoStart: number | undefined;
+    try {
+      if (localStorage.getItem("campusevac:onboarding:v2") === "complete") autoStart = window.setTimeout(start, 700);
+    } catch { /* transcript remains available from the mission brief */ }
+    return () => {
+      window.removeEventListener("start-briefing", start);
+      if (autoStart) window.clearTimeout(autoStart);
+      stopNarration();
+    };
+  }, [mode.kind]);
+
+  if (mode.kind === "warden" || !open) return null;
+  return (
+    <div className="pointer-events-none absolute left-3 top-[4.5rem] z-10 max-w-[min(26rem,calc(100vw-1.5rem))] sm:left-4 sm:top-20">
+      <div className="border border-[#a78bfa]/70 bg-[#0b0e13]/90 px-3 py-2 shadow-[3px_3px_0_#a78bfa] backdrop-blur-sm">
+        <div className="text-[9px] font-black uppercase tracking-[0.18em] text-[#a78bfa]">Mission control / briefing</div>
+        <div className="mt-1 text-[11px] leading-relaxed text-zinc-200">{line}</div>
+      </div>
     </div>
   );
 }
@@ -328,11 +379,12 @@ export default function DrillShell({ title }: { title?: string }) {
   const view = useSimulation((state) => state.view);
   const setView = useSimulation((state) => state.setView);
   const air = useSimulation((state) => state.air);
+  const health = useSimulation((state) => state.health);
   const smoke = useSimulation((state) => state.smokeIntensity);
-  const stamina = useSimulation((state) => state.stamina);
   const sector = useSimulation((state) => state.sector);
   const routeStatus = useSimulation((state) => state.routeStatus);
   const interventionApplied = useSimulation((state) => state.interventionApplied);
+  const scenarioProgress = useSimulation((state) => state.scenarioProgress);
   const prompt = useSimulation((state) => state.prompt);
   const reset = useSimulation((state) => state.reset);
   const leave = useSession((state) => state.leave);
@@ -374,6 +426,9 @@ export default function DrillShell({ title }: { title?: string }) {
             y: state.evacuee.position[1],
             z: state.evacuee.position[2],
             yaw: state.evacuee.position[3],
+            hasBackpack: state.hasBackpack,
+            equipped: state.equipped,
+            scenarioProgress: state.scenarioProgress,
           }
         : null;
       if (state.evacuee) {
@@ -404,12 +459,13 @@ export default function DrillShell({ title }: { title?: string }) {
       : "Verify the route evidence before communicating."
     : routeStatus === "unsafe"
       ? "East route is unsafe. Choose the west stair and reach assembly."
-      : "Move toward the corridor junction and reach the assembly beacon.";
+      : `Next: ${nextScenarioObjective(scenarioProgress)}.`;
   const roomName = roomById(sector).name;
 
   return (
     <div className="drill-surface absolute inset-0 overflow-hidden bg-[#06080c] text-zinc-100">
       <DrillCanvas />
+      <Briefing />
       <HazardBanner />
       <RouteMessageCard />
       <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-3 p-3 sm:gap-4 sm:p-4">
@@ -425,7 +481,7 @@ export default function DrillShell({ title }: { title?: string }) {
             {solo && <button onClick={reset} className="border-2 border-white/30 bg-zinc-950/90 px-3 py-2 text-[10px] uppercase tracking-widest text-zinc-300 hover:bg-white/10">Reset</button>}
             {!solo && <button onClick={() => { leave(); router.push("/simulation/rooms"); }} className="border-2 border-white/30 bg-zinc-950/90 px-3 py-2 text-[10px] uppercase tracking-widest text-zinc-300 hover:bg-white/10">Leave drill</button>}
           </div>
-          <Minimap />
+            {view !== "evacuee" && <Minimap />}
         </div>
       </div>
 
@@ -440,8 +496,8 @@ export default function DrillShell({ title }: { title?: string }) {
         <div className="hud-panel flex max-w-[min(25rem,70vw)] flex-col gap-2 p-2 text-[10px] sm:gap-3 sm:p-3 sm:text-xs">
           <div className="flex flex-wrap items-center gap-2"><span className="border border-white/25 bg-white/5 px-1.5 py-0.5 text-[10px] uppercase tracking-widest text-zinc-300">{roomName}</span><span className="text-[10px] uppercase tracking-wide text-zinc-500">{roomById(sector).blurb}</span></div>
           <div className="mt-1 text-[11px] text-zinc-200">{objective}</div>
-          <div className="flex flex-wrap gap-4 sm:gap-5"><Bar label="AIR" value={air} color="#10b981" danger={air < 35} /><Bar label="STAMINA" value={stamina} color="#38bdf8" /></div>
-          <div className="flex flex-wrap gap-3 font-mono text-[10px] uppercase tracking-wider text-zinc-400"><span style={{ color: routeStatus === "unsafe" ? "#ef4444" : routeStatus === "intervened" ? "#10b981" : "#facc15" }}>route / {routeStatus}</span><span>smoke / {Math.round(smoke * 100)}%</span><span>sector / {sector}</span></div>
+          <div className="flex flex-wrap gap-4 sm:gap-5"><Bar label="AIR" value={air} color="#10b981" danger={air < 35} /><Bar label="HEALTH" value={health} color="#fb7185" danger={health < 35} /></div>
+          <div className="flex flex-wrap gap-3 font-mono text-[10px] uppercase tracking-wider text-zinc-400"><span style={{ color: routeStatus === "unsafe" ? "#ef4444" : routeStatus === "intervened" ? "#10b981" : "#facc15" }}>route / {routeStatus}</span>{warden && <span>smoke / {Math.round(smoke * 100)}%</span>}<span>sector / {sector}</span></div>
         </div>
         <div className="hud-panel hidden p-3 text-right text-[11px] leading-relaxed text-zinc-400 sm:block">{warden ? <><div>fixed sector view / zoom only</div><div><span className="text-zinc-200">Watch / Evidence</span> switches layer</div><div>verify before sending a route message</div></> : <><div><span className="text-zinc-200">WASD</span> move / <span className="text-zinc-200">Shift</span> sprint / <span className="text-zinc-200">Space</span> jump / <span className="text-zinc-200">E</span> interact / <span className="text-zinc-200">V</span> camera</div><div>{view === "evacuee" ? "click to capture the mouse / Esc releases" : "drag to orbit / scroll to zoom"}</div></>}</div>
       </div>
