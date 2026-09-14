@@ -171,6 +171,47 @@ function SmokeAtmosphere() {
   return <fogExp2 ref={fog} attach="fog" args={["#0d141d", 0.018]} />;
 }
 
+/** A cool key and a restrained emergency pulse give the flat rooms a clear light direction. */
+function SceneLighting() {
+  const smoke = useSimulation((state) => state.smokeIntensity);
+  const intervention = useSimulation((state) => state.interventionApplied);
+  const alert = useRef<THREE.PointLight>(null);
+
+  useFrame(({ clock }, rawDt) => {
+    if (!alert.current) return;
+    const pulse = (Math.sin(clock.elapsedTime * 5.5) + 1) * 0.5;
+    const target = smoke > 0.18 ? 0.18 + pulse * 0.55 * (intervention ? 0.35 : 1) : 0;
+    alert.current.intensity += (target - alert.current.intensity) * Math.min(1, clampDt(rawDt) * 5);
+  });
+
+  return (
+    <>
+      <directionalLight
+        castShadow
+        position={[-12, 16, 10]}
+        intensity={1.05}
+        color="#dcecff"
+        shadow-mapSize={[1024, 1024]}
+        shadow-camera-near={1}
+        shadow-camera-far={55}
+        shadow-camera-left={-28}
+        shadow-camera-right={28}
+        shadow-camera-top={28}
+        shadow-camera-bottom={-18}
+      />
+      <directionalLight position={[16, 8, -18]} intensity={0.28} color="#f0b6a0" />
+      <pointLight
+        ref={alert}
+        position={[0, 3.15, -1.5]}
+        distance={18}
+        decay={2}
+        color="#ff4655"
+      />
+      <pointLight position={[-15, 2.7, -1.8]} intensity={0.42} distance={9} decay={2} color="#65e6c5" />
+    </>
+  );
+}
+
 function WardenRig({ active }: { active: boolean }) {
   const mode = useSimulation((s) => s.mode);
   const evacueeSector = useSimulation((s) => s.sector);
@@ -301,6 +342,7 @@ export default function ViewRig() {
   return (
     <>
       <SmokeAtmosphere />
+      <SceneLighting />
 
       {/* Evacuee: eyes inside the character, driven by Evacuee.tsx. */}
       <PerspectiveCamera makeDefault={first} fov={74} near={0.06} far={400} />
@@ -309,13 +351,13 @@ export default function ViewRig() {
       <WardenRig active={!first} />
 
       <ambientLight
-        intensity={first ? 0.52 : 0.44}
+        intensity={first ? 0.42 : 0.36}
         color={first ? "#c6cfdd" : "#aeb8c6"}
       />
       <hemisphereLight
         color="#dfe7f4"
         groundColor="#2b2f36"
-        intensity={first ? 0.46 : 0.38}
+        intensity={first ? 0.38 : 0.32}
       />
     </>
   );
