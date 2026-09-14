@@ -480,28 +480,6 @@ export function ServerRack({
   );
 }
 
-/** Heavy pedestal for the optional supply cache objective. */
-export function VaultPedestal({ position }: { position: Vec3 }) {
-  return (
-    <RigidBody type="fixed" colliders="cuboid">
-      <group position={position}>
-      <mesh position={[0, 0.2, 0]} castShadow receiveShadow>
-        <boxGeometry args={[1.15, 0.4, 0.9]} />
-        <meshStandardMaterial color="#3a3530" roughness={0.7} metalness={0.35} />
-      </mesh>
-      <mesh position={[0, 0.43, 0]}>
-        <boxGeometry args={[0.92, 0.05, 0.68]} />
-        <meshStandardMaterial color="#8c6e2f" emissive="#5a3f0b" emissiveIntensity={0.3} />
-      </mesh>
-      <mesh position={[0, 0.49, 0]}>
-        <boxGeometry args={[0.5, 0.05, 0.34]} />
-        <meshStandardMaterial color="#dfc15b" metalness={0.8} roughness={0.2} />
-      </mesh>
-      </group>
-    </RigidBody>
-  );
-}
-
 /** Reception counter for the lobby. */
 export function Reception({ position, rotationY = 0 }: P) {
   return (

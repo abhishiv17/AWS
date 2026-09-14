@@ -8,11 +8,10 @@ import * as THREE from "three";
 import { EVACUEE_SPAWN, roomAt } from "../level";
 import { pressJump, pressUse } from "../controls";
 import { clampDt, runtime } from "../runtime";
-import { useSession } from "../session";
 import { useSimulation, useIsSimulationOwner } from "../store";
 import { Label, NeonBox } from "./Markers";
 
-export type Controls =
+type Controls =
   | "forward"
   | "back"
   | "left"
@@ -74,7 +73,7 @@ function HeadingBeacon() {
   );
 }
 
-export function ContactShade() {
+function ContactShade() {
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
       <circleGeometry args={[0.5, 20]} />
@@ -231,34 +230,11 @@ function LocalEvacuee() {
 
 function RemoteEvacuee() {
   const group = useRef<THREE.Group>(null);
-  const mode = useSimulation((state) => state.mode);
-  const evacueeSector = useSimulation((state) => state.sector);
-  const assigned = mode.kind === "warden" ? mode.sectorId : null;
-  const inAssignedSector = assigned !== null && evacueeSector === assigned;
-  const onWardenState = useSession((state) => state.onWardenState);
-
-  useEffect(() => {
-    return onWardenState((state) => {
-      if (!state.evacuee) {
-        runtime.netEvacuee = null;
-        return;
-      }
-      runtime.netEvacuee = {
-        x: state.evacuee.position[0],
-        y: state.evacuee.position[1],
-        z: state.evacuee.position[2],
-        yaw: state.evacuee.position[3],
-      };
-      runtime.sector = state.evacuee.sectorId;
-      runtime.alert = state.smokeIntensity * 100;
-    });
-  }, [onWardenState]);
-
   useFrame((_, rawDt) => {
     const current = runtime.netEvacuee;
     const target = group.current;
     if (!target) return;
-    target.visible = inAssignedSector && !!current;
+    target.visible = !!current;
     if (!current) return;
     const factor = Math.min(1, clampDt(rawDt) * 9);
     runtime.evacuee.lerp(new THREE.Vector3(current.x, current.y, current.z), factor);
@@ -273,12 +249,9 @@ function RemoteEvacuee() {
       <EvacueeFigure />
       <ContactShade />
       <HeadingBeacon />
-      {inAssignedSector && (
-        <>
-          <NeonBox position={[0, 0.95, 0]} size={[0.85, 1.9, 0.55]} color="#38bdf8" opacity={0.07} />
-          <Label position={[0, 2.25, 0]} color="#38bdf8" text="Evacuee" />
-        </>
-      )}
+      <NeonBox position={[0, 0.95, 0]} size={[0.85, 1.9, 0.55]} color="#38bdf8" opacity={0.07} />
+      <Label position={[0, 2.25, 0]} color="#38bdf8" text="Evacuee" />
+
     </group>
   );
 }

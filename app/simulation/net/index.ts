@@ -1,14 +1,11 @@
 "use client";
 
-import { AppSyncNet } from "./appsync";
-import { MockNet } from "./mockNet";
+import { EventsNet } from "./eventsNet";
 import type { NetClient } from "./types";
 
-/** Local development is deterministic; AppSync is opt-in until deployed. */
+/** Drill rooms run over AWS AppSync Events (see infra/). */
 export function createNet(): NetClient {
-  const mode = process.env.NEXT_PUBLIC_NETWORK_MODE?.trim().toLowerCase();
-  if (mode === "appsync") return new AppSyncNet();
-  return new MockNet();
+  return new EventsNet();
 }
 
 export * from "./types";

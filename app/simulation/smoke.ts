@@ -1,7 +1,5 @@
 import type { RoomId } from "./level";
 
-export type SmokeBand = "CLEAR" | "MODERATE" | "DENSE";
-
 export interface SmokeProfile {
   /** seconds after the drill starts before smoke reaches this sector */
   startSeconds: number;
@@ -10,8 +8,6 @@ export interface SmokeProfile {
   peakIntensity: number;
 }
 
-export const SMOKE_ORIGIN: RoomId = "annex";
-export const SMOKE_SOURCE = "Electrical service ventilation fault";
 export const SMOKE_EXPOSURE_THRESHOLD = 0.2;
 export const ROUTE_BLOCK_AFTER_SECONDS = 52;
 
@@ -19,7 +15,6 @@ export const ROUTE_BLOCK_AFTER_SECONDS = 52;
 export const VENTILATION_SMOKE_FACTOR = 0.2;
 
 export const AIR_DRAIN_PER_SECOND = 2.4;
-export const HAZARD_EXPOSURE_PER_SECOND = 8;
 
 /**
  * The field follows the authored topology rather than simulating particles.
@@ -66,12 +61,6 @@ export function getSectorSmoke(roomId: RoomId, elapsedSeconds: number): number {
   return clamp(profile.peakIntensity * eased, 0, 1);
 }
 
-export function smokeBand(intensity: number): SmokeBand {
-  if (intensity >= 0.65) return "DENSE";
-  if (intensity > SMOKE_EXPOSURE_THRESHOLD) return "MODERATE";
-  return "CLEAR";
-}
-
 /** The route is undirected, so either direction reports the same state. */
 export function isRouteBlocked(
   fromRoom: RoomId,
@@ -82,10 +71,4 @@ export function isRouteBlocked(
     (fromRoom === BLOCKED_ROUTE.from && toRoom === BLOCKED_ROUTE.to) ||
     (fromRoom === BLOCKED_ROUTE.to && toRoom === BLOCKED_ROUTE.from);
   return isEastRoute && elapsed(elapsedSeconds) >= BLOCKED_ROUTE.afterSeconds;
-}
-
-export function getSmokeSource(roomId: RoomId): string {
-  return roomId === SMOKE_ORIGIN
-    ? SMOKE_SOURCE
-    : "Smoke drift from the control sector";
 }

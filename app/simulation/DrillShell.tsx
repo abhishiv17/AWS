@@ -9,6 +9,7 @@ import { useCoarsePointer } from "./useCoarsePointer";
 import { COMMANDS, commandByCode, type CommandCode } from "./commands";
 import { roomById } from "./level";
 import { playSignal } from "./audio";
+import { runtime } from "./runtime";
 import { useSession } from "./session";
 import {
   useSimulation,
@@ -337,7 +338,7 @@ export default function DrillShell({ title }: { title?: string }) {
   const leave = useSession((state) => state.leave);
   const onRouteMessage = useSession((state) => state.onRouteMessage);
   const onAcknowledgement = useSession((state) => state.onAcknowledgement);
-  const onEvidence = useSession((state) => state.onEvidence);
+  const onWardenState = useSession((state) => state.onWardenState);
   const observeEvidence = useSession((state) => state.observeEvidence);
   const touch = useCoarsePointer();
   const solo = mode.kind === "solo";
@@ -362,9 +363,27 @@ export default function DrillShell({ title }: { title?: string }) {
     return onAcknowledgement((acknowledgement) => useSimulation.getState().receiveAcknowledgement(acknowledgement));
   }, [onAcknowledgement]);
 
+  // Warden snapshots drive the HUD and the remote evacuee marker. They are applied
+  // here, outside the canvas, so the station stays live before the 3D view mounts.
   useEffect(() => {
-    return onEvidence((evidence) => useSimulation.getState().observeEvidence(evidence));
-  }, [onEvidence]);
+    if (!warden) return;
+    return onWardenState((state) => {
+      runtime.netEvacuee = state.evacuee
+        ? {
+            x: state.evacuee.position[0],
+            y: state.evacuee.position[1],
+            z: state.evacuee.position[2],
+            yaw: state.evacuee.position[3],
+          }
+        : null;
+      if (state.evacuee) {
+        runtime.sector = state.evacuee.sectorId;
+        runtime.evacueeYaw = state.evacuee.position[3];
+      }
+      runtime.alert = state.smokeIntensity * 100;
+      useSimulation.getState().applyWardenState(state);
+    });
+  }, [onWardenState, warden]);
 
   useEffect(() => {
     const inspect = (event: Event) => {

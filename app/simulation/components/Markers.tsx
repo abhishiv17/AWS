@@ -194,7 +194,7 @@ function Blip({
   );
 }
 
-export interface MarkerViewState {
+interface MarkerViewState {
   /** Fully revealed: neon outline and label. */
   revealed: boolean;
   /** Unobserved evidence in the evidence view. */
@@ -202,7 +202,7 @@ export interface MarkerViewState {
   inspect: () => void;
 }
 
-export function useMarker(def: MarkerDef): MarkerViewState {
+function useMarker(def: MarkerDef): MarkerViewState {
   const view = useSimulation((s) => s.view);
   const evidence = useSimulation((s) => s.evidence[def.id]);
   const observed = evidence?.status !== undefined && evidence.status !== "UNKNOWN";

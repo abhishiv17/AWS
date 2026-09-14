@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { runtime } from "../runtime";
 import { useSession } from "../session";
@@ -38,42 +38,17 @@ function readEvacueeState(version: number): EvacueeState {
   };
 }
 
+/**
+ * Publishes the evacuee's state at a fixed rate from the render loop. Incoming
+ * warden snapshots are applied by DrillShell, outside the canvas, so the HUD
+ * stays live even when the 3D view has not mounted.
+ */
 export default function NetSync() {
   const ownsSimulation = useIsSimulationOwner();
   const inRoom = useSimulation((state) => state.mode.kind !== "solo");
   const publish = useSession((state) => state.publish);
-  const onEvacueeState = useSession((state) => state.onEvacueeState);
-  const onWardenState = useSession((state) => state.onWardenState);
   const acc = useRef(0);
   const version = useRef(0);
-
-  useEffect(() => {
-    if (!ownsSimulation || !inRoom) return;
-    return onEvacueeState((state) => {
-      if (useSimulation.getState().mode.kind === "evacuee")
-        useSimulation.getState().applyEvacueeState(state);
-    });
-  }, [inRoom, onEvacueeState, ownsSimulation]);
-
-  useEffect(() => {
-    if (ownsSimulation || !inRoom) return;
-    return onWardenState((state) => {
-      if (state.evacuee) {
-        runtime.netEvacuee = {
-          x: state.evacuee.position[0],
-          y: state.evacuee.position[1],
-          z: state.evacuee.position[2],
-          yaw: state.evacuee.position[3],
-        };
-        runtime.sector = state.evacuee.sectorId;
-        runtime.evacueeYaw = state.evacuee.position[3];
-      } else {
-        runtime.netEvacuee = null;
-      }
-      runtime.alert = state.smokeIntensity * 100;
-      useSimulation.getState().applyWardenState(state);
-    });
-  }, [inRoom, onWardenState, ownsSimulation]);
 
   useFrame((_, dt) => {
     if (!ownsSimulation || !inRoom) return;

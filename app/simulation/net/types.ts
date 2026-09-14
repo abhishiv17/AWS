@@ -13,10 +13,7 @@ export type Phase =
 /** The authored MVP gives the warden the utility/evidence sector feed. */
 export const WARDEN_SECTORS: RoomId[] = ["sec"];
 
-export const MAX_PLAYERS = 2;
-export const MIN_PLAYERS = 2;
 export const COUNTDOWN_MS = 10_000;
-export const RECONNECT_WINDOW_MS = 20_000;
 
 export type RoomResult =
   | "assembly-confirmed"
@@ -30,9 +27,7 @@ export interface Participant {
   /** The authored sector feed assigned to a warden. */
   sectorId: RoomId | null;
   joinedAt: number;
-  /** Set by the transport while reconnecting. */
   connected?: boolean;
-  reconnectUntil?: number;
 }
 
 export interface DrillRoom {
@@ -48,6 +43,8 @@ export interface DrillRoom {
   scenarioVersion: string;
   seed: number;
   outcome: RoomResult | null;
+  /** Monotonic snapshot revision; clients keep the highest one they have seen. */
+  rev?: number;
 }
 
 export type EvidenceStatus =
@@ -104,7 +101,7 @@ export interface LogEntry {
   tone: "info" | "good" | "bad";
 }
 
-/** Evacuee payload. It contains no warden evidence or hidden route state. */
+/** What the evacuee browser publishes at the render rate. Never sent to the warden as-is. */
 export interface EvacueeState {
   kind: "evacuee";
   t: number;
@@ -162,12 +159,9 @@ export type ClientIntent =
 
 export type NetEvent =
   | { type: "room"; room: DrillRoom }
-  | { type: "evacuee-state"; state: EvacueeState }
   | { type: "warden-state"; state: WardenState }
   | { type: "route-message"; message: RouteMessage }
-  | { type: "command-ack"; acknowledgement: CommandAcknowledgement }
-  | { type: "evidence"; evidence: EvidenceRecord }
-  | { type: "bye"; id: string };
+  | { type: "command-ack"; acknowledgement: CommandAcknowledgement };
 
 export type JoinFailure =
   | "notfound"
@@ -180,23 +174,15 @@ export type StartResult =
   | { ok: true }
   | { ok: false; error: StartFailure };
 export type JoinResult =
-  | { room: DrillRoom; participantId?: string }
+  | { room: DrillRoom }
   | { error: JoinFailure };
 
-/**
- * The simulation speaks intent and receives role-scoped events. The local adapter and
- * AppSync implementation share this contract so the renderer does not know
- * which provider owns the room.
- */
+/** The simulation speaks intents and receives role-scoped events; the transport owns the room. */
 export interface NetClient {
-  readonly kind: "mock" | "appsync";
   connect(code: string): Promise<void>;
-  disconnect(intentional?: boolean): void;
-  createRoom(room: DrillRoom): Promise<DrillRoom | null>;
-  join(
-    code: string,
-    participant: Participant,
-  ): Promise<JoinResult>;
+  disconnect(): void;
+  createRoom(room: DrillRoom): Promise<DrillRoom>;
+  join(code: string, participant: Participant): Promise<JoinResult>;
   leave(code: string, playerId: string): void;
   start(code: string, playerId: string): Promise<StartResult>;
   send(intent: ClientIntent): void;

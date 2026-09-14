@@ -174,8 +174,8 @@ function SmokeAtmosphere() {
 function WardenRig({ active }: { active: boolean }) {
   const mode = useSimulation((s) => s.mode);
   const evacueeSector = useSimulation((s) => s.sector);
-  // a warden stays on their assigned sector; solo follows the evacuee around
-  const room = mode.kind === "warden" ? mode.sectorId : evacueeSector;
+  // every overview camera follows the evacuee's live sector
+  const room = evacueeSector;
   // a warden's framing is bolted down - only solo may turn it
   const posted = mode.kind === "warden";
   // re-fit when the window changes shape, so a resize never crops the room

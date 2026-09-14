@@ -1,24 +1,25 @@
 "use client";
 
 import { create } from "zustand";
+import type { CommandCode } from "./commands";
 import { createNet } from "./net";
 import { resolveRoom } from "./net/roles";
-import { newId, MAX_PLAYERS, type ClientIntent, type CommandAcknowledgement, type DrillRoom, type EvidenceRecord, type EvacueeState, type NetEvent, type NetClient, type Participant, type RouteMessage, type WardenState } from "./net/types";
-import type { CommandCode } from "./commands";
+import {
+  newId,
+  type CommandAcknowledgement,
+  type DrillRoom,
+  type EvacueeState,
+  type JoinFailure,
+  type NetClient,
+  type NetEvent,
+  type Participant,
+  type RouteMessage,
+  type WardenState,
+} from "./net/types";
 
-export { assignRoles, resolveRoom } from "./net/roles";
+export { resolveRoom } from "./net/roles";
 
-export type SessionStatus =
-  | "idle"
-  | "connecting"
-  | "connected"
-  | "reconnecting"
-  | "offline"
-  | "notfound"
-  | "full"
-  | "unavailable"
-  | "timeout"
-  | "connection";
+export type SessionStatus = "idle" | "connecting" | "connected" | JoinFailure;
 
 interface SessionState {
   net: NetClient | null;
@@ -28,31 +29,34 @@ interface SessionState {
   room: DrillRoom | null;
   isHost: boolean;
   startError: string | null;
-  lastEvacueeState: EvacueeState | null;
-  lastWardenState: WardenState | null;
-  lastStateAt: number;
 
   connect: (code: string, name: string, asHost?: DrillRoom) => Promise<void>;
   leave: () => void;
-  disconnect: (intentional?: boolean) => void;
+  disconnect: () => void;
   startNow: () => Promise<boolean>;
   observeEvidence: (evidenceId: string) => void;
   sendCommand: (command: CommandCode, evidenceId?: string) => void;
   publish: (state: EvacueeState) => void;
-  onEvacueeState: (callback: (state: EvacueeState) => void) => () => void;
   onWardenState: (callback: (state: WardenState) => void) => () => void;
   onRouteMessage: (callback: (message: RouteMessage) => void) => () => void;
   onAcknowledgement: (callback: (acknowledgement: CommandAcknowledgement) => void) => () => void;
-  onEvidence: (callback: (evidence: EvidenceRecord) => void) => () => void;
 }
 
-const evacueeStateSubs = new Set<(state: EvacueeState) => void>();
 const wardenStateSubs = new Set<(state: WardenState) => void>();
 const routeMessageSubs = new Set<(message: RouteMessage) => void>();
 const acknowledgementSubs = new Set<(acknowledgement: CommandAcknowledgement) => void>();
-const evidenceSubs = new Set<(evidence: EvidenceRecord) => void>();
 let unsubscribe: (() => void) | null = null;
 
+const subscribe =
+  <T>(subscribers: Set<(value: T) => void>) =>
+  (callback: (value: T) => void) => {
+    subscribers.add(callback);
+    return () => {
+      subscribers.delete(callback);
+    };
+  };
+
+/** One participant id per room per tab, so a refresh keeps the seat. */
 function playerIdForRoom(code: string) {
   const key = `campusevac:participant:${code}`;
   try {
@@ -66,236 +70,133 @@ function playerIdForRoom(code: string) {
   }
 }
 
-function statusForJoin(error: string): SessionStatus {
-  if (error === "full") return "full";
-  if (error === "unavailable") return "unavailable";
-  if (error === "timeout") return "timeout";
-  if (error === "connection") return "connection";
-  return "notfound";
-}
+export const useSession = create<SessionState>()((set, get) => {
+  const myRole = () => {
+    const { room, myId } = get();
+    return resolveRoom(room)?.participants.find((item) => item.id === myId)?.role ?? null;
+  };
 
-export const useSession = create<SessionState>()((set, get) => ({
-  net: null,
-  status: "idle",
-  code: null,
-  myId: null,
-  room: null,
-  isHost: false,
-  startError: null,
-  lastEvacueeState: null,
-  lastWardenState: null,
-  lastStateAt: 0,
+  return {
+    net: null,
+    status: "idle",
+    code: null,
+    myId: null,
+    room: null,
+    isHost: false,
+    startError: null,
 
-  connect: async (code, name, seedRoom) => {
-    get().leave();
-    const net = createNet();
-    const myId = playerIdForRoom(code);
-    const participant: Participant = {
-      id: myId,
-      name: name.trim() || "participant",
-      role: null,
-      sectorId: null,
-      joinedAt: Date.now(),
-      connected: true,
-      reconnectUntil: 0,
-    };
+    connect: async (code, name, seedRoom) => {
+      get().leave();
+      const net = createNet();
+      const myId = playerIdForRoom(code);
+      const participant: Participant = {
+        id: myId,
+        name: name.trim() || "participant",
+        role: null,
+        sectorId: null,
+        joinedAt: Date.now(),
+        connected: true,
+      };
 
-    set({ net, myId, code, status: "connecting", startError: null });
+      set({ net, myId, code, status: "connecting", startError: null });
 
-    unsubscribe = net.onMessage((event: NetEvent) => {
-      switch (event.type) {
-        case "room":
-          if (event.room.code !== get().code) return;
-          set({
-            room: event.room,
-            status: "connected",
-            isHost: event.room.hostId === get().myId,
-          });
-          break;
-        case "evacuee-state":
-          set({ lastEvacueeState: event.state, lastStateAt: Date.now() });
-          for (const callback of evacueeStateSubs) callback(event.state);
-          break;
-        case "warden-state":
-          set({ lastWardenState: event.state, lastStateAt: Date.now() });
-          for (const callback of wardenStateSubs) callback(event.state);
-          break;
-        case "route-message":
-          for (const callback of routeMessageSubs) callback(event.message);
-          break;
-        case "command-ack":
-          set({ startError: null });
-          for (const callback of acknowledgementSubs)
-            callback(event.acknowledgement);
-          break;
-        case "evidence":
-          for (const callback of evidenceSubs) callback(event.evidence);
-          break;
-        case "bye":
-          break;
-      }
-    });
-
-    try {
-      await net.connect(code);
-      if (seedRoom) {
-        const created = await net.createRoom({
-          ...seedRoom,
-          drillId: seedRoom.drillId || `drill_${code}`,
-          hostId: "",
-        });
-        if (!created) {
-          net.disconnect();
-          unsubscribe?.();
-          unsubscribe = null;
-          set({ status: "unavailable", net: null });
-          return;
+      unsubscribe = net.onMessage((event: NetEvent) => {
+        switch (event.type) {
+          case "room":
+            if (event.room.code !== get().code) return;
+            set({ room: event.room, status: "connected", isHost: event.room.hostId === get().myId });
+            break;
+          case "warden-state":
+            for (const callback of wardenStateSubs) callback(event.state);
+            break;
+          case "route-message":
+            for (const callback of routeMessageSubs) callback(event.message);
+            break;
+          case "command-ack":
+            for (const callback of acknowledgementSubs) callback(event.acknowledgement);
+            break;
         }
-      }
-    } catch (error) {
-      net.disconnect();
-      unsubscribe?.();
-      unsubscribe = null;
-      const message = error instanceof Error ? error.message.toLowerCase() : "";
-      set({
-        status:
-          message.includes("timeout") || message.includes("timed out")
-            ? "timeout"
-            : "connection",
-        net: null,
       });
-      return;
-    }
 
-    const result = await net.join(code, participant);
-    if ("error" in result) {
-      net.disconnect();
+      const fail = (status: SessionStatus) => {
+        net.disconnect();
+        unsubscribe?.();
+        unsubscribe = null;
+        set({ status, net: null });
+      };
+
+      try {
+        await net.connect(code);
+        if (seedRoom) await net.createRoom({ ...seedRoom, drillId: seedRoom.drillId || `drill_${code}`, hostId: "" });
+      } catch (error) {
+        const message = error instanceof Error ? error.message.toLowerCase() : "";
+        return fail(message.includes("timed out") ? "timeout" : "connection");
+      }
+
+      const result = await net.join(code, participant);
+      if ("error" in result) return fail(result.error);
+      set({ room: result.room, status: "connected", isHost: result.room.hostId === myId });
+    },
+
+    startNow: async () => {
+      const { code, myId, net, room, isHost } = get();
+      if (
+        !code ||
+        !myId ||
+        !net ||
+        !room ||
+        !isHost ||
+        (room.phase !== "lobby" && room.phase !== "preparing") ||
+        room.participants.length < room.maxPlayers
+      )
+        return false;
+
+      set({ startError: null });
+      const result = await net.start(code, myId);
+      if (!result.ok) {
+        set({ startError: result.error });
+        return false;
+      }
+      return true;
+    },
+
+    leave: () => {
+      const { net, myId, code } = get();
+      if (net && myId && code) net.leave(code, myId);
+      get().disconnect();
+    },
+
+    disconnect: () => {
       unsubscribe?.();
       unsubscribe = null;
-      set({ status: statusForJoin(result.error), net: null });
-      return;
-    }
-    set({
-      myId: "participantId" in result ? result.participantId ?? participant.id : participant.id,
-      room: result.room,
-      status: "connected",
-      isHost: result.room.hostId === participant.id,
-    });
-  },
+      get().net?.disconnect();
+      wardenStateSubs.clear();
+      routeMessageSubs.clear();
+      acknowledgementSubs.clear();
+      set({ net: null, status: "idle", code: null, myId: null, room: null, isHost: false, startError: null });
+    },
 
-  startNow: async () => {
-    const state = get();
-    if (
-      !state.code ||
-      !state.myId ||
-      !state.net ||
-      !state.room ||
-      !state.isHost ||
-      (state.room.phase !== "lobby" && state.room.phase !== "preparing") ||
-      state.room.participants.length < state.room.maxPlayers
-    )
-      return false;
+    observeEvidence: (evidenceId) => {
+      if (myRole() !== "warden") return;
+      get().net?.send({ type: "observe-evidence", evidenceId, clientSentAt: Date.now() });
+    },
 
-    set({ startError: null });
-    const result = await state.net.start(state.code, state.myId);
-    if (!result.ok) {
-      set({ startError: result.error });
-      return false;
-    }
-    return true;
-  },
+    sendCommand: (command, evidenceId) => {
+      const { net, room } = get();
+      if (!net || resolveRoom(room)?.phase !== "active" || myRole() !== "warden") return;
+      net.send({
+        type: "warden-command",
+        command,
+        evidenceId,
+        clientSentAt: Date.now(),
+        idempotencyKey: newId(),
+      });
+    },
 
-  leave: () => {
-    const state = get();
-    if (state.net && state.myId && state.code) state.net.leave(state.code, state.myId);
-    get().disconnect(true);
-  },
+    publish: (state) => get().net?.send({ type: "evacuee-state", state }),
 
-  disconnect: (intentional = false) => {
-    void intentional;
-    const state = get();
-    unsubscribe?.();
-    unsubscribe = null;
-    state.net?.disconnect(intentional);
-    evacueeStateSubs.clear();
-    wardenStateSubs.clear();
-    routeMessageSubs.clear();
-    acknowledgementSubs.clear();
-    evidenceSubs.clear();
-    set({
-      net: null,
-      status: "idle",
-      code: null,
-      myId: null,
-      room: null,
-      isHost: false,
-      startError: null,
-      lastEvacueeState: null,
-      lastWardenState: null,
-      lastStateAt: 0,
-    });
-  },
-
-  observeEvidence: (evidenceId) => {
-    const state = get();
-    const room = resolveRoom(state.room);
-    const participant = room?.participants.find((item) => item.id === state.myId);
-    if (!state.net || participant?.role !== "warden") return;
-    state.net.send({ type: "observe-evidence", evidenceId, clientSentAt: Date.now() });
-  },
-
-  sendCommand: (command, evidenceId) => {
-    const state = get();
-    const room = resolveRoom(state.room);
-    const participant = room?.participants.find((item) => item.id === state.myId);
-    if (
-      !state.net ||
-      !state.myId ||
-      !room ||
-      room.phase !== "active" ||
-      participant?.role !== "warden"
-    )
-      return;
-    const intent: ClientIntent = {
-      type: "warden-command",
-      command,
-      evidenceId,
-      clientSentAt: Date.now(),
-      idempotencyKey: newId(),
-    };
-    state.net.send(intent);
-  },
-
-  publish: (state) => get().net?.send({ type: "evacuee-state", state }),
-
-  onEvacueeState: (callback) => {
-    evacueeStateSubs.add(callback);
-    return () => evacueeStateSubs.delete(callback);
-  },
-
-  onWardenState: (callback) => {
-    wardenStateSubs.add(callback);
-    return () => wardenStateSubs.delete(callback);
-  },
-
-  onRouteMessage: (callback) => {
-    routeMessageSubs.add(callback);
-    return () => routeMessageSubs.delete(callback);
-  },
-
-  onAcknowledgement: (callback) => {
-    acknowledgementSubs.add(callback);
-    return () => acknowledgementSubs.delete(callback);
-  },
-
-  onEvidence: (callback) => {
-    evidenceSubs.add(callback);
-    return () => evidenceSubs.delete(callback);
-  },
-}));
-
-export const myParticipant = (state: SessionState): Participant | null =>
-  state.room?.participants.find((participant) => participant.id === state.myId) ?? null;
-
-export const roomIsFull = (room: DrillRoom | null) =>
-  !!room && room.participants.length >= Math.min(room.maxPlayers, MAX_PLAYERS);
+    onWardenState: subscribe(wardenStateSubs),
+    onRouteMessage: subscribe(routeMessageSubs),
+    onAcknowledgement: subscribe(acknowledgementSubs),
+  };
+});

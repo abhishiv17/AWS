@@ -90,17 +90,14 @@ function RoomEdgeLights({
   );
 }
 
-/** Wardens get the architectural shell, but only their assigned contents. */
+/** Every role renders every room; the warden camera follows the evacuee through all of them. */
 function RoomContents({
-  room,
   children,
 }: {
   room: "lobby" | "sec" | "vault";
   children: React.ReactNode;
 }) {
-  const mode = useSimulation((state) => state.mode);
-  const visible = mode.kind !== "warden" || mode.sectorId === room;
-  return visible ? <group>{children}</group> : null;
+  return <group>{children}</group>;
 }
 
 function PortalFrame({

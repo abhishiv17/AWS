@@ -6,13 +6,10 @@ import {
   BLOCKED_ROUTE,
   AIR_DRAIN_PER_SECOND,
   SMOKE_EXPOSURE_THRESHOLD,
-  VENTILATION_SMOKE_FACTOR,
-  getSectorSmoke,
   isRouteBlocked,
 } from "./smoke";
 import type {
   CommandAcknowledgement,
-  EvacueeState,
   EvidenceRecord,
   LogEntry,
   RouteMessage,
@@ -68,8 +65,6 @@ export interface SimulationState {
   routeStatus: "clear" | "unsafe" | "intervened";
   stamina: number;
   sector: RoomId;
-  evacueeXZ: [number, number];
-  evacueeYaw: number;
   explored: Partial<Record<RoomId, boolean>>;
   evidence: Record<string, EvidenceRecord>;
   latestMessage: RouteMessage | null;
@@ -85,26 +80,19 @@ export interface SimulationState {
   setMode: (mode: SimulationMode) => void;
   setView: (view: ViewMode) => void;
   setPrompt: (prompt: string | null) => void;
-  setEvacueeXZ: (x: number, z: number) => void;
-  setEvacueeYaw: (yaw: number) => void;
-  setStamina: (stamina: number) => void;
   enterSector: (sector: RoomId) => void;
   applySmokeExposure: (
     elapsedSeconds: number,
     intensity: number,
     dt: number,
   ) => void;
-  observeEvidence: (evidence: EvidenceRecord) => void;
-  verifyEvidence: (evidenceId: string) => void;
   receiveRouteMessage: (message: RouteMessage) => void;
   receiveAcknowledgement: (acknowledgement: CommandAcknowledgement) => void;
   applyIntervention: () => void;
-  updateAssemblyProgress: (progress: number) => void;
   confirmAssembly: () => void;
   fail: (reason: string) => void;
   push: (text: string, tone?: LogEntry["tone"]) => void;
   reset: () => void;
-  applyEvacueeState: (state: EvacueeState) => void;
   applyWardenState: (state: WardenState) => void;
 }
 
@@ -116,8 +104,6 @@ const initial = {
   routeStatus: "clear" as const,
   stamina: 100,
   sector: "outside" as RoomId,
-  evacueeXZ: [0, 9] as [number, number],
-  evacueeYaw: 0,
   explored: { outside: true, entry: true } as Partial<Record<RoomId, boolean>>,
   evidence: {} as Record<string, EvidenceRecord>,
   latestMessage: null as RouteMessage | null,
@@ -150,18 +136,6 @@ export const useSimulation = create<SimulationState>()((set, get) => ({
   setView: (view) => set({ view }),
 
   setPrompt: (prompt) => set((state) => (state.prompt === prompt ? state : { prompt })),
-
-  setEvacueeXZ: (x, z) =>
-    set((state) =>
-      Math.abs(state.evacueeXZ[0] - x) < 0.05 &&
-      Math.abs(state.evacueeXZ[1] - z) < 0.05
-        ? state
-        : { evacueeXZ: [x, z] },
-    ),
-
-  setEvacueeYaw: (evacueeYaw) => set({ evacueeYaw }),
-
-  setStamina: (stamina) => set({ stamina: Math.max(0, Math.min(100, stamina)) }),
 
   push: (text, tone = "info") =>
     set((state) => {
@@ -218,36 +192,6 @@ export const useSimulation = create<SimulationState>()((set, get) => ({
     if (air === 0 && airBefore > 0) get().fail("air threshold reached");
   },
 
-  observeEvidence: (evidence) =>
-    set((state) => ({
-      evidence: {
-        ...state.evidence,
-        [evidence.id]: {
-          ...evidence,
-          status: evidence.status === "UNKNOWN" ? "OBSERVED" : evidence.status,
-          observedAt: evidence.observedAt ?? Date.now(),
-          updatedAt: Date.now(),
-        },
-      },
-    })),
-
-  verifyEvidence: (evidenceId) =>
-    set((state) => {
-      const evidence = state.evidence[evidenceId];
-      if (!evidence || evidence.status === "EXPIRED") return state;
-      return {
-        evidence: {
-          ...state.evidence,
-          [evidenceId]: {
-            ...evidence,
-            status: "VERIFIED",
-            verifiedAt: Date.now(),
-            updatedAt: Date.now(),
-          },
-        },
-      };
-    }),
-
   receiveRouteMessage: (message) => {
     set({ latestMessage: message });
     get().push(message.caption, "good");
@@ -263,9 +207,6 @@ export const useSimulation = create<SimulationState>()((set, get) => ({
     set({ interventionApplied: true, routeStatus: "intervened" });
     get().push("Ventilation override accepted. Smoke is dispersing.", "good");
   },
-
-  updateAssemblyProgress: (assemblyProgress) =>
-    set({ assemblyProgress: Math.max(0, Math.min(1, assemblyProgress)) }),
 
   confirmAssembly: () => {
     if (get().failed || get().assemblyConfirmed) return;
@@ -284,26 +225,6 @@ export const useSimulation = create<SimulationState>()((set, get) => ({
     set((state) => ({ ...initial, resetSeq: state.resetSeq + 1 }));
   },
 
-  applyEvacueeState: (state) => {
-    set({
-      air: state.air,
-      smokeIntensity: state.smokeIntensity,
-      hazardElapsed: state.hazardElapsed,
-      routeBlocked: state.routeStatus === "unsafe",
-      routeStatus: state.routeStatus,
-      stamina: state.stamina,
-      sector: state.sectorId,
-      evacueeXZ: [state.position[0], state.position[2]],
-      evacueeYaw: state.position[3],
-      interventionApplied: state.interventionApplied,
-      assemblyProgress: state.assemblyProgress,
-      assemblyConfirmed: state.assemblyConfirmed,
-      failed: state.failed,
-      latestMessage: state.routeMessage,
-      log: state.log,
-    });
-  },
-
   applyWardenState: (state) => {
     const evidence = Object.fromEntries(state.evidence.map((item) => [item.id, item]));
     set({
@@ -312,10 +233,6 @@ export const useSimulation = create<SimulationState>()((set, get) => ({
       routeBlocked: state.routeStatus === "unsafe",
       routeStatus: state.routeStatus,
       sector: state.evacuee?.sectorId ?? get().sector,
-      evacueeXZ: state.evacuee
-        ? [state.evacuee.position[0], state.evacuee.position[2]]
-        : get().evacueeXZ,
-      evacueeYaw: state.evacuee?.position[3] ?? get().evacueeYaw,
       interventionApplied: state.interventionApplied,
       assemblyProgress: state.assemblyProgress,
       assemblyConfirmed: state.assemblyConfirmed,
@@ -341,12 +258,11 @@ function sectorLabel(sector: RoomId) {
   }[sector];
 }
 
-/** Only the assigned warden sector is visible outside solo practice. */
+/** Wardens follow the evacuee through the whole block; solo reveals sectors as they are explored. */
 export function useSectorVisible(sector: RoomId): boolean {
-  const mode = useSimulation((state) => state.mode);
+  const warden = useSimulation((state) => state.mode.kind === "warden");
   const explored = useSimulation((state) => !!state.explored[sector]);
-  if (mode.kind === "warden") return mode.sectorId === sector;
-  return explored;
+  return warden || explored;
 }
 
 export const watchedSector = (mode: SimulationMode): RoomId | null =>
@@ -355,9 +271,3 @@ export const watchedSector = (mode: SimulationMode): RoomId | null =>
 /** The evacuee and solo practice own local movement and deterministic fallback simulation. */
 export const useIsSimulationOwner = () =>
   useSimulation((state) => state.mode.kind === "solo" || state.mode.kind === "evacuee");
-
-export function wardenSmoke(state: WardenState) {
-  return state.smokeIntensity * (state.interventionApplied ? VENTILATION_SMOKE_FACTOR : 1);
-}
-
-export { getSectorSmoke };
