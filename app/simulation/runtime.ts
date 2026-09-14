@@ -16,7 +16,7 @@ export const clampDt = (dt: number) => Math.min(dt, 0.05);
 export const runtime = {
   evacuee: new THREE.Vector3(...EVACUEE_SPAWN),
   evacueeYaw: 0,
-  sector: "outside" as RoomId,
+  sector: "entry" as RoomId,
   alert: 0,
   drillStartedAt: 0,
   hazardElapsed: 0,

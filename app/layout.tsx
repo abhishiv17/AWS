@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CampusEvac — Shared Awareness. Safer Decisions.",
+  title: "CampusEvac: Two views. One safe exit.",
   description:
-    "A real-time asymmetric emergency evacuation drill. One evacuee navigates changing hazards while wardens coordinate safer routes.",
+    "A two-player evacuation drill in the browser. The evacuee moves through the campus; the warden sees the hazards and talks them out.",
 };
 
 /**
@@ -28,7 +28,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   interactiveWidget: "resizes-content",
-  themeColor: "#06080c",
+  themeColor: "#16111e",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

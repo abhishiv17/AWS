@@ -2,53 +2,73 @@
 
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import Minimap from "./components/Minimap";
 import TouchControls from "./components/TouchControls";
 import { useCoarsePointer } from "./useCoarsePointer";
 import { COMMANDS, commandByCode, type CommandCode } from "./commands";
-import { nextScenarioGuidance, roomById } from "./level";
+import {
+  CRITICAL_SCENARIO_OBJECTS,
+  nextScenarioGuidance,
+  roomById,
+  scenarioObjectById,
+  type ScenarioObjectId,
+} from "./level";
 import { playSignal } from "./audio";
 import BriefingArtwork from "./components/BriefingArtwork";
-import { EVACUEE_BRIEFING, loadBedrockBriefing, speakNarration, stopNarration } from "./narration";
+import {
+  EVACUEE_BRIEFING,
+  ROOM_NARRATION,
+  loadBedrockBriefing,
+  objectiveNarration,
+  readVoiceEnabled,
+  speakNarration,
+  stopNarration,
+  writeVoiceEnabled,
+} from "./narration";
 import { runtime } from "./runtime";
 import { useSession } from "./session";
-import {
-  useSimulation,
-  watchedSector,
-  VIEWS,
-  type ViewMode,
-} from "./store";
+import { useSimulation, watchedSector, VIEWS, type ViewMode } from "./store";
 import type { EvidenceStatus, RouteMessage } from "./net/types";
 
 const DrillCanvas = dynamic(() => import("./DrillCanvas"), {
   ssr: false,
   loading: () => (
-    <div className="absolute inset-0 grid place-items-center text-xs tracking-widest text-zinc-500">
-      LOADING CAMPUS BLOCK...
+    <div className="absolute inset-0 grid place-items-center text-xs font-black uppercase tracking-[0.3em] text-paper/60">
+      Loading the Science Block...
     </div>
   ),
 });
 
-function Bar({
-  label,
-  value,
-  color,
-  danger,
-}: {
-  label: string;
-  value: number;
-  color: string;
-  danger?: boolean;
-}) {
+const STEPS: ScenarioObjectId[] = [...CRITICAL_SCENARIO_OBJECTS, "main-exit"];
+const placeName = (id: ScenarioObjectId) => roomById(scenarioObjectById(id).room).name.split(" / ").pop();
+
+/* ------------------------------------------------------------------ pieces */
+
+function Key({ children, light = false, small = false }: { children: ReactNode; light?: boolean; small?: boolean }) {
+  const style: CSSProperties = {
+    ...(light ? { borderColor: "var(--ink)", background: "var(--night)", color: "var(--paper)" } : null),
+    ...(small ? { height: "1.2rem", minWidth: "1.2rem", fontSize: "0.58rem", padding: "0 0.25rem" } : null),
+  };
   return (
-    <div className="w-36">
-      <div className="mb-1 flex justify-between text-[10px] uppercase tracking-widest text-zinc-400">
+    <kbd className="hud-key" style={style}>
+      {children}
+    </kbd>
+  );
+}
+
+function Bar({ label, value, color, danger }: { label: string; value: number; color: string; danger?: boolean }) {
+  const fill = danger ? "var(--danger)" : color;
+  return (
+    <div className="w-40">
+      <div className="mb-1 flex items-center justify-between text-[10px] font-black uppercase tracking-[0.16em] text-paper/75">
         <span>{label}</span>
-        <span style={{ color: danger ? "#ef4444" : color }}>{Math.round(value)}</span>
+        <span className="font-mono" style={{ color: fill }}>
+          {Math.round(value)}
+        </span>
       </div>
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
-        <div className="h-full rounded-full transition-[width] duration-150" style={{ width: `${value}%`, background: color }} />
+      <div className="h-2.5 w-full border border-paper/25 bg-black/40">
+        <div className="h-full transition-[width] duration-150" style={{ width: `${Math.max(0, Math.min(100, value))}%`, background: fill }} />
       </div>
     </div>
   );
@@ -56,13 +76,177 @@ function Bar({
 
 function statusColor(status: EvidenceStatus) {
   return status === "VERIFIED"
-    ? "#10b981"
+    ? "var(--mint)"
     : status === "OBSERVED"
-      ? "#facc15"
+      ? "var(--sun)"
       : status === "STALE" || status === "EXPIRED"
-        ? "#f59e0b"
-        : "#38bdf8";
+        ? "var(--coral)"
+        : "var(--violet)";
 }
+
+function LocationHeader({ tag }: { tag: string }) {
+  const sector = useSimulation((state) => state.sector);
+  const parts = roomById(sector).name.split(" / ");
+  const block = parts.length > 1 ? parts[0] : "Campus";
+  const place = parts[parts.length - 1];
+  return (
+    <div className="pointer-events-auto">
+      <div className="flex items-center gap-2">
+        <span className="grid h-7 w-7 place-items-center border-2 border-ink bg-coral text-[10px] font-black text-ink shadow-[2px_2px_0_var(--ink)]">CE</span>
+        <span className="text-lg font-black tracking-[-0.04em] text-paper [text-shadow:2px_2px_0_var(--ink)]">CampusEvac</span>
+        <span className="hidden border border-paper/30 bg-night/70 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.18em] text-paper/75 sm:inline">{tag}</span>
+      </div>
+      <div className="mt-1.5 inline-flex max-w-full items-center gap-2 bg-night/70 px-2 py-1 text-[10px] font-black uppercase tracking-[0.18em]">
+        <span className="text-sun">{block}</span>
+        <span className="text-paper/35">|</span>
+        <span className="truncate text-paper">{place}</span>
+      </div>
+    </div>
+  );
+}
+
+function ObjectivesPanel() {
+  const progress = useSimulation((state) => state.scenarioProgress);
+  const guidance = nextScenarioGuidance(progress);
+  const done = CRITICAL_SCENARIO_OBJECTS.filter((id) => progress[id]).length;
+  return (
+    <section className="hud-panel pointer-events-auto w-[min(19.5rem,calc(100vw-1.5rem))] p-3" aria-label="Objectives">
+      <div className="flex items-center justify-between border-b border-paper/15 pb-2">
+        <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-sun">Objectives</h2>
+        <span className="font-mono text-[10px] text-paper/60">
+          {done}/{CRITICAL_SCENARIO_OBJECTS.length} done
+        </span>
+      </div>
+      <ol className="mt-2 space-y-1.5">
+        {STEPS.map((id) => {
+          const complete = progress[id];
+          const current = guidance.id === id;
+          return (
+            <li key={id} className={`${current ? "flex" : "hidden sm:flex"} items-start gap-2 text-[12px] leading-snug`}>
+              <span
+                className={`mt-0.5 grid h-4 w-4 shrink-0 place-items-center border-2 text-[9px] font-black ${
+                  complete ? "border-mint bg-mint text-ink" : current ? "border-sun text-sun" : "border-paper/30 text-transparent"
+                }`}
+                aria-hidden
+              >
+                {complete ? "✓" : current ? "›" : ""}
+              </span>
+              <div className="min-w-0">
+                <div className={complete ? "text-paper/40 line-through decoration-paper/30" : current ? "font-bold text-paper" : "text-paper/70"}>
+                  {scenarioObjectById(id).label}
+                  <span className="ml-1.5 text-[9px] font-bold uppercase tracking-wider text-paper/40">{placeName(id)}</span>
+                </div>
+                {current && <p className="mt-1 text-[11px] leading-snug text-sun">{guidance.instruction}</p>}
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+}
+
+function Vitals() {
+  const health = useSimulation((state) => state.health);
+  const air = useSimulation((state) => state.air);
+  const cameraMode = useSimulation((state) => state.cameraMode);
+  return (
+    <div className="hud-panel flex flex-col gap-2 p-3" style={{ borderLeftColor: "var(--mint)" }}>
+      <Bar label="Health" value={health} color="var(--mint)" danger={health < 35} />
+      <Bar label="Air" value={air} color="#6fb8ff" danger={air < 35} />
+      <div className="text-[9px] font-bold uppercase tracking-[0.16em] text-paper/45">
+        Camera: {cameraMode === "third" ? "over the shoulder" : "first person"}
+      </div>
+    </div>
+  );
+}
+
+function PromptBar() {
+  const prompt = useSimulation((state) => state.prompt);
+  if (!prompt) return null;
+  const action = prompt.match(/^Press E to (.+)$/);
+  return (
+    <div key={prompt} className="hud-rise flex max-w-[min(34rem,calc(100vw-2rem))] items-center gap-2 border-2 border-ink bg-paper px-3 py-2 text-[13px] font-bold text-ink shadow-[4px_4px_0_var(--ink)]">
+      {action ? (
+        <>
+          Press <Key light>E</Key> to {action[1]}
+        </>
+      ) : (
+        <>
+          <span className="bg-coral px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest">Heads up</span>
+          {prompt}
+        </>
+      )}
+    </div>
+  );
+}
+
+function ControlsHint() {
+  const items: [string, string][] = [
+    ["WASD", "move"],
+    ["Shift", "sprint"],
+    ["Space", "jump"],
+    ["E", "interact"],
+    ["V", "camera"],
+    ["Esc", "menu"],
+  ];
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-night/60 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-paper/70">
+      {items.map(([key, label]) => (
+        <span key={key} className="flex items-center gap-1.5">
+          <Key small>{key}</Key>
+          {label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** Spoken and captioned lines when a room is first entered or a step is completed. */
+function NarrationCaption() {
+  const mode = useSimulation((state) => state.mode.kind);
+  const [caption, setCaption] = useState<{ id: number; text: string } | null>(null);
+
+  useEffect(() => {
+    if (mode === "warden") return;
+    let seq = 0;
+    let timer: number | undefined;
+    const say = (text: string) => {
+      const id = ++seq;
+      window.clearTimeout(timer);
+      setCaption({ id, text });
+      speakNarration(text, () => {
+        timer = window.setTimeout(() => setCaption((current) => (current?.id === id ? null : current)), 1500);
+      });
+    };
+    const unsubscribe = useSimulation.subscribe((state, previous) => {
+      if (state.briefingStatus !== "complete" || state.resetSeq !== previous.resetSeq) return;
+      const finished = STEPS.find((id) => state.scenarioProgress[id] && !previous.scenarioProgress[id]);
+      if (finished) {
+        say(objectiveNarration(finished, state.scenarioProgress));
+        return;
+      }
+      if (state.sector !== previous.sector && !previous.explored[state.sector]) {
+        const line = ROOM_NARRATION[state.sector];
+        if (line) say(line);
+      }
+    });
+    return () => {
+      unsubscribe();
+      window.clearTimeout(timer);
+    };
+  }, [mode]);
+
+  if (!caption) return null;
+  return (
+    <div key={caption.id} className="hud-rise max-w-[min(40rem,calc(100vw-2rem))] bg-night/85 px-4 py-2.5 text-center text-[14px] leading-snug text-paper" role="status" aria-live="polite">
+      <span className="mr-2 text-[10px] font-black uppercase tracking-[0.2em] text-sun">Narrator</span>
+      {caption.text}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------ warden panels */
 
 function EvidencePanel() {
   const mode = useSimulation((state) => state.mode);
@@ -81,36 +265,40 @@ function EvidencePanel() {
   if (view === "evacuee" || (mode.kind !== "warden" && evidence.length === 0)) return null;
 
   return (
-    <div className="hud-panel w-[min(22rem,calc(100vw-1.5rem))] border-l-2 border-l-[#facc15] p-3">
-      <div className="flex items-baseline justify-between border-b border-white/10 pb-2">
-        <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#facc15]">Evidence station</span>
-        <span className="font-mono text-[10px] text-zinc-500">{evidence.length} targets</span>
+    <div className="hud-panel pointer-events-auto w-[min(22rem,calc(100vw-1.5rem))] p-3">
+      <div className="flex items-baseline justify-between border-b border-paper/15 pb-2">
+        <span className="text-[10px] font-black uppercase tracking-[0.18em] text-sun">Evidence</span>
+        <span className="font-mono text-[10px] text-paper/50">{evidence.length} items</span>
       </div>
       {evidence.length === 0 ? (
-        <p className="mt-3 text-[11px] text-zinc-500">Waiting for the assigned sector feed.</p>
+        <p className="mt-3 text-[11px] text-paper/55">Waiting for the sector feed.</p>
       ) : (
         <ul className="mt-2 space-y-2">
           {evidence.map((item) => {
             const color = statusColor(item.status);
-            const age = item.observedAt ? `${Math.max(0, Math.floor((now - item.observedAt) / 1000))}s ago` : "not observed";
+            const age = item.observedAt ? `${Math.max(0, Math.floor((now - item.observedAt) / 1000))}s ago` : "not observed yet";
             return (
-              <li key={item.id} className="border-b border-white/10 pb-2 last:border-0 last:pb-0">
+              <li key={item.id} className="border-b border-paper/10 pb-2 last:border-0 last:pb-0">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <div className="text-[11px] font-bold text-zinc-200">{item.label}</div>
-                    <div className="mt-0.5 text-[9px] text-zinc-500">{item.source} · {age}</div>
+                    <div className="text-[12px] font-bold text-paper">{item.label}</div>
+                    <div className="mt-0.5 text-[10px] text-paper/50">
+                      {item.source} · {age}
+                    </div>
                   </div>
-                  <span className="shrink-0 font-mono text-[9px] font-black" style={{ color }}>{item.status}</span>
+                  <span className="shrink-0 font-mono text-[9px] font-black" style={{ color }}>
+                    {item.status}
+                  </span>
                 </div>
-                <div className="mt-1 text-[10px] leading-snug text-zinc-400">{item.nextAction}</div>
+                <div className="mt-1 text-[11px] leading-snug text-paper/70">{item.nextAction}</div>
                 <div className="mt-2 flex gap-2">
                   {item.status === "UNKNOWN" && (
-                    <button onClick={() => observeEvidence(item.id)} className="border border-[#facc15]/60 px-2 py-1 text-[9px] font-black uppercase tracking-wider text-[#facc15] hover:bg-[#facc15]/10">
+                    <button onClick={() => observeEvidence(item.id)} className="border-2 border-sun px-2 py-1 text-[9px] font-black uppercase tracking-wider text-sun hover:bg-sun hover:text-ink">
                       Observe
                     </button>
                   )}
                   {item.status === "OBSERVED" && (
-                    <button onClick={() => sendCommand("VERIFY_EAST_ROUTE", item.id)} className="border border-[#10b981]/60 px-2 py-1 text-[9px] font-black uppercase tracking-wider text-[#10b981] hover:bg-[#10b981]/10">
+                    <button onClick={() => sendCommand("VERIFY_EAST_ROUTE", item.id)} className="border-2 border-mint px-2 py-1 text-[9px] font-black uppercase tracking-wider text-mint hover:bg-mint hover:text-ink">
                       Verify
                     </button>
                   )}
@@ -129,12 +317,20 @@ function Log() {
   if (!log.length) return null;
   return (
     <div className="hud-panel w-[min(20rem,calc(100vw-1.5rem))] p-3">
-      <div className="mb-2 flex items-center justify-between border-b border-white/10 pb-2 text-[9px] font-bold uppercase tracking-[0.18em] text-zinc-500">
-        <span>Drill log</span><span>{log.length}/6</span>
+      <div className="mb-2 flex items-center justify-between border-b border-paper/15 pb-2 text-[9px] font-black uppercase tracking-[0.18em] text-paper/55">
+        <span>Drill log</span>
+        <span>{log.length}/6</span>
       </div>
-      <div className="space-y-2 text-right">
+      <div className="space-y-1.5 text-right">
         {log.map((entry, index) => (
-          <div key={entry.id} className="border-b border-white/5 pb-1.5 text-[11px] leading-snug last:border-0 last:pb-0" style={{ color: entry.tone === "bad" ? "#ef4444" : entry.tone === "good" ? "#10b981" : "#9ca3af", opacity: 1 - index * 0.1 }}>
+          <div
+            key={entry.id}
+            className="border-b border-paper/5 pb-1.5 text-[11px] leading-snug last:border-0 last:pb-0"
+            style={{
+              color: entry.tone === "bad" ? "var(--danger)" : entry.tone === "good" ? "var(--mint)" : "rgba(248,242,234,0.7)",
+              opacity: 1 - index * 0.1,
+            }}
+          >
             {entry.text}
           </div>
         ))}
@@ -145,9 +341,14 @@ function Log() {
 
 function ConnectionBadge() {
   const status = useSession((state) => state.status);
-  const label = status === "connected" ? "CONNECTED" : status === "connecting" ? "CONNECTING" : status === "idle" ? "LOCAL" : status.toUpperCase();
-  const color = status === "connected" ? "#10b981" : status === "idle" ? "#38bdf8" : "#facc15";
-  return <span className="flex items-center gap-1.5 font-mono text-[9px]" style={{ color }}><span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />{label}</span>;
+  const label = status === "connected" ? "Live" : status === "connecting" ? "Connecting" : status === "idle" ? "Offline practice" : status;
+  const color = status === "connected" ? "var(--mint)" : status === "idle" ? "var(--violet)" : "var(--sun)";
+  return (
+    <span className="flex items-center gap-1.5 bg-night/70 px-2 py-1.5 font-mono text-[9px] font-bold uppercase" style={{ color }}>
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
+      {label}
+    </span>
+  );
 }
 
 function RouteMessageCard() {
@@ -160,17 +361,10 @@ function RouteMessageCard() {
   }, []);
   if (mode.kind !== "evacuee" || !message || message.expiresAt <= now) return null;
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-20 z-10 flex justify-center px-3 sm:top-24">
-      <div className="max-w-[min(34rem,calc(100vw-1.5rem))] border-2 border-[#10b981] bg-[#111216]/95 px-4 py-3 shadow-[5px_5px_0_#10b981]" role="status" aria-live="polite">
-        <div className="flex items-center gap-3">
-          <span className="grid h-9 w-9 shrink-0 place-items-center border-2 border-[#10b981] font-mono text-[9px] font-black text-[#10b981]">RX</span>
-          <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#10b981]">Warden message / {message.confidence}</div>
-            <div className="mt-1 text-sm font-black uppercase text-zinc-100">{message.caption}</div>
-            <div className="mt-0.5 text-[10px] text-zinc-400">Expires in {Math.ceil((message.expiresAt - now) / 1000)}s · you choose the route</div>
-          </div>
-        </div>
-      </div>
+    <div className="hud-rise max-w-[min(30rem,calc(100vw-1.5rem))] border-2 border-mint bg-night/95 px-4 py-3 shadow-[5px_5px_0_var(--mint)]" role="status" aria-live="polite">
+      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-mint">Message from the warden · {message.confidence}</div>
+      <div className="mt-1 text-sm font-black uppercase text-paper">{message.caption}</div>
+      <div className="mt-0.5 text-[10px] text-paper/55">Disappears in {Math.ceil((message.expiresAt - now) / 1000)}s · you choose the route</div>
     </div>
   );
 }
@@ -187,13 +381,13 @@ function HazardBanner() {
   const alert = complete
     ? null
     : failed
-      ? { label: "TRAINING OUTCOME RECORDED", detail: "Review the decision timeline and replay.", color: "#ef4444" }
+      ? { label: "Drill ended", detail: "See the debrief to try again.", color: "var(--danger)" }
       : air <= 30
-        ? { label: "AIR GETTING THIN", detail: "Move toward clear air.", color: "#ef4444" }
+        ? { label: "Air getting thin", detail: "Leave the smoke. Head for a clear room.", color: "var(--danger)" }
         : routeStatus === "unsafe" && warden
-          ? { label: "EAST ROUTE BLOCKED", detail: "Verify the evidence and send the west route.", color: "#ef4444" }
+          ? { label: "East passage unsafe", detail: "Verify the evidence, then send the west route.", color: "var(--danger)" }
           : smoke > 0.2 && !warden
-            ? { label: "SMOKE EXPOSURE", detail: "Move toward clear air and watch your route message.", color: "#f59e0b" }
+            ? { label: "Smoke in this area", detail: "Keep moving and watch for warden messages.", color: "var(--coral)" }
             : null;
   const alertLabel = alert?.label ?? null;
   useEffect(() => {
@@ -202,10 +396,13 @@ function HazardBanner() {
   }, [alertLabel]);
   if (!alert) return null;
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-20 z-10 flex justify-center px-3 sm:top-5">
-      <div className="flex max-w-[min(30rem,calc(100vw-1.5rem))] items-center gap-3 border-2 bg-black/90 px-4 py-2.5" style={{ borderColor: alert.color }} role="status" aria-live="polite">
-        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: alert.color }} />
-        <div><div className="text-[11px] font-black uppercase tracking-[0.17em]" style={{ color: alert.color }}>{alert.label}</div><div className="mt-0.5 text-[10px] text-zinc-300">{alert.detail}</div></div>
+    <div className="flex max-w-[min(26rem,calc(100vw-1.5rem))] items-center gap-3 border-2 bg-night/90 px-4 py-2.5 shadow-[4px_4px_0_rgba(0,0,0,0.5)]" style={{ borderColor: alert.color }} role="status" aria-live="polite">
+      <span className="signal-pulse h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: alert.color }} />
+      <div>
+        <div className="text-[11px] font-black uppercase tracking-[0.17em]" style={{ color: alert.color }}>
+          {alert.label}
+        </div>
+        <div className="mt-0.5 text-[11px] text-paper/80">{alert.detail}</div>
       </div>
     </div>
   );
@@ -222,18 +419,19 @@ function CommandDeck() {
   const [sent, setSent] = useState<CommandCode | null>(null);
   if (mode.kind !== "warden") return null;
   return (
-    <div className="hud-panel w-full p-2 sm:w-[min(42rem,calc(100vw-1.5rem))]">
-      <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-1.5">
-        <div className="text-[9px] font-black uppercase tracking-[0.18em] text-[#facc15]">Warden command deck</div>
-        <span className="font-mono text-[9px] text-zinc-500">sector / {mode.sectorId}</span>
+    <div className="hud-panel w-full p-2.5 sm:w-[min(42rem,calc(100vw-1.5rem))]">
+      <div className="flex items-center justify-between gap-3 border-b border-paper/15 pb-1.5">
+        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-sun">Warden commands</div>
+        <span className="font-mono text-[9px] text-paper/50">sector / {mode.sectorId}</span>
       </div>
-      <div className="mt-1.5 flex gap-1 overflow-x-auto sm:gap-1.5">
+      <div className="mt-2 flex gap-1 overflow-x-auto sm:gap-1.5">
         {COMMANDS.map((command) => {
-          const disabled = command.code === "VERIFY_EAST_ROUTE"
-            ? evidence?.status !== "OBSERVED"
-            : command.code === "SEND_WEST_ROUTE" || command.code === "MARK_EAST_UNSAFE"
-              ? evidence?.status !== "VERIFIED"
-              : interventionApplied || evidence?.status !== "VERIFIED";
+          const disabled =
+            command.code === "VERIFY_EAST_ROUTE"
+              ? evidence?.status !== "OBSERVED"
+              : command.code === "SEND_WEST_ROUTE" || command.code === "MARK_EAST_UNSAFE"
+                ? evidence?.status !== "VERIFIED"
+                : interventionApplied || evidence?.status !== "VERIFIED";
           return (
             <button
               key={command.code}
@@ -242,59 +440,125 @@ function CommandDeck() {
                 sendCommand(command.code, command.code === "APPLY_VENTILATION" ? undefined : "east-route-evidence");
                 setSent(command.code);
                 playSignal("command");
-                window.setTimeout(() => setSent((current) => current === command.code ? null : current), 900);
+                window.setTimeout(() => setSent((current) => (current === command.code ? null : current)), 900);
               }}
-              className="min-w-0 flex-1 border border-white/20 bg-white/[0.04] px-1 py-2.5 text-center transition enabled:hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30 sm:min-w-[6.5rem] sm:py-2"
-              style={{ borderLeftColor: command.color, borderLeftWidth: 3 }}
+              className="min-w-0 flex-1 border-2 border-paper/15 bg-night/60 px-1 py-2.5 text-center transition enabled:hover:border-paper/50 disabled:cursor-not-allowed disabled:opacity-30 sm:min-w-[6.5rem] sm:py-2"
+              style={{ borderLeftColor: command.color, borderLeftWidth: 4 }}
             >
-              <span className="block font-mono text-[9px] font-black" style={{ color: command.color }}>{sent === command.code ? "SENT" : command.label}</span>
-              <span className="mt-0.5 hidden truncate text-[8px] text-zinc-400 sm:block">{command.detail}</span>
+              <span className="block font-mono text-[9px] font-black" style={{ color: command.color }}>
+                {sent === command.code ? "SENT" : command.label}
+              </span>
+              <span className="mt-0.5 hidden truncate text-[9px] text-paper/55 sm:block">{command.detail}</span>
             </button>
           );
         })}
       </div>
-      <div className="mt-2 border-l-2 border-[#38bdf8] bg-white/[0.03] px-2 py-1.5">
-        <div className="text-[8px] font-black uppercase tracking-[0.18em] text-[#38bdf8]">Next evacuee step</div>
-        <div className="mt-0.5 text-[11px] font-black text-zinc-100">{guidance.label} <span className="font-mono text-[9px] font-normal uppercase text-zinc-500">/ {roomById(guidance.room).name}</span></div>
-        <div className="mt-0.5 text-[9px] leading-snug text-zinc-400">{guidance.instruction}</div>
+      <div className="mt-2 border-l-4 border-violet bg-paper/5 px-2 py-1.5">
+        <div className="text-[9px] font-black uppercase tracking-[0.18em] text-violet">Evacuee&apos;s next step</div>
+        <div className="mt-0.5 text-[12px] font-black text-paper">
+          {guidance.label} <span className="font-mono text-[9px] font-normal uppercase text-paper/50">/ {roomById(guidance.room).name}</span>
+        </div>
+        <div className="mt-0.5 text-[10px] leading-snug text-paper/65">{guidance.instruction}</div>
       </div>
-      <div className="mt-1 flex justify-between gap-3 text-[8px] uppercase tracking-widest text-zinc-600"><span>Verify first. Then send one clear route message.</span><span>{Object.values(scenarioProgress).filter(Boolean).length}/7 steps</span></div>
-      {lastAcknowledgement && <div className="mt-2 border-t border-white/10 pt-2 text-[10px]" style={{ color: lastAcknowledgement.accepted ? "#10b981" : "#ef4444" }}>{lastAcknowledgement.accepted ? "Accepted" : "Denied"}: {commandByCode(lastAcknowledgement.command).label}{lastAcknowledgement.reason ? ` - ${lastAcknowledgement.reason}` : ""}</div>}
+      <div className="mt-1.5 flex justify-between gap-3 text-[9px] uppercase tracking-widest text-paper/45">
+        <span>Observe, verify, then send one clear message.</span>
+        <span>{Object.values(scenarioProgress).filter(Boolean).length}/7 steps</span>
+      </div>
+      {lastAcknowledgement && (
+        <div className="mt-2 border-t border-paper/15 pt-2 text-[10px]" style={{ color: lastAcknowledgement.accepted ? "var(--mint)" : "var(--danger)" }}>
+          {lastAcknowledgement.accepted ? "Accepted" : "Denied"}: {commandByCode(lastAcknowledgement.command).label}
+          {lastAcknowledgement.reason ? ` - ${lastAcknowledgement.reason}` : ""}
+        </div>
+      )}
     </div>
   );
 }
 
-function EndCard({ onReset, onLeave }: { onReset: () => void; onLeave: () => void }) {
+/* --------------------------------------------------------------- overlays */
+
+function formatTime(seconds: number) {
+  const whole = Math.max(0, Math.floor(seconds));
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
+}
+
+function EndCard({ onReset, onLeave, onHome }: { onReset: () => void; onLeave: () => void; onHome: () => void }) {
   const complete = useSimulation((state) => state.assemblyConfirmed);
   const failed = useSimulation((state) => state.failed);
   const solo = useSimulation((state) => state.mode.kind === "solo");
   const routeStatus = useSimulation((state) => state.routeStatus);
   const interventionApplied = useSimulation((state) => state.interventionApplied);
   const latestMessage = useSimulation((state) => state.latestMessage);
+  const progress = useSimulation((state) => state.scenarioProgress);
+  const elapsed = useSimulation((state) => state.hazardElapsed);
+  const health = useSimulation((state) => state.health);
   const reset = useSimulation((state) => state.reset);
   if (!complete && !failed) return null;
-  const safeOutcome = complete && !failed;
-  const coordinationFailure = failed
-    ? "The evacuee did not reach assembly before the drill failed."
+  const done = CRITICAL_SCENARIO_OBJECTS.filter((id) => progress[id]).length;
+  const coordination = failed
+    ? "The evacuee did not reach the exit before their air or health ran out."
     : latestMessage
-      ? "The route message was delivered; review whether the handoff was early enough."
-      : "The drill completed without a recorded route handoff.";
-  const nextPractice = interventionApplied
-    ? "Replay after verifying the route before applying the intervention."
+      ? "A route message was delivered. Was it early enough to matter?"
+      : "The drill finished without a route message from a warden.";
+  const practice = interventionApplied
+    ? "Verify the route evidence before applying the ventilation override."
     : routeStatus === "unsafe"
-      ? "Replay with an earlier alternate-route decision."
-      : "Replay after verifying the route evidence before messaging.";
+      ? "Decide on the alternate route earlier."
+      : "Verify the evidence before sending a route message.";
+  const debrief: [string, string, string][] = [
+    ["Did we get out safely?", complete ? "Yes. The evacuee left through the marked exit." : "No. The drill ended before the exit.", "var(--mint)"],
+    ["Where did coordination slip?", coordination, "var(--sun)"],
+    ["What do we practise next?", practice, "var(--violet)"],
+  ];
   return (
-    <div className="pointer-events-auto absolute inset-0 grid place-items-center bg-black/70 p-4 backdrop-blur-sm">
-      <div className="w-[min(26rem,calc(100vw-2rem))] border-2 bg-[#0b0e13] px-6 py-6 text-center" style={{ borderColor: complete ? "#10b981" : "#ef4444" }}>
-        <div className="text-3xl font-black uppercase tracking-[-0.03em]" style={{ color: complete ? "#10b981" : "#ef4444" }}>{complete ? "Assembly confirmed" : "Training outcome recorded"}</div>
-        <div className="mt-5 grid gap-3 text-left text-[11px] leading-relaxed">
-          <div className="border-l-2 border-[#10b981] pl-3"><div className="font-black uppercase tracking-widest text-[#10b981]">Did we evacuate safely?</div><div className="mt-1 text-zinc-300">{safeOutcome ? "Yes. The evacuee reached the authored assembly point." : "No. The drill ended before safe assembly confirmation."}</div></div>
-          <div className="border-l-2 border-[#facc15] pl-3"><div className="font-black uppercase tracking-widest text-[#facc15]">Where did coordination fail?</div><div className="mt-1 text-zinc-300">{coordinationFailure}</div></div>
-          <div className="border-l-2 border-[#38bdf8] pl-3"><div className="font-black uppercase tracking-widest text-[#38bdf8]">What should we practice next?</div><div className="mt-1 text-zinc-300">{nextPractice}</div></div>
+    <div className="pointer-events-auto absolute inset-0 z-50 grid place-items-center overflow-y-auto bg-night/75 p-4 backdrop-blur-sm">
+      <section role="dialog" aria-modal="true" aria-labelledby="end-title" className="brutal-panel w-full max-w-lg p-5 text-ink sm:p-7">
+        <span className={`brutal-tag ${complete ? "bg-mint" : "bg-coral"}`}>{complete ? "Drill complete" : "Drill ended"}</span>
+        <h2 id="end-title" className="mt-3 text-4xl font-black uppercase leading-[0.95] tracking-[-0.05em]">
+          {complete ? "You got out safely." : "Not this time."}
+        </h2>
+        <dl className="mt-5 grid grid-cols-3 border-2 border-ink bg-paper">
+          {(
+            [
+              ["Time", formatTime(elapsed)],
+              ["Steps", `${done}/${CRITICAL_SCENARIO_OBJECTS.length}`],
+              ["Health", String(Math.round(health))],
+            ] as const
+          ).map(([label, value], index) => (
+            <div key={label} className={`p-3 ${index ? "border-l-2 border-ink" : ""}`}>
+              <dt className="text-[9px] font-black uppercase tracking-[0.18em] text-ink-soft">{label}</dt>
+              <dd className="mt-1 font-mono text-2xl font-black">{value}</dd>
+            </div>
+          ))}
+        </dl>
+        <div className="mt-5 space-y-3">
+          {debrief.map(([question, answer, color]) => (
+            <div key={question} className="border-l-4 pl-3" style={{ borderColor: color }}>
+              <div className="text-[10px] font-black uppercase tracking-[0.16em]">{question}</div>
+              <div className="mt-0.5 text-sm text-ink-soft">{answer}</div>
+            </div>
+          ))}
         </div>
-        {solo ? <button onClick={() => { reset(); onReset(); }} className="mt-5 w-full border-2 border-white/25 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-zinc-100 hover:bg-white/10">Run drill again</button> : <button onClick={onLeave} className="mt-5 w-full border-2 border-white/25 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-zinc-100 hover:bg-white/10">Return to drills</button>}
-      </div>
+        <div className="mt-6 grid gap-3 sm:grid-cols-2">
+          {solo ? (
+            <button
+              onClick={() => {
+                reset();
+                onReset();
+              }}
+              className="brutal-button px-4 py-3"
+            >
+              Play again
+            </button>
+          ) : (
+            <button onClick={onLeave} className="brutal-button px-4 py-3">
+              Back to lobby
+            </button>
+          )}
+          <button onClick={onHome} className="brutal-button px-4 py-3" style={{ background: "var(--paper-light)" }}>
+            Exit to home
+          </button>
+        </div>
+      </section>
     </div>
   );
 }
@@ -302,7 +566,11 @@ function EndCard({ onReset, onLeave }: { onReset: () => void; onLeave: () => voi
 const noExternalStoreSubscribe = () => () => {};
 
 function readOnboardingOpen() {
-  try { return localStorage.getItem("campusevac:onboarding:v2") !== "complete"; } catch { return true; }
+  try {
+    return localStorage.getItem("campusevac:onboarding:v2") !== "complete";
+  } catch {
+    return true;
+  }
 }
 
 function Onboarding() {
@@ -311,22 +579,80 @@ function Onboarding() {
   const [dismissed, setDismissed] = useState(false);
   const open = storedOpen && !dismissed;
   if (!open) return null;
+  const warden = mode.kind === "warden";
   const finish = () => {
-    try { localStorage.setItem("campusevac:onboarding:v2", "complete"); } catch { /* session-only dismissal */ }
+    try {
+      localStorage.setItem("campusevac:onboarding:v2", "complete");
+    } catch {
+      /* session-only dismissal */
+    }
     window.dispatchEvent(new Event("start-briefing"));
     setDismissed(true);
   };
   return (
-    <div className="pointer-events-auto absolute inset-0 z-30 grid place-items-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm">
-      <section role="dialog" aria-modal="true" aria-labelledby="onboarding-title" className="w-full max-w-xl border-2 border-[#facc15] bg-[#111216] p-5 text-zinc-100 shadow-[7px_7px_0_#facc15] sm:p-7">
-         <div className="border-b border-white/20 pb-4"><div className="text-[10px] font-black uppercase tracking-[0.2em] text-[#facc15]">CampusEvac / mission brief</div><h2 id="onboarding-title" className="mt-2 text-2xl font-black uppercase tracking-[-0.04em]">{mode.kind === "warden" ? "Verify. Communicate. Adapt." : "Listen before you move."}</h2><p className="mt-2 max-w-lg text-xs leading-relaxed text-zinc-400">{mode.kind === "warden" ? "Your station opens immediately. The evacuee receives a separate guided briefing and does not see your hazard layer." : "A narrated four-step briefing explains the campus, controls, objectives, and information boundary. Movement stays locked until the last line finishes."}</p></div>
-         <div className="mt-5 grid gap-3 text-xs leading-relaxed text-zinc-300 sm:grid-cols-2">
-           <div className="border-l-2 border-[#38bdf8] pl-3"><h3 className="text-[10px] font-black uppercase tracking-widest text-[#38bdf8]">Route</h3><p className="mt-1">Entrance &rarr; Science Block &rarr; Academic Block &rarr; green exit.</p></div>
-           <div className="border-l-2 border-[#ef4444] pl-3"><h3 className="text-[10px] font-black uppercase tracking-widest text-[#ef4444]">Hazard</h3><p className="mt-1">Read physical signs. The warden sees threats you do not.</p></div>
-           <div className="border-l-2 border-[#facc15] pl-3"><h3 className="text-[10px] font-black uppercase tracking-widest text-[#facc15]">Controls</h3><p className="mt-1">WASD move, Shift sprint, Space jump, E interact, V camera.</p></div>
-           <div className="border-l-2 border-[#10b981] pl-3"><h3 className="text-[10px] font-black uppercase tracking-widest text-[#10b981]">Promise</h3><p className="mt-1">Captions stay on screen while the audio plays. No movement starts early.</p></div>
-         </div>
-         <button onClick={finish} className="brutal-button mt-6 w-full px-4 py-3">{mode.kind === "warden" ? "Open warden station" : "Start guided briefing"}</button>
+    <div className="pointer-events-auto absolute inset-0 z-50 grid place-items-center overflow-y-auto bg-night/70 p-4 backdrop-blur-sm">
+      <section role="dialog" aria-modal="true" aria-labelledby="onboarding-title" className="brutal-panel w-full max-w-xl p-5 text-ink sm:p-7">
+        <span className="brutal-tag bg-sun">How to play</span>
+        <h2 id="onboarding-title" className="mt-3 text-3xl font-black uppercase leading-[0.95] tracking-[-0.05em]">
+          {warden ? "You see the danger. Talk them out." : "Six steps. Then get out."}
+        </h2>
+        <p className="mt-2 text-sm leading-relaxed text-ink-soft">
+          {warden
+            ? "You watch the evacuee's sector, check the evidence and send route messages. They cannot see the hazards you see."
+            : "A short narrated briefing plays first. Your controls unlock when it ends. The steps stay on screen the whole time."}
+        </p>
+        {warden ? (
+          <ol className="mt-5 grid gap-2 text-sm">
+            {[
+              ["Watch", "Follow the evacuee through your sector."],
+              ["Observe", "Open Evidence and inspect what changed."],
+              ["Verify", "Confirm it before you act on it."],
+              ["Message", "Send one clear route message."],
+            ].map(([title, detail], index) => (
+              <li key={title} className="flex gap-3 border-2 border-ink bg-paper px-3 py-2">
+                <span className="font-mono font-black text-coral">{index + 1}</span>
+                <span>
+                  <b className="uppercase">{title}.</b> {detail}
+                </span>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <ol className="space-y-1.5 text-sm">
+              {STEPS.map((id, index) => (
+                <li key={id} className="flex gap-2">
+                  <span className="w-4 font-mono font-black text-coral">{index + 1}</span>
+                  <span>
+                    <b>{scenarioObjectById(id).label}</b> <span className="text-ink-soft">· {placeName(id)}</span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+            <div className="space-y-2 border-2 border-ink bg-paper p-3 text-[11px] font-bold uppercase tracking-wider">
+              {(
+                [
+                  ["WASD", "Move"],
+                  ["Shift", "Sprint"],
+                  ["Space", "Jump"],
+                  ["E", "Interact"],
+                  ["V", "Switch camera"],
+                  ["Esc", "Pause menu"],
+                ] as const
+              ).map(([key, label]) => (
+                <div key={key} className="flex items-center gap-2">
+                  <Key light small>
+                    {key}
+                  </Key>
+                  {label}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        <button onClick={finish} className="brutal-button mt-6 w-full px-4 py-3">
+          {warden ? "Open warden station" : "Start the briefing"}
+        </button>
       </section>
     </div>
   );
@@ -341,29 +667,36 @@ function Briefing() {
   const [slide, setSlide] = useState(0);
   const [lines, setLines] = useState(EVACUEE_BRIEFING);
   const [provider, setProvider] = useState<"bedrock" | "authored">("authored");
+  const [voice, setVoice] = useState(true);
   const step = useRef(0);
+  const run = useRef(0);
 
   useEffect(() => {
     if (mode.kind === "warden") return;
     let disposed = false;
     const start = () => {
       if (useSimulation.getState().briefingStatus === "playing") return;
+      const token = ++run.current;
+      const live = () => !disposed && run.current === token;
       beginBriefing();
       setOpen(true);
       setSlide(0);
+      setVoice(readVoiceEnabled());
       setProvider("authored");
-      setLine("Preparing your guided route briefing...");
+      setLine("Preparing your briefing...");
       void loadBedrockBriefing().then((briefing) => {
-        if (disposed) return;
+        if (!live()) return;
         setLines(briefing.lines);
         setProvider(briefing.provider);
         step.current = 0;
         const speakNext = () => {
+          if (!live()) return;
           const next = briefing.lines[step.current];
           if (!next) {
-            setLine("Briefing complete. Your route is live.");
+            setLine("Briefing complete. You can move now.");
             window.setTimeout(() => {
-              if (disposed) return;
+              if (!live()) return;
+              run.current += 1;
               completeBriefing();
               setOpen(false);
             }, 900);
@@ -382,7 +715,9 @@ function Briefing() {
     let autoStart: number | undefined;
     try {
       if (localStorage.getItem("campusevac:onboarding:v2") === "complete") autoStart = window.setTimeout(start, 700);
-    } catch { /* transcript remains available from the mission brief */ }
+    } catch {
+      /* transcript remains available from the mission brief */
+    }
     return () => {
       disposed = true;
       window.removeEventListener("start-briefing", start);
@@ -392,35 +727,197 @@ function Briefing() {
   }, [beginBriefing, completeBriefing, mode.kind]);
 
   if (mode.kind === "warden" || !open) return null;
+
+  const skip = () => {
+    run.current += 1;
+    stopNarration();
+    completeBriefing();
+    setOpen(false);
+  };
+
   return (
-    <div className="pointer-events-auto absolute inset-0 z-40 grid place-items-center overflow-y-auto bg-[#05070b]/85 p-4 backdrop-blur-md">
-      <section className="w-full max-w-2xl border border-[#a78bfa]/70 bg-[#0b0e13] p-4 text-zinc-100 shadow-[8px_8px_0_rgba(167,139,250,.35)] sm:p-6" role="dialog" aria-modal="true" aria-labelledby="briefing-title">
-        <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
-          <div><div className="text-[9px] font-black uppercase tracking-[0.22em] text-[#a78bfa]">CampusEvac / guided briefing</div><h2 id="briefing-title" className="mt-1 text-xl font-black uppercase tracking-[-0.03em] sm:text-2xl">Listen. Understand. Then move.</h2></div>
-          <div className="shrink-0 text-right font-mono text-[10px] uppercase tracking-widest text-zinc-500"><div>{Math.min(slide + 1, lines.length)} / {lines.length}</div><div className="mt-1 text-[#a78bfa]">movement locked</div></div>
+    <div className="pointer-events-auto absolute inset-0 z-50 grid place-items-center overflow-y-auto bg-night/85 p-4 backdrop-blur-md">
+      <section className="brutal-panel-dark w-full max-w-2xl p-4 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="briefing-title">
+        <div className="flex items-start justify-between gap-4 border-b border-paper/15 pb-4">
+          <div>
+            <span className="brutal-tag bg-sun text-ink">Briefing</span>
+            <h2 id="briefing-title" className="mt-2 text-2xl font-black uppercase tracking-[-0.04em] sm:text-3xl">
+              Listen first. Then move.
+            </h2>
+          </div>
+          <div className="shrink-0 text-right font-mono text-[10px] uppercase tracking-widest text-paper/55">
+            <div className="text-lg font-black text-sun">
+              {Math.min(slide + 1, lines.length)}/{lines.length}
+            </div>
+            <div>controls locked</div>
+          </div>
         </div>
-        <div className="mt-4"><BriefingArtwork slide={slide} /></div>
-        <div className="mt-4 border-l-2 border-[#a78bfa] bg-white/[0.03] px-4 py-3" aria-live="polite"><div className="flex items-center justify-between gap-3 text-[9px] font-black uppercase tracking-[0.18em] text-[#a78bfa]"><span>Narration / captions</span><span className="text-zinc-500">{provider === "bedrock" ? "Amazon Bedrock" : "Authored fallback"}</span></div><div className="mt-1 text-sm leading-relaxed text-zinc-100 sm:text-base">{line}</div></div>
-        <div className="mt-4 flex items-center gap-3"><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10"><div className="h-full bg-[#a78bfa] transition-[width] duration-500" style={{ width: `${Math.min(100, ((slide + 1) / Math.max(1, lines.length)) * 100)}%` }} /></div><span className="font-mono text-[9px] uppercase tracking-widest text-zinc-500">audio + captions</span></div>
-         <p className="mt-4 text-[10px] uppercase tracking-[0.16em] text-zinc-500">Keep this panel open. The controls activate automatically after the final line.</p>
-       </section>
-      </div>
-   );
+        <div className="mt-4">
+          <BriefingArtwork slide={slide} />
+        </div>
+        <div className="mt-4 border-l-4 border-sun bg-paper/5 px-4 py-3" aria-live="polite">
+          <div className="flex items-center justify-between gap-3 text-[10px] font-black uppercase tracking-[0.18em] text-sun">
+            <span>Narrator</span>
+            {provider === "bedrock" && <span className="text-paper/50">Amazon Bedrock</span>}
+          </div>
+          <div className="mt-1 text-base leading-relaxed text-paper sm:text-lg">{line}</div>
+        </div>
+        <div className="mt-4 h-2 border border-paper/20 bg-black/40">
+          <div className="h-full bg-sun transition-[width] duration-500" style={{ width: `${Math.min(100, ((slide + 1) / Math.max(1, lines.length)) * 100)}%` }} />
+        </div>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <button
+            onClick={() => {
+              writeVoiceEnabled(!voice);
+              setVoice(!voice);
+            }}
+            className="border-2 border-paper/25 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-paper/80 hover:border-paper/60"
+            aria-pressed={voice}
+          >
+            Voice: {voice ? "on" : "off"}
+          </button>
+          <button onClick={skip} className="brutal-button-dark px-4 py-2.5">
+            Skip briefing
+          </button>
+        </div>
+      </section>
+    </div>
+  );
 }
+
+function requestCanvasLock() {
+  const canvas = document.querySelector<HTMLCanvasElement>(".drill-surface canvas");
+  if (!canvas) return;
+  try {
+    const result = canvas.requestPointerLock() as unknown as Promise<void> | void;
+    if (result && typeof result.catch === "function") result.catch(() => {});
+  } catch {
+    /* the next click on the canvas locks it */
+  }
+}
+
+function PauseMenu({ onRestart, onLeave, onHome }: { onRestart: () => void; onLeave: () => void; onHome: () => void }) {
+  const paused = useSimulation((state) => state.paused);
+  const setPaused = useSimulation((state) => state.setPaused);
+  const mode = useSimulation((state) => state.mode);
+  const view = useSimulation((state) => state.view);
+  const setView = useSimulation((state) => state.setView);
+  const cameraMode = useSimulation((state) => state.cameraMode);
+  const toggleCameraMode = useSimulation((state) => state.toggleCameraMode);
+  const touch = useCoarsePointer();
+  const [voice, setVoice] = useState(true);
+  const [wasPaused, setWasPaused] = useState(paused);
+  if (paused !== wasPaused) {
+    setWasPaused(paused);
+    if (paused) setVoice(readVoiceEnabled());
+  }
+  if (!paused) return null;
+  const solo = mode.kind === "solo";
+  const warden = mode.kind === "warden";
+  const resume = () => {
+    setPaused(false);
+    if (view === "evacuee" && !touch) requestCanvasLock();
+  };
+  const row = "flex w-full items-center justify-between border-2 border-paper/20 px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.14em] text-paper hover:border-paper/60";
+
+  return (
+    <div className="pointer-events-auto absolute inset-0 z-50 grid place-items-center overflow-y-auto bg-night/75 p-4 backdrop-blur-sm">
+      <section role="dialog" aria-modal="true" aria-labelledby="pause-title" className="brutal-panel-dark w-full max-w-md p-5 sm:p-6">
+        <div className="flex items-center justify-between">
+          <span className="brutal-tag bg-sun text-ink">Paused</span>
+          <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-paper/55">
+            <Key small>Esc</Key> to resume
+          </span>
+        </div>
+        <h2 id="pause-title" className="mt-3 text-3xl font-black uppercase tracking-[-0.05em]">
+          Take a breath.
+        </h2>
+        <div className="mt-5 space-y-2.5">
+          <button onClick={resume} className="brutal-button w-full px-4 py-3">
+            Resume
+          </button>
+          {solo && (
+            <button
+              onClick={() => {
+                setPaused(false);
+                onRestart();
+              }}
+              className={row}
+            >
+              Restart drill <span className="text-paper/50">from the entrance</span>
+            </button>
+          )}
+          {!warden && (
+            <button onClick={toggleCameraMode} className={row}>
+              Camera <span className="text-sun">{cameraMode === "third" ? "Over the shoulder" : "First person"}</span>
+            </button>
+          )}
+          <button
+            onClick={() => {
+              writeVoiceEnabled(!voice);
+              setVoice(!voice);
+            }}
+            className={row}
+            aria-pressed={voice}
+          >
+            Voice narration <span className="text-sun">{voice ? "On" : "Off"}</span>
+          </button>
+          {solo && (
+            <div className="grid grid-cols-3 gap-2">
+              {VIEWS.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => setView(item.id)}
+                  className={`border-2 px-2 py-2 text-[9px] font-black uppercase tracking-wider ${view === item.id ? "border-sun bg-sun text-ink" : "border-paper/20 text-paper/75 hover:border-paper/60"}`}
+                >
+                  {item.title}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        {!warden && (
+          <details className="mt-4 border-2 border-paper/15 px-4 py-3 text-sm text-paper/80">
+            <summary className="cursor-pointer text-[11px] font-black uppercase tracking-[0.14em] text-paper">How to play</summary>
+            <ol className="mt-3 space-y-1">
+              {STEPS.map((id, index) => (
+                <li key={id}>
+                  <span className="mr-2 font-mono text-coral">{index + 1}</span>
+                  {scenarioObjectById(id).label} <span className="text-paper/45">· {placeName(id)}</span>
+                </li>
+              ))}
+            </ol>
+            <p className="mt-3 text-[11px] text-paper/55">WASD move · Shift sprint · Space jump · E interact · V camera · Esc menu</p>
+          </details>
+        )}
+        <div className="mt-5 grid gap-2.5 border-t border-paper/15 pt-5 sm:grid-cols-2">
+          {!solo && (
+            <button onClick={onLeave} className="border-2 border-coral px-4 py-3 text-[11px] font-black uppercase tracking-[0.14em] text-coral hover:bg-coral hover:text-ink">
+              Leave drill
+            </button>
+          )}
+          <button onClick={onHome} className={`border-2 border-coral px-4 py-3 text-[11px] font-black uppercase tracking-[0.14em] text-coral hover:bg-coral hover:text-ink ${solo ? "sm:col-span-2" : ""}`}>
+            Exit to home
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------- shell */
 
 export default function DrillShell({ title }: { title?: string }) {
   const router = useRouter();
   const mode = useSimulation((state) => state.mode);
   const view = useSimulation((state) => state.view);
   const setView = useSimulation((state) => state.setView);
+  const setPaused = useSimulation((state) => state.setPaused);
   const air = useSimulation((state) => state.air);
   const health = useSimulation((state) => state.health);
   const smoke = useSimulation((state) => state.smokeIntensity);
   const sector = useSimulation((state) => state.sector);
   const routeStatus = useSimulation((state) => state.routeStatus);
-  const interventionApplied = useSimulation((state) => state.interventionApplied);
-  const scenarioProgress = useSimulation((state) => state.scenarioProgress);
-  const prompt = useSimulation((state) => state.prompt);
   const reset = useSimulation((state) => state.reset);
   const leave = useSession((state) => state.leave);
   const onRouteMessage = useSession((state) => state.onRouteMessage);
@@ -441,6 +938,36 @@ export default function DrillShell({ title }: { title?: string }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [setView, solo]);
+
+  // Esc opens the menu. While the mouse is captured the browser eats that Esc to release the
+  // pointer, so losing the lock mid-drill opens the menu too.
+  useEffect(() => {
+    const idle = () => {
+      const state = useSimulation.getState();
+      return state.failed || state.assemblyConfirmed || state.briefingStatus !== "complete";
+    };
+    const onLockChange = () => {
+      const state = useSimulation.getState();
+      if (document.pointerLockElement || state.view !== "evacuee" || idle()) return;
+      state.setPaused(true);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.code !== "Escape" && event.code !== "KeyP") return;
+      const state = useSimulation.getState();
+      if (document.pointerLockElement) {
+        if (event.code === "KeyP") document.exitPointerLock();
+        return;
+      }
+      if (!state.paused && idle()) return;
+      state.setPaused(!state.paused);
+    };
+    document.addEventListener("pointerlockchange", onLockChange);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerlockchange", onLockChange);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, []);
 
   useEffect(() => {
     return onRouteMessage((message: RouteMessage) => useSimulation.getState().receiveRouteMessage(message));
@@ -487,62 +1014,132 @@ export default function DrillShell({ title }: { title?: string }) {
     return () => window.removeEventListener("inspect-evidence", inspect);
   }, [observeEvidence, warden]);
 
+  const exitLock = () => {
+    if (document.pointerLockElement) document.exitPointerLock();
+  };
+  const restart = () => {
+    reset();
+    setView("evacuee");
+    window.dispatchEvent(new Event("start-briefing"));
+  };
+  const leaveDrill = () => {
+    stopNarration();
+    leave();
+    router.push("/simulation/rooms");
+  };
+  const goHome = () => {
+    stopNarration();
+    if (!solo) leave();
+    router.push("/");
+  };
+
   const watched = watchedSector(mode);
-  const guidance = nextScenarioGuidance(scenarioProgress);
-  const objective = warden
-    ? interventionApplied
-      ? "Intervention applied. Continue monitoring the alternate route."
-      : "Verify the route evidence before communicating."
-    : routeStatus === "unsafe"
-      ? "Follow the green West Stair to the Main Foyer, then use the marked exit."
-      : guidance.instruction;
-  const roomName = roomById(sector).name;
+  const tag = title ?? (warden ? "Warden" : mode.kind === "evacuee" ? "Evacuee" : "Solo practice");
+  const evacueeHud = !warden && view === "evacuee";
 
   return (
-    <div className="drill-surface absolute inset-0 overflow-hidden bg-[#06080c] text-zinc-100">
+    <div className="drill-surface absolute inset-0 overflow-hidden bg-night text-paper">
       <DrillCanvas />
       <Briefing />
-      <HazardBanner />
-      <RouteMessageCard />
-      <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-3 p-3 sm:gap-4 sm:p-4">
-        <div className="pointer-events-auto min-w-0 max-w-[58vw]">
-          <h1 className="text-[11px] font-bold uppercase leading-tight tracking-[0.12em] text-zinc-200 sm:text-sm sm:tracking-[0.2em]">{title ?? "CampusEvac Drill"}</h1>
-          <p className="mt-1 hidden text-[11px] text-zinc-500 sm:block">{warden ? `Warden station / assigned ${roomById(watched ?? "sec").name}` : mode.kind === "evacuee" ? "Evacuee view / limited hazard information" : "Solo practice / inspect the complete drill loop"}</p>
-        </div>
-        <div className="pointer-events-auto flex max-w-[62vw] flex-col items-end gap-2 sm:max-w-none">
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <ConnectionBadge />
-            {solo && <select value={view} onChange={(event) => setView(event.target.value as ViewMode)} className="w-[8.5rem] border-2 border-white/30 bg-zinc-950/90 px-2 py-2 text-[11px] text-zinc-100 outline-none focus:border-[#facc15] sm:w-auto sm:px-3 sm:text-xs">{VIEWS.map((item) => <option key={item.id} value={item.id}>{item.n}. {item.title}</option>)}</select>}
-            {warden && <div className="flex overflow-hidden border-2 border-white/30">{(["warden", "evidence"] as ViewMode[]).map((id) => <button key={id} onClick={() => setView(id)} className={`px-3 py-2 text-[11px] uppercase tracking-widest ${view === id ? "bg-[#facc15] text-[#111216]" : "bg-zinc-950/90 text-zinc-400 hover:bg-white/10"}`}>{id === "warden" ? "Watch" : "Evidence"}</button>)}</div>}
-            {solo && <button onClick={() => { reset(); window.dispatchEvent(new Event("start-briefing")); }} className="border-2 border-white/30 bg-zinc-950/90 px-3 py-2 text-[10px] uppercase tracking-widest text-zinc-300 hover:bg-white/10">Reset</button>}
-            {!solo && <button onClick={() => { leave(); router.push("/simulation/rooms"); }} className="border-2 border-white/30 bg-zinc-950/90 px-3 py-2 text-[10px] uppercase tracking-widest text-zinc-300 hover:bg-white/10">Leave drill</button>}
+
+      {/* top left: brand, location, objectives */}
+      <div className="pointer-events-none absolute left-3 top-3 z-10 flex flex-col items-start gap-3 sm:left-4 sm:top-4">
+        <LocationHeader tag={tag} />
+        {evacueeHud ? (
+          <ObjectivesPanel />
+        ) : (
+          <div className="hud-panel max-w-xs px-3 py-2 text-[11px] leading-snug text-paper/75">
+            {warden
+              ? `Warden station · watching ${roomById(watched ?? sector).name}. Verify before you message.`
+              : view === "warden"
+                ? "Warden view · drag to orbit, scroll to zoom. Press 1 for the evacuee."
+                : "Evidence view · click the markers to inspect. Press 1 for the evacuee."}
           </div>
-            {view !== "evacuee" && <Minimap />}
-        </div>
+        )}
       </div>
 
-      <div className="pointer-events-none absolute right-2 top-[11rem] flex max-w-[calc(100vw-1rem)] flex-col items-end gap-3 sm:right-4 sm:top-[15.5rem]">
+      {/* top right: status, menu, map, warden panels */}
+      <div className="pointer-events-none absolute right-3 top-3 z-10 flex max-h-[calc(100%-1.5rem)] max-w-[62vw] flex-col items-end gap-2 overflow-y-auto sm:right-4 sm:top-4 sm:max-w-none">
+        <div className="pointer-events-auto flex flex-wrap items-center justify-end gap-2">
+          <ConnectionBadge />
+          {warden && (
+            <div className="flex overflow-hidden border-2 border-paper/30">
+              {(["warden", "evidence"] as ViewMode[]).map((id) => (
+                <button
+                  key={id}
+                  onClick={() => setView(id)}
+                  className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-widest ${view === id ? "bg-sun text-ink" : "bg-night/85 text-paper/65 hover:bg-paper/10"}`}
+                >
+                  {id === "warden" ? "Watch" : "Evidence"}
+                </button>
+              ))}
+            </div>
+          )}
+          <button
+            onClick={() => {
+              exitLock();
+              setPaused(true);
+            }}
+            className="flex items-center gap-2 border-2 border-paper/30 bg-night/85 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-paper hover:border-paper/70"
+            aria-label="Open the menu"
+          >
+            <span aria-hidden className="text-sun">
+              ❚❚
+            </span>
+            Menu
+          </button>
+        </div>
+        <Minimap />
         {view !== "evacuee" && <EvidencePanel />}
         {view !== "evacuee" && <Log />}
       </div>
 
-      {warden && <div className="pointer-events-auto absolute inset-x-2 bottom-3 z-10 sm:inset-x-auto sm:bottom-4 sm:left-1/2 sm:-translate-x-1/2"><CommandDeck /></div>}
-
-      <div className={`pointer-events-none absolute inset-x-0 flex items-end justify-between gap-3 p-3 sm:gap-4 sm:p-4 ${showStick ? "bottom-[178px] sm:bottom-0" : warden ? "bottom-[9rem] sm:bottom-0" : "bottom-0"}`}>
-        <div className="hud-panel flex max-w-[min(25rem,70vw)] flex-col gap-2 p-2 text-[10px] sm:gap-3 sm:p-3 sm:text-xs">
-          {warden ? <div className="flex flex-wrap items-center gap-2"><span className="border border-white/25 bg-white/5 px-1.5 py-0.5 text-[10px] uppercase tracking-widest text-zinc-300">{roomName}</span><span className="text-[10px] uppercase tracking-wide text-zinc-500">{roomById(sector).blurb}</span></div> : <div className="flex flex-wrap items-center gap-2"><span className="border border-[#38bdf8]/60 bg-[#38bdf8]/10 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-widest text-[#38bdf8]">NEXT OBJECTIVE</span><span className="text-[10px] uppercase tracking-wide text-zinc-400">{guidance.label} / {roomById(guidance.room).name}</span></div>}
-          <div className="mt-1 text-[11px] text-zinc-200">{objective}</div>
-          <div className="flex flex-wrap gap-4 sm:gap-5"><Bar label="AIR" value={air} color="#10b981" danger={air < 35} /><Bar label="HEALTH" value={health} color="#fb7185" danger={health < 35} /></div>
-          {warden ? <div className="flex flex-wrap gap-3 font-mono text-[10px] uppercase tracking-wider text-zinc-400"><span style={{ color: routeStatus === "unsafe" ? "#ef4444" : routeStatus === "intervened" ? "#10b981" : "#facc15" }}>route / {routeStatus}</span><span>smoke / {Math.round(smoke * 100)}%</span><span>sector / {sector}</span></div> : routeStatus === "unsafe" && <div className="font-mono text-[10px] uppercase tracking-wider text-[#39ff88]">green path / west stair -&gt; main foyer -&gt; exit</div>}
-        </div>
-        <div className="hud-panel hidden p-3 text-right text-[11px] leading-relaxed text-zinc-400 sm:block">{warden ? <><div>fixed sector view / zoom only</div><div><span className="text-zinc-200">Watch / Evidence</span> switches layer</div><div>verify before sending a route message</div></> : <><div><span className="text-zinc-200">WASD</span> move / <span className="text-zinc-200">Shift</span> sprint / <span className="text-zinc-200">Space</span> jump / <span className="text-zinc-200">E</span> interact / <span className="text-zinc-200">V</span> camera</div><div>{view === "evacuee" ? "click to capture the mouse / Esc releases" : "drag to orbit / scroll to zoom"}</div></>}</div>
+      {/* alerts */}
+      <div className="pointer-events-none absolute inset-x-0 top-[34%] z-10 flex flex-col items-center gap-2 px-3 xl:top-4">
+        <HazardBanner />
+        <RouteMessageCard />
       </div>
 
-      {prompt && view === "evacuee" && !showStick && <div className="pointer-events-none absolute inset-x-0 bottom-36 flex justify-center px-3 sm:bottom-32"><div className="border border-[#facc15]/50 bg-black/90 px-3 py-1.5 text-center text-[11px] text-[#facc15]">{prompt}</div></div>}
-      {view === "evacuee" && !showStick && <div className="pointer-events-none absolute left-1/2 top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 border border-white/45"><span className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 bg-[#facc15]" /></div>}
+      {warden && (
+        <div className="pointer-events-auto absolute inset-x-2 bottom-3 z-10 sm:inset-x-auto sm:bottom-4 sm:left-1/2 sm:-translate-x-1/2">
+          <CommandDeck />
+        </div>
+      )}
+
+      {/* bottom left: vitals */}
+      <div className={`pointer-events-none absolute left-3 z-10 sm:left-4 ${showStick ? "top-[40%]" : warden ? "bottom-[10rem] sm:bottom-4" : "bottom-3 sm:bottom-4"}`}>
+        {evacueeHud ? (
+          <Vitals />
+        ) : (
+          <div className="hud-panel hidden flex-col gap-2 p-3 sm:flex">
+            <Bar label="Evacuee health" value={health} color="var(--mint)" danger={health < 35} />
+            <Bar label="Evacuee air" value={air} color="#6fb8ff" danger={air < 35} />
+            <div className="flex flex-wrap gap-3 font-mono text-[10px] uppercase tracking-wider text-paper/60">
+              <span style={{ color: routeStatus === "unsafe" ? "var(--danger)" : routeStatus === "intervened" ? "var(--mint)" : "var(--sun)" }}>route / {routeStatus}</span>
+              <span>smoke / {Math.round(smoke * 100)}%</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* bottom centre: narration, interaction prompt, controls */}
+      {!warden && (
+        <div className={`pointer-events-none absolute inset-x-0 z-10 flex flex-col items-center gap-2 px-3 ${showStick ? "bottom-[220px]" : "bottom-3 sm:bottom-4"} ${view === "evacuee" ? "" : "hidden"}`}>
+          <NarrationCaption />
+          {!showStick && <PromptBar />}
+          {!touch && <div className="hidden lg:block"><ControlsHint /></div>}
+        </div>
+      )}
+
+      {view === "evacuee" && !showStick && (
+        <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+          <span className="block h-1.5 w-1.5 rounded-full bg-paper shadow-[0_0_0_2px_rgba(22,17,30,0.6)]" />
+        </div>
+      )}
       {showStick && <TouchControls />}
       <Onboarding />
-       <EndCard onReset={() => { setView("evacuee"); window.dispatchEvent(new Event("start-briefing")); }} onLeave={() => { leave(); router.push("/simulation/rooms"); }} />
+      <PauseMenu onRestart={restart} onLeave={leaveDrill} onHome={goHome} />
+      <EndCard onReset={restart} onLeave={leaveDrill} onHome={goHome} />
     </div>
   );
 }

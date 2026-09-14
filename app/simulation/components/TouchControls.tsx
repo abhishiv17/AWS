@@ -83,7 +83,7 @@ function Stick() {
       <div className="absolute inset-3 rounded-full border border-white/10" />
       <div
         ref={knob}
-        className="h-14 w-14 rounded-full border-2 border-[#e9ff4f] bg-[#e9ff4f]/25"
+        className="h-14 w-14 rounded-full border-2 border-sun bg-sun/25"
       />
       <span className="pointer-events-none absolute -top-5 text-[9px] font-black uppercase tracking-[0.18em] text-white/45">
         move
@@ -182,6 +182,7 @@ export default function TouchControls() {
   const failed = useSimulation((s) => s.failed);
   const assemblyConfirmed = useSimulation((s) => s.assemblyConfirmed);
   const briefingStatus = useSimulation((s) => s.briefingStatus);
+  const paused = useSimulation((s) => s.paused);
   const cameraMode = useSimulation((s) => s.cameraMode);
   const toggleCameraMode = useSimulation((s) => s.toggleCameraMode);
   // only label the interact button with what it would actually do
@@ -194,7 +195,7 @@ export default function TouchControls() {
     return () => window.clearInterval(id);
   }, []);
 
-  if (briefingStatus !== "complete" || air <= 0 || health <= 0 || failed || assemblyConfirmed) return null;
+  if (briefingStatus !== "complete" || paused || air <= 0 || health <= 0 || failed || assemblyConfirmed) return null;
   const assemblyHere = action === "assembly";
 
   return (
@@ -204,7 +205,7 @@ export default function TouchControls() {
       {/* the prompt sits above the thumbs where it can be read mid-move */}
       {prompt && (
         <div className="pointer-events-none absolute inset-x-0 bottom-[188px] flex justify-center px-4">
-          <div className="border border-yellow-400/60 bg-black/85 px-3 py-1.5 text-center text-[11px] font-semibold text-yellow-200">
+          <div className="border-2 border-ink bg-paper px-3 py-1.5 text-center text-[12px] font-bold text-ink shadow-[3px_3px_0_var(--ink)]">
             {prompt}
           </div>
         </div>
@@ -218,19 +219,19 @@ export default function TouchControls() {
         <ActionButton
           label="CAM"
           hint={cameraMode === "third" ? "first" : "third"}
-          color="#c4b5fd"
+          color="#c9b8ff"
           onPress={toggleCameraMode}
         />
         <ActionButton
           label="E"
           hint="use"
-           color={action === "intervention" ? "#38bdf8" : action === "scenario" ? "#facc15" : "#8b94a1"}
+           color={action === "intervention" ? "#7b5cff" : action === "scenario" ? "#ffc44d" : "#9a8fa3"}
           onPress={pressUse}
         />
         <ActionButton
           label={assemblyHere ? "READY" : "JUMP"}
           hint={assemblyHere ? "assembly" : undefined}
-          color={assemblyHere ? "#10b981" : "#facc15"}
+          color={assemblyHere ? "#2fd18f" : "#ffc44d"}
           onPress={pressJump}
         />
       </div>

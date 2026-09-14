@@ -2,322 +2,249 @@ import Link from "next/link";
 import Image from "next/image";
 import mascotImg from "../public/mascot.webp";
 
-/* -- data --------------------------------------------------------------- */
+/* -- content ------------------------------------------------------------ */
 
 const STEPS = [
-  "Create a two-seat drill room and share the link.",
-  "A short countdown assigns one evacuee and one warden.",
-  "The evacuee enters a compromised campus sector.",
-  "Wardens scan their assigned feeds and verify hazards.",
-  "The evacuee hears the guidance and chooses a route.",
-  "Clear access points, manage exposure, and reach the assembly point.",
-  "Review the drill result and readiness signals.",
+  {
+    n: "01",
+    title: "Open a room",
+    body: "Create a two-seat drill and share the five-letter code or invite link.",
+  },
+  {
+    n: "02",
+    title: "Get your role",
+    body: "A ten-second countdown draws one evacuee and one warden.",
+  },
+  {
+    n: "03",
+    title: "Hear the briefing",
+    body: "A narrated briefing explains the route and controls. Movement unlocks when it ends.",
+  },
+  {
+    n: "04",
+    title: "Evacuate, then debrief",
+    body: "Clear every objective, reach the marked exit, and review three debrief questions.",
+  },
+];
+
+const OBJECTIVES = [
+  { label: "Emergency backpack", place: "Main foyer", color: "bg-violet" },
+  { label: "Lab access card", place: "Chemistry Lab 1A", color: "bg-sun" },
+  { label: "Gas isolation valve", place: "Under the fume hood", color: "bg-danger" },
+  { label: "First-aid kit", place: "Beside the lab window", color: "bg-coral" },
+  { label: "Lab safety clue", place: "Chemistry workstation", color: "bg-mint" },
+  { label: "Emergency route guide", place: "Classroom A201", color: "bg-violet" },
+  { label: "Marked exit", place: "Back at the foyer", color: "bg-mint" },
+];
+
+const STACK = [
+  { name: "AppSync Events", body: "Live movement, lobby and warden commands over WebSockets." },
+  { name: "DynamoDB", body: "Every lobby action and command, stored as a seven-day event log." },
+  { name: "Bedrock", body: "Optional AI narration for the briefing, with an authored fallback." },
 ];
 
 /* -- page --------------------------------------------------------------- */
 
 export default function Home() {
   return (
-    <main className="brutal-grid relative min-h-0 flex-1 overflow-y-auto text-[#111216]">
+    <main className="brutal-grid relative min-h-0 flex-1 overflow-y-auto text-ink">
       <div className="mx-auto flex min-h-full max-w-[1200px] flex-col px-5 py-5 sm:px-8 sm:py-8">
-
         {/* --------------- NAV --------------- */}
-        <nav className="flex items-center justify-between border-b-2 border-[#111216] pb-4">
-          <Link
-            href="/"
-            className="flex items-center gap-2.5 text-xs font-black uppercase tracking-[0.18em]"
-          >
-            <span className="relative grid h-8 w-8 place-items-center border-2 border-[#111216] bg-[#e9ff4f] text-[10px]">
-              <svg width="14" height="12" viewBox="0 0 14 12" fill="none" aria-hidden>
-                <path d="M7 0L13.9282 12H0.0717969L7 0Z" fill="#111216" />
+        <nav className="flex items-center justify-between gap-4 border-b-2 border-ink pb-4">
+          <Link href="/" className="flex items-center gap-2.5 text-sm font-black uppercase tracking-[0.14em]">
+            <span className="grid h-9 w-9 place-items-center border-2 border-ink bg-coral shadow-[3px_3px_0_var(--ink)]">
+              <svg width="16" height="14" viewBox="0 0 14 12" fill="none" aria-hidden>
+                <path d="M7 0L13.9282 12H0.0717969L7 0Z" fill="var(--ink)" />
               </svg>
             </span>
-             <span>
-               CampusEvac{" "}
-               <span className="text-[10px] font-bold tracking-[0.12em] text-[#6c6b70]">
-                 | Shared Situational Awareness
-              </span>
+            <span>
+              Campus<span className="text-coral">Evac</span>
             </span>
           </Link>
 
-          <div className="flex items-center gap-6">
-            <span className="hidden text-[10px] font-bold uppercase tracking-[0.16em] text-[#6c6b70] md:block">How to Play</span>
-            <span className="hidden text-[10px] font-bold uppercase tracking-[0.16em] text-[#6c6b70] md:block">Features</span>
-            <Link href="/simulation/play" className="hidden text-[10px] font-bold uppercase tracking-[0.16em] text-[#6c6b70] md:block">Play Now</Link>
-            <Link href="/simulation/rooms#join" className="hidden border-2 border-[#111216] px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] hover:bg-[#111216] hover:text-[#f2eee5] sm:block">Join a Room</Link>
-            <Link href="/simulation/rooms" className="brutal-button px-4 py-2 text-[10px]">Start Drill</Link>
+          <div className="flex items-center gap-5">
+            <a href="#how" className="hidden text-[10px] font-bold uppercase tracking-[0.16em] text-ink-soft hover:text-ink md:block">How it works</a>
+            <a href="#roles" className="hidden text-[10px] font-bold uppercase tracking-[0.16em] text-ink-soft hover:text-ink md:block">Roles</a>
+            <a href="#objectives" className="hidden text-[10px] font-bold uppercase tracking-[0.16em] text-ink-soft hover:text-ink md:block">Objectives</a>
+            <Link href="/simulation/play" className="hidden border-2 border-ink bg-paper-light px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] shadow-[3px_3px_0_var(--ink)] hover:bg-ink hover:text-paper sm:block">Practice solo</Link>
+            <Link href="/simulation/rooms" className="brutal-button px-4 py-2 text-[10px]">Start a drill</Link>
           </div>
         </nav>
 
-        <div className="grid border-b-2 border-[#111216] sm:grid-cols-3">
-          <div className="border-b-2 border-[#111216] py-3 sm:border-b-0 sm:border-r-2 sm:pr-4">
-            <div className="text-lg font-black uppercase leading-none tracking-tight">
-              AWS
+        <div className="grid border-b-2 border-ink sm:grid-cols-3">
+          {[
+            { value: "2 roles", label: "Evacuee + warden" },
+            { value: "7 steps", label: "Six objectives, one exit" },
+            { value: "Live", label: "Synced over AWS AppSync" },
+          ].map((item, index) => (
+            <div key={item.value} className={`border-b-2 border-ink py-3 sm:border-b-0 ${index < 2 ? "sm:border-r-2 sm:pr-4" : ""} ${index > 0 ? "sm:pl-4" : ""}`}>
+              <div className="text-lg font-black uppercase leading-none tracking-tight">{item.value}</div>
+              <div className="mt-1 text-[9px] font-bold uppercase tracking-[0.16em] text-ink-soft">{item.label}</div>
             </div>
-             <div className="mt-1 text-[9px] font-bold uppercase tracking-[0.16em] text-[#6c6b70]">
-                Realtime backbone
-            </div>
-          </div>
-          <div className="border-b-2 border-[#111216] py-3 sm:border-b-0 sm:border-r-2 sm:px-4">
-            <div className="text-lg font-black uppercase leading-none tracking-tight">3K+</div>
-            <div className="mt-1 text-[9px] font-bold uppercase tracking-[0.16em] text-[#6c6b70]">
-              Community reach
-            </div>
-          </div>
-          <div className="py-3 sm:pl-4">
-            <div className="text-lg font-black uppercase leading-none tracking-tight">20+</div>
-            <div className="mt-1 text-[9px] font-bold uppercase tracking-[0.16em] text-[#6c6b70]">
-              Scenario tests
-            </div>
-          </div>
+          ))}
         </div>
 
         {/* --------------- HERO --------------- */}
-        <section className="grid items-start gap-8 pt-8 pb-6 lg:grid-cols-[1.2fr_0.8fr] lg:gap-12 lg:pt-10 lg:pb-8">
-
-          {/* -- LEFT: headline + mascot + copy -- */}
+        <section className="grid items-center gap-10 pb-10 pt-8 lg:grid-cols-[1.1fr_0.9fr] lg:pt-12">
           <div className="flex flex-col items-start">
-            {/* tags */}
-            <div className="mb-4 flex flex-wrap items-center gap-3 text-[10px] font-black uppercase tracking-[0.22em]">
-              <span className="bg-[#111216] px-2.5 py-1 text-[#e9ff4f]">Asymmetric Multiplayer</span>
-               <span className="border-2 border-[#111216] px-2.5 py-1">Emergency Drill</span>
+            <div className="mb-5 flex flex-wrap items-center gap-3">
+              <span className="brutal-tag bg-ink text-sun">Co-op evacuation drill</span>
+              <span className="brutal-tag bg-paper-light">3D in the browser</span>
             </div>
 
-            {/* headline with overlapping mascot */}
             <div className="relative w-full">
-              <h1 className="text-[clamp(3.2rem,9vw,7.5rem)] font-black uppercase leading-[0.84] tracking-[-0.07em]">
-                 One
-                 <br />
-                 Safe
-                 <br />
-                 <span className="text-[#3b63ff]">Route.</span>
-                 <br />
-                 <span className="text-[#3b63ff]">Shared</span>
-                 <br />
-                 awareness.
+              <h1 className="text-[clamp(3rem,8.4vw,7rem)] font-black uppercase leading-[0.86] tracking-[-0.06em]">
+                Two views.
+                <br />
+                One <span className="text-coral">safe</span>
+                <br />
+                <span className="bg-sun px-2 shadow-[6px_6px_0_var(--ink)]">exit.</span>
               </h1>
-
-              {/* mascot — overlapping on top of the headline */}
               <div
-                className="pointer-events-none absolute z-10"
-                style={{ right: "-5%", top: "8%", width: "clamp(140px, 22vw, 260px)", transform: "rotate(6deg)" }}
+                className="pointer-events-none absolute z-10 hidden sm:block"
+                style={{ right: "-2%", top: "-6%", width: "clamp(120px, 18vw, 210px)", transform: "rotate(7deg)" }}
               >
-                <Image
-                  src={mascotImg}
-                   alt="CampusEvac field kit illustration"
-                  width={260}
-                  height={260}
-                  className="drop-shadow-[4px_4px_0_rgba(17,18,22,0.2)]"
-                  priority
-                />
-              </div>
-
-              {/* "Different Eyes. Same Escape." — rotated text near mascot */}
-              <div
-                className="pointer-events-none absolute hidden lg:block"
-                style={{
-                  right: "-2%",
-                  top: "55%",
-                  transform: "rotate(-55deg)",
-                  transformOrigin: "center",
-                }}
-              >
-                <span className="text-[11px] font-black uppercase leading-tight tracking-[0.12em] text-[#111216]">
-                  Different
-                  <br />
-                  Eyes.
-                  <br />
-                  Same
-                  <br />
-                  Escape.
-                </span>
+                <Image src={mascotImg} alt="" width={210} height={210} className="drop-shadow-[5px_5px_0_rgba(29,22,38,0.25)]" priority />
               </div>
             </div>
 
-            {/* supporting copy */}
-            <p className="mt-6 max-w-md text-sm font-medium leading-relaxed sm:text-[15px]">
-               A real-time evacuation drill where one evacuee navigates changing
-               conditions. Wardens watch, verify, and coordinate a safer route.
-               <br />
-               Different views. One accountable decision.
+            <p className="mt-8 max-w-lg text-base font-medium leading-relaxed">
+              CampusEvac is a two-player evacuation drill on a stylised university campus. The evacuee moves through the
+              labs and classrooms. The warden sees the hazards they can&apos;t, and has to talk them out.
             </p>
 
-            {/* CTA + meta */}
-            <div className="mt-6 flex flex-wrap items-end gap-6">
-              <Link href="/simulation/rooms" className="brutal-button px-5 py-3">
-                Start Drill <span className="ml-2">&rarr;</span>
+            <div className="mt-7 flex flex-wrap items-center gap-4">
+              <Link href="/simulation/rooms" className="brutal-button px-6 py-3.5">
+                Start a drill <span className="ml-2">&rarr;</span>
               </Link>
               <Link
-                href="/simulation/rooms#join"
-                className="border-2 border-[#111216] bg-[#fffdf7] px-5 py-3 text-[11px] font-black uppercase tracking-[0.16em] shadow-[4px_4px_0_#111216] transition hover:bg-[#111216] hover:text-[#f2eee5] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0_#111216]"
+                href="/simulation/play"
+                className="border-2 border-ink bg-paper-light px-6 py-3.5 text-[11px] font-black uppercase tracking-[0.16em] shadow-[4px_4px_0_var(--ink)] transition hover:bg-ink hover:text-paper active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0_var(--ink)]"
               >
-                Join a Room <span className="ml-2">&rarr;</span>
+                Practice solo
               </Link>
-              <div className="flex gap-5">
-                {[
-                  { value: "2", label: "Players" },
-                  { value: "~10 Min", label: "Per Run" },
-                  { value: "Pure", label: "Teamwork" },
-                ].map((m) => (
-                  <div key={m.label} className="text-center">
-                    <div className="text-base font-black uppercase leading-none tracking-tight">{m.value}</div>
-                    <div className="mt-0.5 text-[9px] font-bold uppercase tracking-[0.16em] text-[#6c6b70]">{m.label}</div>
-                  </div>
-                ))}
-              </div>
+              <Link href="/simulation/rooms#join" className="text-[11px] font-black uppercase tracking-[0.16em] underline decoration-2 underline-offset-4 hover:text-violet">
+                Join with a code
+              </Link>
             </div>
           </div>
 
-          {/* -- RIGHT: facility panel -- */}
           <div className="relative mx-auto w-full max-w-md lg:max-w-none">
-            <Image
-              src="/facility.webp"
-              alt="The Facility"
-              width={800}
-              height={600}
-              className="h-auto w-full border-2 border-[#111216] object-cover"
-              priority
-            />
-
-            {/* floating badge */}
-            <div className="absolute -bottom-4 -right-3 hidden border-2 border-[#111216] bg-[#e9ff4f] px-3 py-2 text-[10px] font-black uppercase tracking-widest shadow-[4px_4px_0_#111216] sm:block">
-              Talk or lose
+            <div className="border-2 border-ink bg-night shadow-[10px_10px_0_var(--coral)]">
+              <div className="flex items-center justify-between border-b-2 border-ink bg-ink px-3 py-2 text-[9px] font-black uppercase tracking-[0.2em] text-paper">
+                <span>Science Block / L1</span>
+                <span className="flex items-center gap-1.5 text-mint"><span className="signal-pulse h-1.5 w-1.5 rounded-full bg-mint" /> drill live</span>
+              </div>
+              <Image src="/facility.webp" alt="The CampusEvac campus block" width={800} height={600} className="h-auto w-full object-cover" priority />
+            </div>
+            <div className="absolute -bottom-5 -left-3 hidden border-2 border-ink bg-sun px-3 py-2 text-[10px] font-black uppercase tracking-widest shadow-[4px_4px_0_var(--ink)] sm:block">
+              Talk them out
             </div>
           </div>
         </section>
 
-        {/* --------------- BOTTOM ROW: How to Play + Run Protocol --------------- */}
-        <section className="grid gap-4 border-t-2 border-[#111216] pt-6 pb-6 lg:grid-cols-[1fr_1.2fr]">
-
-          {/* -- LEFT: How to Play -- */}
-          <div className="brutal-panel p-4 sm:p-5">
-            <h2 className="mb-4 text-xs font-black uppercase tracking-[0.22em]">How to Play</h2>
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                {
-                  n: "1",
-                     name: "Evacuee View",
-                  accent: "#3b63ff",
-                   body: "First person, inside the campus. Limited visibility, route pressure, and immediate decisions for one participant.",
-                },
-                {
-                  n: "2",
-                     name: "Warden View",
-                  accent: "#24d17e",
-                   body: "A cutaway sector view with hazard evidence, route options, and the information the evacuee cannot see.",
-                },
-                {
-                  n: "3",
-                     name: "Signal Scan",
-                  accent: "#e9ff4f",
-                   body: "Inspect the sector for unverified hazards, emergency controls, supplies, and safer route signals.",
-                },
-              ].map((v) => (
-                <div key={v.n} className="flex flex-col">
-                  <span className="mb-2 text-[10px] font-black uppercase tracking-widest" style={{ color: v.accent }}>
-                    {v.n}. {v.name}
-                  </span>
-                  {/* dark screenshot placeholder */}
-                  <div className="relative mb-2 aspect-[4/3] overflow-hidden border border-[#111216] bg-[#1b1d24]">
-                    <div className="absolute inset-0 opacity-[0.06]" style={{
-                      backgroundImage: "linear-gradient(rgba(242,238,229,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(242,238,229,0.5) 1px, transparent 1px)",
-                      backgroundSize: "12px 12px",
-                    }} />
-                    {/* stylized view indicator */}
-                    {v.n === "1" && (
-                      <>
-                        <div className="absolute left-[15%] top-[20%] h-[60%] w-[70%] border border-[#f2eee5]/15" />
-                        <div className="absolute bottom-2 left-2 h-1 w-3 bg-[#3b63ff]/40" />
-                        <div className="absolute bottom-2 right-2 text-[6px] font-bold uppercase text-[#f2eee5]/20">FPV</div>
-                      </>
-                    )}
-                    {v.n === "2" && (
-                      <>
-                        <div className="absolute left-[10%] top-[15%] h-[40%] w-[45%] border border-[#24d17e]/25" />
-                        <div className="absolute right-[10%] top-[15%] h-[40%] w-[35%] border border-[#24d17e]/25" />
-                        <div className="absolute bottom-[15%] left-[20%] h-[25%] w-[60%] border border-[#24d17e]/25" />
-                        {/* camera cone */}
-                        <svg className="absolute left-[20%] top-[20%] h-4 w-4 text-[#24d17e]/30" viewBox="0 0 16 16" fill="none" aria-hidden>
-                          <path d="M8 4L2 12H14Z" fill="currentColor" />
-                        </svg>
-                        <div className="absolute bottom-2 right-2 text-[6px] font-bold uppercase text-[#f2eee5]/20">Watch</div>
-                      </>
-                    )}
-                    {v.n === "3" && (
-                      <>
-                        <div className="absolute left-[10%] top-[15%] h-[40%] w-[45%] border border-[#e9ff4f]/20" />
-                        <div className="absolute right-[10%] top-[15%] h-[40%] w-[35%] border border-[#e9ff4f]/20" />
-                        <div className="absolute bottom-[15%] left-[20%] h-[25%] w-[60%] border border-[#e9ff4f]/20" />
-                        {/* discovery blips */}
-                        <div className="signal-pulse absolute left-[30%] top-[30%] h-2 w-2 rounded-full bg-[#e9ff4f]/40" />
-                        <div className="signal-pulse absolute right-[25%] top-[40%] h-1.5 w-1.5 rounded-full bg-[#e9ff4f]/30" />
-                        <div className="signal-pulse absolute bottom-[30%] left-[45%] h-2 w-2 rounded-full bg-[#e9ff4f]/40" />
-                        <div className="absolute bottom-2 right-2 text-[6px] font-bold uppercase text-[#f2eee5]/20">Scan</div>
-                      </>
-                    )}
-                  </div>
-                  <p className="text-[11px] font-medium leading-snug text-[#45454a]">{v.body}</p>
-                </div>
-              ))}
-            </div>
+        {/* --------------- HOW IT WORKS --------------- */}
+        <section id="how" className="scroll-mt-6 border-t-2 border-ink py-10">
+          <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+            <h2 className="text-3xl font-black uppercase tracking-[-0.04em] sm:text-4xl">How a drill works</h2>
+            <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-ink-soft">About 8 minutes a run</span>
           </div>
+          <ol className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {STEPS.map((step) => (
+              <li key={step.n} className="brutal-panel flex flex-col p-5">
+                <span className="font-mono text-2xl font-black text-violet">{step.n}</span>
+                <h3 className="mt-3 text-sm font-black uppercase tracking-wide">{step.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-ink-soft">{step.body}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
 
-          {/* -- RIGHT: Run Protocol + mascot tagline -- */}
-          <div className="brutal-panel flex flex-col p-4 sm:p-5">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <h2 className="mb-4 text-xs font-black uppercase tracking-[0.22em]">Run Protocol</h2>
-                <ol className="space-y-2">
-                  {STEPS.map((s, i) => (
-                    <li key={i} className="flex gap-3 border-b border-[#111216]/15 pb-2">
-                      <span className="font-mono text-sm font-bold text-[#3b63ff]">0{i + 1}</span>
-                      <span className="text-[13px] font-semibold">{s}</span>
-                    </li>
-                  ))}
-                </ol>
-              </div>
+        {/* --------------- ROLES --------------- */}
+        <section id="roles" className="scroll-mt-6 grid gap-6 border-t-2 border-ink py-10 lg:grid-cols-2">
+          <article className="border-2 border-ink bg-paper-light p-6 shadow-[8px_8px_0_var(--violet)]">
+            <span className="brutal-tag bg-violet text-paper">Role 1</span>
+            <h3 className="mt-4 text-3xl font-black uppercase tracking-[-0.04em]">The evacuee</h3>
+            <p className="mt-3 text-sm leading-relaxed text-ink-soft">
+              You&apos;re inside the building, in a third-person or first-person view. You read the signs, collect
+              equipment, close the gas valve and find the marked exit, but you can&apos;t see the threats.
+            </p>
+            <ul className="mt-5 grid gap-2 text-[12px] font-bold uppercase tracking-wide">
+              <li className="border-l-4 border-violet pl-3">WASD move / Space jump / E interact</li>
+              <li className="border-l-4 border-violet pl-3">V switches camera / Esc opens the menu</li>
+            </ul>
+          </article>
+          <article className="brutal-panel-dark p-6">
+            <span className="brutal-tag border-paper bg-coral text-ink">Role 2</span>
+            <h3 className="mt-4 text-3xl font-black uppercase tracking-[-0.04em]">The warden</h3>
+            <p className="mt-3 text-sm leading-relaxed text-paper/75">
+              You watch from above. You see the gas leak and the failing east route. Verify the evidence, send one
+              clear route message, and use your single ventilation override wisely.
+            </p>
+            <ul className="mt-5 grid gap-2 text-[12px] font-bold uppercase tracking-wide">
+              <li className="border-l-4 border-coral pl-3">Observe &rarr; verify &rarr; send route</li>
+              <li className="border-l-4 border-coral pl-3">One intervention per drill</li>
+            </ul>
+          </article>
+        </section>
 
-              {/* tagline + mascot on the right */}
-              <div className="ml-4 hidden flex-shrink-0 flex-col items-end lg:flex" style={{ marginTop: "auto" }}>
-                <div className="mb-3 text-right">
-                  <div className="text-xl font-black uppercase leading-[1.1] tracking-tight">
-                    Small Steps.
-                    <br />
-                    Big Escapes.
-                  </div>
-                </div>
-                <div className="relative w-[130px]" style={{ transform: "scaleX(-1)" }}>
-                  <Image
-                    src={mascotImg}
-                     alt="CampusEvac field kit illustration"
-                    width={130}
-                    height={130}
-                    className="drop-shadow-[3px_3px_0_rgba(17,18,22,0.15)]"
-                  />
-                </div>
-              </div>
+        {/* --------------- OBJECTIVES --------------- */}
+        <section id="objectives" className="scroll-mt-6 border-t-2 border-ink py-10">
+          <h2 className="text-3xl font-black uppercase tracking-[-0.04em] sm:text-4xl">What you&apos;ll practise</h2>
+          <p className="mt-2 max-w-xl text-sm leading-relaxed text-ink-soft">
+            Six steps across two blocks, then the marked exit. The HUD always shows the next one.
+          </p>
+          <ul className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {OBJECTIVES.map((objective, index) => (
+              <li key={objective.label} className="flex items-center gap-3 border-2 border-ink bg-paper-light px-4 py-3 shadow-[3px_3px_0_var(--ink)]">
+                <span className={`grid h-8 w-8 shrink-0 place-items-center border-2 border-ink font-mono text-xs font-black ${objective.color}`}>{index + 1}</span>
+                <span>
+                  <span className="block text-[12px] font-black uppercase tracking-wide">{objective.label}</span>
+                  <span className="block text-[11px] text-ink-soft">{objective.place}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        {/* --------------- AWS --------------- */}
+        <section className="border-t-2 border-ink py-10">
+          <div className="brutal-panel-dark grid gap-6 p-6 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
+            <div>
+              <span className="brutal-tag border-paper bg-sun text-ink">Built on AWS</span>
+              <h2 className="mt-4 text-3xl font-black uppercase tracking-[-0.04em]">No game server.</h2>
+              <p className="mt-2 text-sm leading-relaxed text-paper/70">
+                Both browsers share the game logic, and AWS carries every move between them in real time.
+              </p>
             </div>
+            <ul className="grid gap-3 sm:grid-cols-3">
+              {STACK.map((item) => (
+                <li key={item.name} className="border-2 border-paper/30 p-4">
+                  <span className="block text-sm font-black uppercase tracking-wide text-sun">{item.name}</span>
+                  <span className="mt-2 block text-[12px] leading-relaxed text-paper/70">{item.body}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        {/* --------------- CTA --------------- */}
+        <section className="flex flex-col items-start justify-between gap-6 border-t-2 border-ink py-10 sm:flex-row sm:items-center">
+          <h2 className="text-4xl font-black uppercase leading-[0.9] tracking-[-0.05em] sm:text-5xl">
+            Grab a partner.
+            <br />
+            <span className="text-coral">Find the exit.</span>
+          </h2>
+          <div className="flex flex-wrap gap-4">
+            <Link href="/simulation/rooms" className="brutal-button px-6 py-3.5">Start a drill &rarr;</Link>
+            <Link href="/simulation/play" className="border-2 border-ink bg-paper-light px-6 py-3.5 text-[11px] font-black uppercase tracking-[0.16em] shadow-[4px_4px_0_var(--ink)] hover:bg-ink hover:text-paper">Practice solo</Link>
           </div>
         </section>
 
         {/* --------------- FOOTER --------------- */}
-        <footer className="flex flex-col gap-3 border-t-2 border-[#111216] pb-3 pt-4 text-[10px] font-bold uppercase tracking-[0.14em] text-[#6c6b70] sm:flex-row sm:items-center sm:justify-between">
-           <span>CampusEvac // Make the safer call</span>
-          <span className="flex items-center gap-2">
-            <svg width="14" height="12" viewBox="0 0 14 12" fill="none" aria-hidden>
-              <rect x="1" y="3" width="12" height="6" rx="2" stroke="currentColor" strokeWidth="0.8" />
-              <line x1="4" y1="6" x2="6" y2="6" stroke="currentColor" strokeWidth="0.8" />
-              <line x1="8" y1="6" x2="10" y2="6" stroke="currentColor" strokeWidth="0.8" />
-              <line x1="7" y1="4.5" x2="7" y2="7.5" stroke="currentColor" strokeWidth="0.8" />
-            </svg>
-            Real People. Real Time.
-          </span>
-          <span className="flex items-center gap-2">
-            A drill about teamwork
-            <span className="relative inline-block h-5 w-5">
-              <Image src={mascotImg} alt="" width={20} height={20} className="object-contain" />
-            </span>
-          </span>
+        <footer className="flex flex-col gap-3 border-t-2 border-ink pb-3 pt-4 text-[10px] font-bold uppercase tracking-[0.14em] text-ink-soft sm:flex-row sm:items-center sm:justify-between">
+          <span>CampusEvac / Bharat Builds Tour / AWS &times; WeMakeDevs</span>
+          <span>A training simulation, not live emergency guidance.</span>
         </footer>
       </div>
     </main>

@@ -49,6 +49,13 @@ export default function Systems() {
       return;
     }
 
+    if (sim.paused) {
+      runtime.useTarget = null;
+      // solo practice stops the clock; a shared drill keeps running for the warden
+      if (sim.mode.kind === "solo" && runtime.drillStartedAt > 0) runtime.drillStartedAt += rawDt * 1000;
+      if (sim.mode.kind === "solo") return;
+    }
+
     const room = useSession.getState().room;
     if (room && room.phase !== "active") return;
     if (runtime.drillStartedAt <= 0) runtime.drillStartedAt = Date.now();
@@ -110,9 +117,7 @@ export default function Systems() {
           ? sim.mode.kind === "solo"
             ? "Press E to apply the ventilation override"
             : "Warden authorization is required for this intervention"
-          : sim.routeBlocked
-            ? "East route is unsafe. Choose the west stair."
-            : "Move toward the corridor junction and watch for route guidance.";
+          : null;
       sim.setPrompt(prompt);
     }
   });

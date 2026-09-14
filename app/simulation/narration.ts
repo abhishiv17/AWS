@@ -1,11 +1,13 @@
 "use client";
 
-/** Stable local briefing used when Bedrock is not configured or temporarily unavailable. */
+import { nextScenarioGuidance, type RoomId, type ScenarioObjectId, type ScenarioProgress } from "./level";
+
+/** Stable local briefing used when Bedrock is not configured or temporarily unavailable. One line per artwork slide. */
 export const EVACUEE_BRIEFING = [
-  "Welcome to CampusEvac. You are the evacuee, starting in the central entrance corridor. Stay calm and read the signs around you.",
-  "Your route is simple: collect the emergency backpack, find the lab access card, read one clue in each block, and close the red gas valve.",
-  "If your health drops, find the white first-aid kit and press E to use it. Then follow the marked safe route to the green exit.",
-  "The warden can see hazards that you cannot. You will see physical clues and route messages. Do not move until this briefing is complete.",
+  "Welcome to CampusEvac. This is a fire drill. You are the evacuee, standing at the main entrance of the Science Block.",
+  "You have six steps. Grab the backpack by the entrance. Then, in Chemistry Lab 1A, take the access card, close the gas valve, use the first-aid kit and read the safety note.",
+  "Next, read the route guide in Classroom A201. When all six are done, return to the entrance and leave through the green exit doors.",
+  "Your steps are listed top left and the map is top right. W A S D to move, E to interact, V to change camera, Escape to pause. Smoke builds over time, so keep moving.",
 ];
 
 export type BriefingProvider = "bedrock" | "authored";
@@ -34,9 +36,67 @@ export async function loadBedrockBriefing(signal?: AbortSignal): Promise<Briefin
   }
 }
 
+/** Said once, the first time the evacuee walks into a place. */
+export const ROOM_NARRATION: Partial<Record<RoomId, string>> = {
+  lobby: "Central corridor. The west door leads to Chemistry Lab 1A. The east door leads to Classroom A201.",
+  wcorr: "Science Block passage. Chemistry Lab 1A is straight ahead.",
+  sec: "Chemistry Lab 1A. The gas shut-off is in the back-left corner. The first-aid table is by the window.",
+  ecorr: "Academic Block passage. Classroom A201 is straight ahead.",
+  vault: "Classroom A201. The route guide is on the desk nearest the door.",
+  annex: "Electrical service room. There is nothing you need in here. Head back out.",
+};
+
+const DONE: Record<ScenarioObjectId, string> = {
+  "emergency-backpack": "Backpack secured.",
+  "lab-access-card": "Access card collected.",
+  "gas-valve": "Gas valve closed. The leak has stopped.",
+  "first-aid-kit": "First-aid kit used. Health restored.",
+  "lab-safety-clue": "Safety note read.",
+  "academic-guide": "Route guide read.",
+  "main-exit": "You made it out. Drill complete.",
+};
+
+/** What the narrator says when a step is completed, followed by the next instruction. */
+export function objectiveNarration(id: ScenarioObjectId, progress: ScenarioProgress) {
+  if (id === "main-exit") return DONE[id];
+  const next = nextScenarioGuidance(progress);
+  return next.id === "main-exit" ? `${DONE[id]} ${next.instruction}` : `${DONE[id]} Next: ${next.instruction}`;
+}
+
+const VOICE_KEY = "campusevac:voice";
+
+/** Captions always show; this only controls whether they are also read aloud. */
+export function readVoiceEnabled() {
+  try {
+    return localStorage.getItem(VOICE_KEY) !== "off";
+  } catch {
+    return true;
+  }
+}
+
+export function writeVoiceEnabled(enabled: boolean) {
+  try {
+    localStorage.setItem(VOICE_KEY, enabled ? "on" : "off");
+  } catch {
+    /* preference lasts for this page only */
+  }
+  if (!enabled) stopNarration();
+}
+
+/** Prefer a clear, natural English voice where the browser offers one. */
+function pickVoice() {
+  const voices = window.speechSynthesis.getVoices().filter((voice) => voice.lang.toLowerCase().startsWith("en"));
+  return (
+    voices.find((voice) => /natural|neural|aria|jenny|sonia|libby/i.test(voice.name)) ??
+    voices.find((voice) => /google (uk|us) english|samantha|daniel/i.test(voice.name)) ??
+    voices[0] ??
+    null
+  );
+}
+
 export function speakNarration(text: string, onEnd: () => void) {
-  const estimatedMs = Math.max(1800, (text.split(/\s+/).length / 2.35) * 1000 + 1800);
-  if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+  const estimatedMs = Math.max(2200, (text.split(/\s+/).length / 2.5) * 1000 + 1200);
+  if (typeof window === "undefined" || !("speechSynthesis" in window) || !readVoiceEnabled()) {
     globalThis.setTimeout(onEnd, estimatedMs);
     return;
   }
@@ -49,12 +109,14 @@ export function speakNarration(text: string, onEnd: () => void) {
     onEnd();
   };
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 0.92;
-  utterance.pitch = 0.82;
-  utterance.volume = 0.9;
+  const voice = pickVoice();
+  if (voice) utterance.voice = voice;
+  utterance.rate = 1;
+  utterance.pitch = 1;
+  utterance.volume = 0.95;
   utterance.onend = finish;
   utterance.onerror = finish;
-  const timeout = window.setTimeout(finish, estimatedMs);
+  const timeout = window.setTimeout(finish, estimatedMs + 4000);
   window.speechSynthesis.speak(utterance);
 }
 

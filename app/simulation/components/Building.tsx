@@ -17,6 +17,7 @@ import {
   type WallDef,
 } from "../level";
 import { clampDt } from "../runtime";
+import { ceilingTiles, floorTiles, plaster, wood } from "../textures";
 import { useSimulation, useSectorVisible } from "../store";
 import { Label } from "./Markers";
 
@@ -67,7 +68,7 @@ function Shell() {
           <group key={s.id}>
             <mesh position={[cx, -WALL_T / 2, cz]} receiveShadow>
               <boxGeometry args={[w, WALL_T, d]} />
-              <meshStandardMaterial color={s.color} roughness={0.95} />
+              <meshStandardMaterial map={floorTiles(s.color, w, d)} roughness={0.3} metalness={0.04} />
             </mesh>
             {s.ceiling && (
               <mesh
@@ -75,7 +76,7 @@ function Shell() {
                  visible={evacueeView}
               >
                 <boxGeometry args={[w, WALL_T, d]} />
-                <meshStandardMaterial color="#b3b0a8" roughness={1} />
+                <meshStandardMaterial map={ceilingTiles(w, d)} roughness={1} />
               </mesh>
             )}
           </group>
@@ -103,7 +104,10 @@ function Shell() {
                   b.size[2],
                 ]}
               />
-              <meshStandardMaterial color={def.color ?? "#8f8b83"} roughness={0.95} />
+              <meshStandardMaterial
+                map={plaster(def.color ?? "#e7dde4", Math.max(b.size[0], b.size[2]), b.size[1])}
+                roughness={0.92}
+              />
             </mesh>
             <CuboidCollider
               position={b.pos}
@@ -127,7 +131,10 @@ function Shell() {
             <boxGeometry
                  args={[m.x2 - m.x1, warden ? 0.7 : ROOM_H, m.z2 - m.z1]}
             />
-            <meshStandardMaterial color="#7f7c75" roughness={0.95} />
+            <meshStandardMaterial
+              map={plaster("#ded3dc", Math.max(m.x2 - m.x1, m.z2 - m.z1), ROOM_H)}
+              roughness={0.92}
+            />
           </mesh>
           <CuboidCollider
             position={[(m.x1 + m.x2) / 2, ROOM_H / 2, (m.z1 + m.z2) / 2]}
@@ -172,7 +179,7 @@ function Door({ def }: { def: DoorDef }) {
         <group position={panel}>
           <mesh castShadow>
             <boxGeometry args={size} />
-            <meshStandardMaterial color="#3f4247" roughness={0.7} />
+            <meshStandardMaterial map={wood("#9a6a45", 1, 2)} roughness={0.7} />
           </mesh>
           {/* colour band so the two wings read like the map key */}
           <mesh position={[def.axis === "z" ? 0.06 : 0, 0.15, def.axis === "z" ? 0 : 0.06]}>
@@ -225,10 +232,7 @@ function RouteBlock() {
 
   return (
     <>
-      <CuboidCollider
-        position={[5.62, 1.25, 2.5]}
-        args={[0.18, 1.25, 0.78]}
-      />
+      {/* Warning only, no collider: the Academic Block has one way in, and closing it could trap the evacuee. */}
       <group position={[5.62, 1.25, 2.5]}>
         <mesh>
           <boxGeometry args={[0.16, 2.35, 1.48]} />
@@ -244,8 +248,8 @@ function RouteBlock() {
           <Label
             position={[0, 1.55, 0]}
             color="#ef4444"
-             text="ROUTE CLOSED"
-             sub="follow green stair to foyer"
+             text="EAST PASSAGE UNSAFE"
+             sub="heavy smoke / verify, then send the west route"
           />
         )}
       </group>

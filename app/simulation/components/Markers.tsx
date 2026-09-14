@@ -34,15 +34,16 @@ export function Label({
           fontFamily: "var(--font-geist-sans), system-ui, sans-serif",
           fontSize: 11,
           lineHeight: 1.15,
-          fontWeight: 600,
-          letterSpacing: 0.2,
+          fontWeight: 800,
+          letterSpacing: 0.3,
+          textTransform: "uppercase",
           color,
-          background: "rgba(8,12,18,0.86)",
-          border: `1px solid ${color}`,
-          borderRadius: 4,
-          padding: "3px 7px",
+          background: "rgba(22,17,30,0.9)",
+          border: `2px solid ${color}`,
+          borderRadius: 0,
+          padding: "3px 8px",
           opacity: faint ? 0.55 : 1,
-          boxShadow: `0 0 10px ${color}55`,
+          boxShadow: `3px 3px 0 ${color}`,
         }}
       >
         {text}

@@ -1,29 +1,39 @@
 @import "tailwindcss";
 
+/* CampusEvac neo-brutalism: warm paper, plum ink, hard shadows, sunset accents. */
 :root {
-  --background: #f2eee5;
-  --foreground: #111216;
-  --ink: #111216;
-  --paper: #f2eee5;
-  --paper-deep: #e4ded2;
-  --acid: #e9ff4f;
-  --cobalt: #3b63ff;
-  --signal: #24d17e;
-  --danger: #ff5b55;
+  --ink: #1d1626;
+  --ink-soft: #5c5066;
+  --paper: #f8f2ea;
+  --paper-deep: #eee3d5;
+  --paper-light: #fffaf3;
+  --sun: #ffc44d;
+  --sun-hover: #ffd57a;
+  --coral: #ff6a3d;
+  --violet: #7b5cff;
+  --mint: #2fd18f;
+  --danger: #ef3b4b;
+  --night: #16111e;
+  --background: var(--paper);
+  --foreground: var(--ink);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-paper: var(--paper);
+  --color-paper-deep: var(--paper-deep);
+  --color-paper-light: var(--paper-light);
+  --color-sun: var(--sun);
+  --color-coral: var(--coral);
+  --color-violet: var(--violet);
+  --color-mint: var(--mint);
+  --color-danger: var(--danger);
+  --color-night: var(--night);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #f2eee5;
-    --foreground: #111216;
-  }
 }
 
 * {
@@ -31,7 +41,7 @@
 }
 
 ::selection {
-  background: var(--acid);
+  background: var(--sun);
   color: var(--ink);
 }
 
@@ -57,21 +67,33 @@ input {
 .brutal-grid {
   background-color: var(--paper);
   background-image:
-    linear-gradient(rgba(17, 18, 22, 0.055) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(17, 18, 22, 0.055) 1px, transparent 1px);
+    linear-gradient(rgba(29, 22, 38, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(29, 22, 38, 0.06) 1px, transparent 1px);
   background-size: 24px 24px;
 }
 
 .brutal-panel {
   border: 2px solid var(--ink);
-  background: rgba(242, 238, 229, 0.94);
+  background: var(--paper-light);
   box-shadow: 7px 7px 0 var(--ink);
 }
 
 .brutal-panel-dark {
-  border: 2px solid #f2eee5;
-  background: #111216;
-  box-shadow: 7px 7px 0 var(--acid);
+  border: 2px solid var(--ink);
+  background: var(--night);
+  color: var(--paper);
+  box-shadow: 7px 7px 0 var(--coral);
+}
+
+.brutal-tag {
+  display: inline-block;
+  border: 2px solid var(--ink);
+  padding: 0.2rem 0.55rem;
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  box-shadow: 3px 3px 0 var(--ink);
 }
 
 .brutal-button {
@@ -79,7 +101,7 @@ input {
   align-items: center;
   justify-content: center;
   border: 2px solid var(--ink);
-  background: var(--acid);
+  background: var(--sun);
   color: var(--ink);
   box-shadow: 4px 4px 0 var(--ink);
   font-size: 0.72rem;
@@ -90,7 +112,7 @@ input {
 }
 
 .brutal-button:hover {
-  background: #f3ff93;
+  background: var(--sun-hover);
   transform: translate(-1px, -1px);
   box-shadow: 6px 6px 0 var(--ink);
 }
@@ -104,10 +126,10 @@ input {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid #f2eee5;
+  border: 2px solid var(--paper);
   background: transparent;
-  color: #f2eee5;
-  box-shadow: 4px 4px 0 var(--acid);
+  color: var(--paper);
+  box-shadow: 4px 4px 0 var(--coral);
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.12em;
@@ -116,38 +138,55 @@ input {
 }
 
 .brutal-button-dark:hover {
-  background: rgba(242, 238, 229, 0.12);
+  background: rgba(248, 242, 234, 0.12);
   transform: translate(-1px, -1px);
-  box-shadow: 6px 6px 0 var(--acid);
+  box-shadow: 6px 6px 0 var(--coral);
 }
 
 .brutal-button-dark:active {
   transform: translate(3px, 3px);
-  box-shadow: 1px 1px 0 var(--acid);
+  box-shadow: 1px 1px 0 var(--coral);
 }
 
 .brutal-input {
   border: 2px solid var(--ink);
-  background: #fffdf7;
+  background: var(--paper-light);
   color: var(--ink);
   box-shadow: 3px 3px 0 var(--ink);
 }
 
 .brutal-input:focus {
-  outline: 3px solid var(--cobalt);
+  outline: 3px solid var(--violet);
   outline-offset: 2px;
 }
 
+/* -- in-game HUD --------------------------------------------------------- */
+
 .hud-panel {
-  border: 1px solid rgba(242, 238, 229, 0.2);
-  border-left: 3px solid rgba(233, 255, 79, 0.8);
-  background: rgba(7, 10, 15, 0.82);
-  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(248, 242, 234, 0.16);
+  border-left: 3px solid var(--sun);
+  background: rgba(22, 17, 30, 0.78);
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(12px);
 }
 
 .hud-panel-blue {
-  border-left-color: rgba(139, 199, 255, 0.9);
+  border-left-color: var(--violet);
+}
+
+.hud-key {
+  display: inline-grid;
+  min-width: 1.6rem;
+  height: 1.6rem;
+  place-items: center;
+  border: 2px solid var(--paper);
+  border-radius: 0.35rem;
+  background: var(--paper);
+  color: var(--ink);
+  padding: 0 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 900;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.55);
 }
 
 .signal-pulse {
@@ -164,6 +203,21 @@ input {
     opacity: 1;
     transform: scale(1);
   }
+}
+
+@keyframes hud-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.hud-rise {
+  animation: hud-rise 260ms ease-out both;
 }
 
 @media (prefers-reduced-motion: reduce) {

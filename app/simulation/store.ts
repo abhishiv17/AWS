@@ -74,6 +74,8 @@ export interface SimulationState {
   /** Kept across drill resets so a player's choice sticks. */
   cameraMode: CameraMode;
   briefingStatus: BriefingStatus;
+  /** Pause menu open: movement and interaction stop; solo also freezes the hazard clock. */
+  paused: boolean;
   health: number;
   hasBackpack: boolean;
   equipped: EquipmentId | null;
@@ -99,6 +101,7 @@ export interface SimulationState {
 
   setMode: (mode: SimulationMode) => void;
   beginBriefing: () => void;
+  setPaused: (paused: boolean) => void;
   completeBriefing: () => void;
   setView: (view: ViewMode) => void;
   toggleCameraMode: () => void;
@@ -122,6 +125,7 @@ export interface SimulationState {
 
 const initial = {
   briefingStatus: "locked" as BriefingStatus,
+  paused: false,
   air: 100,
   health: 72,
   hasBackpack: false,
@@ -132,7 +136,7 @@ const initial = {
   routeBlocked: false,
   routeStatus: "clear" as const,
   stamina: 100,
-  sector: "outside" as RoomId,
+  sector: "entry" as RoomId,
   explored: { outside: true, entry: true } as Partial<Record<RoomId, boolean>>,
   evidence: {} as Record<string, EvidenceRecord>,
   latestMessage: null as RouteMessage | null,
@@ -165,6 +169,8 @@ export const useSimulation = create<SimulationState>()((set, get) => ({
     }),
 
   beginBriefing: () => set({ briefingStatus: "playing" }),
+
+  setPaused: (paused) => set((state) => (state.paused === paused ? state : { paused })),
 
   completeBriefing: () => {
     set({ briefingStatus: "complete" });
@@ -339,14 +345,14 @@ export const useSimulation = create<SimulationState>()((set, get) => ({
 
 function sectorLabel(sector: RoomId) {
   return {
-    outside: "the outdoor assembly court",
-    entry: "the main foyer",
-    lobby: "the corridor junction",
-    wcorr: "the west stair",
-    ecorr: "the east stair",
-    sec: "the lab and utility sector",
-    vault: "the dorm wing",
-    annex: "the electrical service area",
+    outside: "the plaza",
+    entry: "the main entrance",
+    lobby: "the central corridor",
+    wcorr: "the Science Block passage",
+    ecorr: "the Academic Block passage",
+    sec: "Chemistry Lab 1A",
+    vault: "Classroom A201",
+    annex: "the electrical service room",
   }[sector];
 }
 

@@ -62,7 +62,7 @@ export interface RoomDef {
 export const ROOMS: RoomDef[] = [
   {
     id: "outside",
-    name: "Outdoor Assembly",
+    name: "Plaza / Assembly Point",
     blurb: "Safe staging area with the assembly beacon ahead.",
     bounds: { minX: -14, maxX: 14, minZ: 10.5, maxZ: 26 },
     fog: false,
@@ -71,7 +71,7 @@ export const ROOMS: RoomDef[] = [
   },
   {
     id: "entry",
-    name: "Main Foyer",
+    name: "Main Entrance",
     blurb: "Notice wall and orientation point for the drill.",
     bounds: { minX: -3, maxX: 3, minZ: 7, maxZ: 10.5 },
     fog: false,
@@ -80,7 +80,7 @@ export const ROOMS: RoomDef[] = [
   },
   {
     id: "lobby",
-    name: "Corridor Junction",
+    name: "Central Corridor",
     blurb: "Primary route decision between the west and east stairs.",
     bounds: { minX: -5.5, maxX: 5.5, minZ: -7, maxZ: 7 },
     fog: true,
@@ -89,7 +89,7 @@ export const ROOMS: RoomDef[] = [
   },
   {
     id: "wcorr",
-    name: "West Stair",
+    name: "Science Block / Passage",
     blurb: "Candidate route to the outdoor assembly point.",
     bounds: { minX: -8, maxX: -5.5, minZ: 1, maxZ: 4 },
     fog: false,
@@ -98,7 +98,7 @@ export const ROOMS: RoomDef[] = [
   },
   {
     id: "ecorr",
-    name: "East Stair",
+    name: "Academic Block / Passage",
     blurb: "Route edge that becomes unsafe during the scenario.",
     bounds: { minX: 5.5, maxX: 8, minZ: 1, maxZ: 4 },
     fog: false,
@@ -125,7 +125,7 @@ export const ROOMS: RoomDef[] = [
   },
   {
     id: "annex",
-    name: "Electrical Service",
+    name: "Academic Block / Electrical Service",
     blurb: "Authored smoke origin and recovery route.",
     bounds: { minX: 13, maxX: 17, minZ: -10, maxZ: -7 },
     fog: false,
@@ -171,8 +171,8 @@ export interface WallDef {
   color?: string;
 }
 
-const OUT = "#6c706d";
-const IN = "#8f8b83";
+const OUT = "#c9bac8";
+const IN = "#e7dde4";
 
 export const WALLS: WallDef[] = [
   {
@@ -273,9 +273,9 @@ export const SLABS: {
   color: string;
   ceiling?: boolean;
 }[] = [
-  { id: "main", x1: -22.15, z1: -7.15, x2: 22.15, z2: 7.15, color: "#7d7a73", ceiling: true },
-  { id: "entry", x1: -3.15, z1: 7.15, x2: 3.15, z2: 10.65, color: "#6e6a63", ceiling: true },
-  { id: "annex", x1: 12.85, z1: -10.15, x2: 17.15, z2: -7, color: "#5d5a55", ceiling: true },
+  { id: "main", x1: -22.15, z1: -7.15, x2: 22.15, z2: 7.15, color: "#d2c8d8", ceiling: true },
+  { id: "entry", x1: -3.15, z1: 7.15, x2: 3.15, z2: 10.65, color: "#cfc3d2", ceiling: true },
+  { id: "annex", x1: 12.85, z1: -10.15, x2: 17.15, z2: -7, color: "#b5aab9", ceiling: true },
 ];
 
 /* ------------------------------------------------------------------- doors */
@@ -325,7 +325,7 @@ export const SCENARIO_OBJECTS: ScenarioObjectDef[] = [
     room: "entry",
     label: "Emergency backpack",
     sub: "grab it before entering the block",
-    position: [1.55, 0.48, 8.65],
+    position: [1.55, 0.3, 8.65],
     color: "#38bdf8",
     radius: 1.55,
   },
@@ -375,7 +375,7 @@ export const SCENARIO_OBJECTS: ScenarioObjectDef[] = [
     room: "vault",
     label: "Emergency route guide",
     sub: "compare the classroom map with the signs",
-    position: [12.2, 1.08, 1.25],
+    position: [12.2, 0.8, 1.25],
     color: "#a78bfa",
     radius: 1.35,
   },
@@ -427,13 +427,13 @@ export interface ScenarioGuidance {
 /** One actionable instruction at a time; the evacuee should never need to parse the whole checklist. */
 export function nextScenarioGuidance(progress: ScenarioProgress): ScenarioGuidance {
   const id = CRITICAL_SCENARIO_OBJECTS.find((item) => !progress[item]);
-  if (id === "emergency-backpack") return { id, label: "Emergency backpack", room: "entry", instruction: "Go to the Main Foyer. The blue backpack is beside the entrance bench.", color: "#38bdf8" };
-  if (id === "lab-access-card") return { id, label: "Lab access card", room: "sec", instruction: "Enter the Science Block through the left portal. Find the yellow card at the access desk.", color: "#facc15" };
-  if (id === "gas-valve") return { id, label: "Gas isolation valve", room: "sec", instruction: "In the Science Block, go to the red wheel beneath the Fume Hood and close it.", color: "#ef4444" };
-  if (id === "first-aid-kit") return { id, label: "First-aid kit", room: "sec", instruction: "In the Science Block, find the white first-aid kit beside the blue window.", color: "#fb7185" };
-  if (id === "lab-safety-clue") return { id, label: "Lab safety clue", room: "sec", instruction: "Read the green safety clue on the chemistry workstation.", color: "#10b981" };
-  if (id === "academic-guide") return { id, label: "Academic route guide", room: "vault", instruction: "Cross to the Academic Block and read the purple route guide in Classroom A201.", color: "#a78bfa" };
-  return { id: "main-exit", label: "Marked exit", room: "entry", instruction: "Return to the Main Foyer. Follow the green floor arrows to the West Stair, then use the marked exit.", color: "#39ff88" };
+  if (id === "emergency-backpack") return { id, label: "Emergency backpack", room: "entry", instruction: "Pick up the emergency backpack on the floor beside the bench, just inside the entrance.", color: "#38bdf8" };
+  if (id === "lab-access-card") return { id, label: "Lab access card", room: "sec", instruction: "Walk into the corridor and take the west door marked SCIENCE BLOCK. The yellow card is on the desk beside that door.", color: "#facc15" };
+  if (id === "gas-valve") return { id, label: "Gas isolation valve", room: "sec", instruction: "In Chemistry Lab 1A, go to the back-left corner. Close the red valve under the GAS SHUT-OFF sign.", color: "#ef4444" };
+  if (id === "first-aid-kit") return { id, label: "First-aid kit", room: "sec", instruction: "Find the white first-aid kit on the small table under the green FIRST AID sign, next to the window.", color: "#fb7185" };
+  if (id === "lab-safety-clue") return { id, label: "Lab safety clue", room: "sec", instruction: "Read the green safety note on the long lab bench in the middle of the room.", color: "#10b981" };
+  if (id === "academic-guide") return { id, label: "Academic route guide", room: "vault", instruction: "Cross the corridor to the east door marked ACADEMIC BLOCK. The purple route guide is on the desk nearest the door in Classroom A201.", color: "#a78bfa" };
+  return { id: "main-exit", label: "Marked exit", room: "entry", instruction: "All steps done. Go back to the corridor, walk south to the entrance and use the green EXIT doors.", color: "#39ff88" };
 }
 
 /** Threats are deliberately only rendered in the warden's view. */
@@ -542,6 +542,9 @@ export const MARKERS: MarkerDef[] = [
 
 export const EVACUEE_SPAWN: Vec3 = [0, 1.1, 9];
 export const ASSEMBLY_Z = 13.5;
+
+/** Low sunset sun, behind the block to the north-east. Shared by the sky, key light and environment. */
+export const SUN_DIRECTION: Vec3 = [0.5, 0.2, -0.84];
 
 export function isRevealed(
   reveal: Reveal,

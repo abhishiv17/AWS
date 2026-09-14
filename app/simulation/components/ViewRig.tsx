@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ComponentRef } from "react";
-import { ContactShadows, OrbitControls, PerspectiveCamera } from "@react-three/drei";
+import { ContactShadows, Environment, Lightformer, OrbitControls, PerspectiveCamera } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { roomById, type RoomDef } from "../level";
+import { roomById, SUN_DIRECTION, type RoomDef } from "../level";
 import { getSectorSmoke, VENTILATION_SMOKE_FACTOR } from "../smoke";
 import { clampDt, runtime } from "../runtime";
 import { useSimulation } from "../store";
@@ -149,8 +149,8 @@ function SmokeAtmosphere() {
   const room = useSimulation((s) => s.sector);
   const fog = useRef<THREE.FogExp2>(null);
   const current = useRef(0);
-  const clear = useMemo(() => new THREE.Color("#0d141d"), []);
-  const smoke = useMemo(() => new THREE.Color("#5d625f"), []);
+  const clear = useMemo(() => new THREE.Color("#6a5774"), []);
+  const smoke = useMemo(() => new THREE.Color("#9a939b"), []);
 
   useFrame((_, rawDt) => {
     const fogInstance = fog.current;
@@ -164,14 +164,16 @@ function SmokeAtmosphere() {
         : 0;
     const k = 1 - Math.exp(-clampDt(rawDt) * 4);
     current.current += (target - current.current) * k;
-    fogInstance.density = 0.018 + current.current * 0.1;
+    fogInstance.density = 0.012 + current.current * 0.1;
     fogInstance.color.copy(clear).lerp(smoke, current.current);
   });
 
-  return <fogExp2 ref={fog} attach="fog" args={["#0d141d", 0.018]} />;
+  return <fogExp2 ref={fog} attach="fog" args={["#6a5774", 0.012]} />;
 }
 
-/** A cool key and a restrained emergency pulse give the flat rooms a clear light direction. */
+const SUN = new THREE.Vector3(...SUN_DIRECTION).normalize();
+
+/** Low sunset key light, a violet sky fill and a restrained emergency pulse once smoke builds. */
 function SceneLighting() {
   const smoke = useSimulation((state) => state.smokeIntensity);
   const intervention = useSimulation((state) => state.interventionApplied);
@@ -180,7 +182,7 @@ function SceneLighting() {
   useFrame(({ clock }, rawDt) => {
     if (!alert.current) return;
     const pulse = (Math.sin(clock.elapsedTime * 5.5) + 1) * 0.5;
-    const target = smoke > 0.18 ? 0.18 + pulse * 0.55 * (intervention ? 0.35 : 1) : 0;
+    const target = smoke > 0.18 ? 0.15 + pulse * 0.45 * (intervention ? 0.35 : 1) : 0;
     alert.current.intensity += (target - alert.current.intensity) * Math.min(1, clampDt(rawDt) * 5);
   });
 
@@ -188,26 +190,21 @@ function SceneLighting() {
     <>
       <directionalLight
         castShadow
-        position={[-12, 16, 10]}
-        intensity={1.05}
-        color="#dcecff"
-        shadow-mapSize={[1024, 1024]}
+        position={[SUN.x * 45, SUN.y * 45 + 8, SUN.z * 45]}
+        intensity={2.1}
+        color="#ffb27d"
+        shadow-mapSize={[2048, 2048]}
+        shadow-bias={-0.0004}
+        shadow-normalBias={0.03}
         shadow-camera-near={1}
-        shadow-camera-far={55}
-        shadow-camera-left={-28}
-        shadow-camera-right={28}
-        shadow-camera-top={28}
-        shadow-camera-bottom={-18}
+        shadow-camera-far={120}
+        shadow-camera-left={-34}
+        shadow-camera-right={34}
+        shadow-camera-top={30}
+        shadow-camera-bottom={-30}
       />
-      <directionalLight position={[16, 8, -18]} intensity={0.28} color="#f0b6a0" />
-      <pointLight
-        ref={alert}
-        position={[0, 3.15, -1.5]}
-        distance={18}
-        decay={2}
-        color="#ff4655"
-      />
-      <pointLight position={[-15, 2.7, -1.8]} intensity={0.42} distance={9} decay={2} color="#65e6c5" />
+      <directionalLight position={[-24, 14, 30]} intensity={0.45} color="#a78bff" />
+      <pointLight ref={alert} position={[0, 3.15, -1.5]} distance={18} decay={2} color="#ff4655" />
     </>
   );
 }
@@ -345,13 +342,34 @@ export default function ViewRig() {
       <SceneLighting />
       <ContactShadows
         position={[0, 0.015, 4]}
-        opacity={0.3}
+        opacity={0.35}
         scale={48}
-        blur={1.7}
+        blur={1.9}
         far={5.5}
         resolution={512}
-        color="#05070a"
+        color="#2a1d33"
       />
+
+      {/* Soft image-based light: warm sunset on one side, violet sky above. Rendered once. */}
+      <Environment frames={1} resolution={128} environmentIntensity={0.65}>
+        <Lightformer
+          form="rect"
+          intensity={3}
+          color="#ff9e6b"
+          position={[SUN.x * 30, 6, SUN.z * 30]}
+          rotation={[0, Math.atan2(SUN.x, SUN.z) + Math.PI, 0]}
+          scale={[40, 10, 1]}
+        />
+        <Lightformer form="rect" intensity={1.4} color="#b69bff" position={[0, 25, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[50, 50, 1]} />
+        <Lightformer
+          form="rect"
+          intensity={0.8}
+          color="#ffd9bf"
+          position={[-SUN.x * 30, 4, -SUN.z * 30]}
+          rotation={[0, Math.atan2(-SUN.x, -SUN.z) + Math.PI, 0]}
+          scale={[40, 8, 1]}
+        />
+      </Environment>
 
       {/* Evacuee: eyes inside the character, driven by Evacuee.tsx. */}
       <PerspectiveCamera makeDefault={first} fov={74} near={0.06} far={400} />
@@ -359,15 +377,8 @@ export default function ViewRig() {
 
       <WardenRig active={!first} />
 
-      <ambientLight
-        intensity={first ? 0.42 : 0.36}
-        color={first ? "#c6cfdd" : "#aeb8c6"}
-      />
-      <hemisphereLight
-        color="#dfe7f4"
-        groundColor="#2b2f36"
-        intensity={first ? 0.38 : 0.32}
-      />
+      <ambientLight intensity={first ? 0.22 : 0.3} color="#ffe2cc" />
+      <hemisphereLight color="#cdb6ff" groundColor="#553a4a" intensity={first ? 0.5 : 0.55} />
     </>
   );
 }

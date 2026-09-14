@@ -3,6 +3,7 @@
 import { MARKERS, SCENARIO_OBJECTS, SPECTATOR_THREATS, nextScenarioGuidance, type MarkerDef, type ScenarioObjectDef } from "../level";
 import { useSimulation, useSectorVisible } from "../store";
 import { Label, MarkerOverlay } from "./Markers";
+import { ExitSign } from "./Decor";
 import { useFrame } from "@react-three/fiber";
 import { useRef } from "react";
 import * as THREE from "three";
@@ -184,16 +185,23 @@ function ScenarioProp({ def }: { def: ScenarioObjectDef }) {
         </group>
       )}
       {def.id === "main-exit" && (
-        <group position={[0, 1.05, -0.08]}>
-          <mesh>
-            <boxGeometry args={[1.7, 2.3, 0.08]} />
-            <meshStandardMaterial color="#1b242b" roughness={0.65} metalness={0.35} />
+        <group position={[0, -def.position[1], 0]}>
+          {/* green frame around the entrance doors and a strip on the floor leading out */}
+          {[-1.5, 1.5].map((x) => (
+            <mesh key={x} position={[x, 1.3, -0.12]}>
+              <boxGeometry args={[0.08, 2.6, 0.08]} />
+              <meshBasicMaterial color="#2fd18f" toneMapped={false} />
+            </mesh>
+          ))}
+          <mesh position={[0, 2.6, -0.12]}>
+            <boxGeometry args={[3.08, 0.08, 0.08]} />
+            <meshBasicMaterial color="#2fd18f" toneMapped={false} />
           </mesh>
-          <mesh position={[0, 0.92, 0.06]}>
-            <boxGeometry args={[0.76, 0.22, 0.025]} />
-            <meshStandardMaterial color="#39ff88" emissive="#10b981" emissiveIntensity={1.5} />
+          <mesh position={[0, 0.02, -0.9]} rotation={[-Math.PI / 2, 0, 0]}>
+            <planeGeometry args={[2.6, 1.2]} />
+            <meshBasicMaterial color="#2fd18f" transparent opacity={complete ? 0.15 : 0.32} depthWrite={false} />
           </mesh>
-          <Label position={[0, 1.02, 0.1]} color="#39ff88" text="EXIT" sub="marked route" />
+          {view !== "evacuee" && <ExitSign position={[0, 2.95, 0.05]} rotationY={Math.PI} />}
         </group>
       )}
       {view === "evacuee" && sector === def.room && nextId === def.id && <ObjectiveBeacon def={def} />}

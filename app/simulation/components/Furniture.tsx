@@ -5,6 +5,7 @@ import { useFrame } from "@react-three/fiber";
 import { RigidBody } from "@react-three/rapier";
 import * as THREE from "three";
 import type { Vec3 } from "../level";
+import { Glow } from "./Decor";
 
 type P = { position: Vec3; rotationY?: number };
 
@@ -279,42 +280,35 @@ export function Whiteboard({ position, rotationY = 0 }: P) {
   );
 }
 
+/**
+ * Recessed ceiling panel. Most fixtures are glow only; `cast` (kept for existing call sites)
+ * or `light` adds a real point light, so a room carries one or two lights instead of one each.
+ */
 export function CeilingLight({
   position,
-  intensity = 7,
+  intensity = 6,
   cast = false,
-  color = "#ffeecc",
+  light = cast,
+  color = "#fff1dc",
 }: {
   position: Vec3;
   intensity?: number;
   cast?: boolean;
+  light?: boolean;
   color?: string;
 }) {
   return (
     <group position={position}>
       <mesh>
-        <boxGeometry args={[1.9, 0.12, 0.55]} />
-        <meshStandardMaterial color="#cfcdc6" />
+        <boxGeometry args={[1.9, 0.1, 0.5]} />
+        <meshStandardMaterial color="#e6e0e8" roughness={0.45} metalness={0.2} />
       </mesh>
-      <mesh position={[0, -0.07, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[1.75, 0.45]} />
-        <meshStandardMaterial
-          color="#ffffff"
-          emissive={color}
-          emissiveIntensity={1.7}
-        />
+      <mesh position={[0, -0.055, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[1.76, 0.4]} />
+        <meshBasicMaterial color={color} toneMapped={false} />
       </mesh>
-      <pointLight
-        position={[0, -0.45, 0]}
-        intensity={intensity}
-        distance={14}
-        decay={2}
-        color={color}
-        castShadow={cast}
-        shadow-mapSize={[768, 768]}
-        shadow-bias={-0.001}
-        shadow-normalBias={0.035}
-      />
+      <Glow position={[0, -0.3, 0]} color={color} size={2.4} opacity={0.26} />
+      {light && <pointLight position={[0, -0.45, 0]} intensity={intensity} distance={13} decay={2} color={color} />}
     </group>
   );
 }
