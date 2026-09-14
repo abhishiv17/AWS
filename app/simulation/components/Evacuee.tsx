@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useKeyboardControls } from "@react-three/drei";
-import { CapsuleCollider, RigidBody, type RapierRigidBody } from "@react-three/rapier";
+import { CapsuleCollider, RigidBody, useRapier, type RapierRigidBody } from "@react-three/rapier";
 import * as THREE from "three";
-import { EVACUEE_SPAWN, roomAt } from "../level";
+import { EVACUEE_SPAWN, ROOM_H, roomAt } from "../level";
 import { pressJump, pressUse } from "../controls";
 import { clampDt, runtime } from "../runtime";
 import { useSimulation, useIsSimulationOwner } from "../store";
 import { Label, NeonBox } from "./Markers";
+import Student from "./Student";
 
 type Controls =
   | "forward"
@@ -18,7 +19,8 @@ type Controls =
   | "right"
   | "sprint"
   | "use"
-  | "jump";
+  | "jump"
+  | "camera";
 
 const WALK = 3.6;
 const RUN = 5.8;
@@ -27,36 +29,12 @@ const GROUNDED_Y = 0.95;
 const JUMP_BUFFER_MS = 160;
 const EYE = 0.8;
 
-function EvacueeFigure() {
-  return (
-    <group>
-      <mesh position={[-0.13, 0.35, 0]}>
-        <boxGeometry args={[0.2, 0.7, 0.24]} />
-        <meshStandardMaterial color="#1b1c20" roughness={0.9} />
-      </mesh>
-      <mesh position={[0.13, 0.35, 0]}>
-        <boxGeometry args={[0.2, 0.7, 0.24]} />
-        <meshStandardMaterial color="#1b1c20" roughness={0.9} />
-      </mesh>
-      <mesh position={[0, 1.03, 0]}>
-        <boxGeometry args={[0.56, 0.72, 0.3]} />
-        <meshStandardMaterial color="#101318" roughness={0.9} />
-      </mesh>
-      <mesh position={[-0.36, 1.03, 0]}>
-        <boxGeometry args={[0.16, 0.66, 0.22]} />
-        <meshStandardMaterial color="#101318" roughness={0.9} />
-      </mesh>
-      <mesh position={[0.36, 1.03, 0]}>
-        <boxGeometry args={[0.16, 0.66, 0.22]} />
-        <meshStandardMaterial color="#101318" roughness={0.9} />
-      </mesh>
-      <mesh position={[0, 1.57, 0]}>
-        <boxGeometry args={[0.36, 0.38, 0.34]} />
-        <meshStandardMaterial color="#38bdf8" roughness={0.75} />
-      </mesh>
-    </group>
-  );
-}
+/* over-the-shoulder camera, measured from the body's centre */
+const SHOULDER_HEIGHT = 0.9;
+const SHOULDER_OFFSET = 0.5;
+const CAMERA_DISTANCE = 2.4;
+const CAMERA_CLEARANCE = 0.2;
+const UP = new THREE.Vector3(0, 1, 0);
 
 function HeadingBeacon() {
   return (
@@ -88,10 +66,25 @@ function LocalEvacuee() {
   const eyeTarget = useRef(new THREE.Vector3());
   const bobT = useRef(0);
   const [sub, get] = useKeyboardControls<Controls>();
+  const { world, rapier } = useRapier();
+  const scratch = useMemo(
+    () => ({
+      look: new THREE.Vector3(),
+      right: new THREE.Vector3(),
+      head: new THREE.Vector3(),
+      back: new THREE.Vector3(),
+      target: new THREE.Vector3(),
+    }),
+    [],
+  );
   const view = useSimulation((state) => state.view);
+  const cameraMode = useSimulation((state) => state.cameraMode);
   const air = useSimulation((state) => state.air);
   const resetSeq = useSimulation((state) => state.resetSeq);
-  const firstPerson = view === "evacuee";
+  // the evacuee's own camera: over the right shoulder, or through the eyes
+  const ownCamera = view === "evacuee";
+  const eyes = ownCamera && cameraMode === "first";
+  const overShoulder = ownCamera && cameraMode === "third";
 
   useEffect(
     () =>
@@ -107,6 +100,15 @@ function LocalEvacuee() {
       sub(
         (state) => state.jump,
         (pressed) => pressed && pressJump(),
+      ),
+    [sub],
+  );
+
+  useEffect(
+    () =>
+      sub(
+        (state) => state.camera,
+        (pressed) => pressed && useSimulation.getState().toggleCameraMode(),
       ),
     [sub],
   );
@@ -172,21 +174,56 @@ function LocalEvacuee() {
       true,
     );
 
-    if (firstPerson) runtime.evacueeYaw = Math.atan2(direction.x, direction.z);
+    // with its own camera the body faces where the player looks; otherwise where it walks
+    if (ownCamera) runtime.evacueeYaw = Math.atan2(direction.x, direction.z);
     else if (moving) runtime.evacueeYaw = Math.atan2(move.x, move.z);
-    if (visual.current) {
-      visual.current.rotation.y = runtime.evacueeYaw;
-      bobT.current += moving ? dt * (down.sprint ? 12 : 8) : 0;
-      visual.current.position.y = moving ? Math.abs(Math.sin(bobT.current)) * 0.05 : 0;
-    }
+    if (visual.current) visual.current.rotation.y = runtime.evacueeYaw;
+    bobT.current += moving ? dt * (down.sprint ? 12 : 8) : 0;
 
-    if (firstPerson) {
+    if (eyes) {
       eyeTarget.current.set(
         t.x,
         t.y + EYE + (moving ? Math.sin(bobT.current * 2) * 0.02 : 0),
         t.z,
       );
       state.camera.position.lerp(eyeTarget.current, 1 - Math.exp(-dt * 14));
+    } else if (overShoulder) {
+      // Behind and right of the head, pulled in wherever a wall or the floor would clip it.
+      const look = state.camera.getWorldDirection(scratch.look);
+      const right = scratch.right.crossVectors(look, UP);
+      if (right.lengthSq() < 1e-6) right.set(1, 0, 0);
+      right.normalize();
+      const head = scratch.head.set(t.x, t.y + SHOULDER_HEIGHT, t.z);
+      const sideHit = world.castRay(
+        new rapier.Ray(head, right),
+        SHOULDER_OFFSET,
+        true,
+        undefined,
+        undefined,
+        undefined,
+        rb,
+      );
+      head.addScaledVector(
+        right,
+        sideHit ? Math.max(0, sideHit.timeOfImpact - CAMERA_CLEARANCE) : SHOULDER_OFFSET,
+      );
+      const back = scratch.back.copy(look).negate();
+      const backHit = world.castRay(
+        new rapier.Ray(head, back),
+        CAMERA_DISTANCE,
+        true,
+        undefined,
+        undefined,
+        undefined,
+        rb,
+      );
+      const distance = backHit
+        ? Math.max(0.35, backHit.timeOfImpact - CAMERA_CLEARANCE)
+        : CAMERA_DISTANCE;
+      const target = scratch.target.copy(head).addScaledVector(back, distance);
+      // ceilings have no collider, so keep the camera under them indoors
+      if (runtime.sector !== "outside") target.y = Math.min(target.y, ROOM_H - 0.3);
+      state.camera.position.lerp(target, 1 - Math.exp(-dt * 18));
     }
   });
 
@@ -204,12 +241,12 @@ function LocalEvacuee() {
       userData={{ tag: "evacuee" }}
     >
       <CapsuleCollider args={[0.5, 0.32] as [number, number]} />
-      <group ref={visual} position={[0, -0.85, 0]} visible={!firstPerson}>
-        <EvacueeFigure />
+      <group ref={visual} position={[0, -0.85, 0]} visible={!eyes}>
+        <Student />
         <ContactShade />
-        {!firstPerson && <HeadingBeacon />}
+        {!ownCamera && <HeadingBeacon />}
       </group>
-      {!firstPerson && (
+      {!ownCamera && (
         <group position={[0, 0, 0]}>
           <NeonBox
             position={[0, 0.95, 0]}
@@ -246,7 +283,7 @@ function RemoteEvacuee() {
 
   return (
     <group ref={group} visible={false}>
-      <EvacueeFigure />
+      <Student />
       <ContactShade />
       <HeadingBeacon />
       <NeonBox position={[0, 0.95, 0]} size={[0.85, 1.9, 0.55]} color="#38bdf8" opacity={0.07} />

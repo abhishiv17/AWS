@@ -18,6 +18,9 @@ import type {
 
 export type ViewMode = "evacuee" | "warden" | "evidence";
 
+/** How the evacuee sees the world: over the shoulder (default) or through their own eyes. */
+export type CameraMode = "third" | "first";
+
 export type SimulationMode =
   | { kind: "solo" }
   | { kind: "evacuee" }
@@ -58,6 +61,8 @@ let logSeq = 0;
 export interface SimulationState {
   mode: SimulationMode;
   view: ViewMode;
+  /** Kept across drill resets so a player's choice sticks. */
+  cameraMode: CameraMode;
   air: number;
   smokeIntensity: number;
   hazardElapsed: number;
@@ -79,6 +84,7 @@ export interface SimulationState {
 
   setMode: (mode: SimulationMode) => void;
   setView: (view: ViewMode) => void;
+  toggleCameraMode: () => void;
   setPrompt: (prompt: string | null) => void;
   enterSector: (sector: RoomId) => void;
   applySmokeExposure: (
@@ -119,6 +125,7 @@ const initial = {
 export const useSimulation = create<SimulationState>()((set, get) => ({
   mode: { kind: "solo" },
   view: "evacuee",
+  cameraMode: "third",
   resetSeq: 0,
   ...initial,
 
@@ -134,6 +141,9 @@ export const useSimulation = create<SimulationState>()((set, get) => ({
     }),
 
   setView: (view) => set({ view }),
+
+  toggleCameraMode: () =>
+    set((state) => ({ cameraMode: state.cameraMode === "third" ? "first" : "third" })),
 
   setPrompt: (prompt) => set((state) => (state.prompt === prompt ? state : { prompt })),
 

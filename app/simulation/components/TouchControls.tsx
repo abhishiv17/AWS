@@ -180,6 +180,8 @@ export default function TouchControls() {
   const air = useSimulation((s) => s.air);
   const failed = useSimulation((s) => s.failed);
   const assemblyConfirmed = useSimulation((s) => s.assemblyConfirmed);
+  const cameraMode = useSimulation((s) => s.cameraMode);
+  const toggleCameraMode = useSimulation((s) => s.toggleCameraMode);
   // only label the interact button with what it would actually do
   const [action, setAction] = useState<string | null>(null);
 
@@ -211,6 +213,12 @@ export default function TouchControls() {
       </div>
 
       <div className="absolute bottom-5 right-4 flex flex-col items-end gap-3">
+        <ActionButton
+          label="CAM"
+          hint={cameraMode === "third" ? "first" : "third"}
+          color="#c4b5fd"
+          onPress={toggleCameraMode}
+        />
         <ActionButton
           label="E"
           hint="use"
