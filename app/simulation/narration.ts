@@ -11,8 +11,12 @@ export const EVACUEE_BRIEFING = [
 export type BriefingProvider = "bedrock" | "authored";
 export type BriefingResult = { lines: string[]; provider: BriefingProvider };
 
+/** Keep Bedrock available for a future provider handoff, but use local narration by default. */
+export const useBedrock = false;
+
 export async function loadBedrockBriefing(signal?: AbortSignal): Promise<BriefingResult> {
   const fallback: BriefingResult = { lines: EVACUEE_BRIEFING, provider: "authored" };
+  if (!useBedrock) return fallback;
   try {
     const response = await fetch("/api/narration", {
       method: "POST",
