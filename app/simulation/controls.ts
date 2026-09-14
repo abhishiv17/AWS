@@ -21,6 +21,8 @@ export function pressUse() {
     else sim.push("The warden must authorize the ventilation intervention.", "info");
   } else if (target?.kind === "assembly") {
     sim.confirmAssembly();
+  } else if (target?.kind === "maya") {
+    sim.assistMaya();
   }
 }
 

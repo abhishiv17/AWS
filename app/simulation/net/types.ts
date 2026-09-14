@@ -1,5 +1,7 @@
 import type { RoomId } from "../level";
 import type { CommandCode } from "../commands";
+import type { RouteCondition, HazardSnapshot } from "../hazard";
+import type { MayaState } from "../maya/types";
 
 export type Role = "evacuee" | "warden";
 export type Phase =
@@ -10,8 +12,8 @@ export type Phase =
   | "failed"
   | "reported";
 
-/** The authored MVP gives the warden the utility/evidence sector feed. */
-export const WARDEN_SECTORS: RoomId[] = ["sec"];
+/** The authored MVP gives the warden the central junction / spine sector feed. */
+export const WARDEN_SECTORS: RoomId[] = ["junction-center"];
 
 export const COUNTDOWN_MS = 10_000;
 
@@ -113,12 +115,14 @@ export interface EvacueeState {
   air: number;
   smokeIntensity: number;
   stamina: number;
-  routeStatus: "clear" | "unsafe" | "intervened";
+  routeStatus: RouteCondition;
   interventionApplied: boolean;
   assemblyProgress: number;
   assemblyConfirmed: boolean;
   failed: boolean;
   routeMessage: RouteMessage | null;
+  hazardSnapshot?: HazardSnapshot;
+  maya?: MayaState;
   log: LogEntry[];
 }
 
@@ -135,7 +139,7 @@ export interface WardenState {
   } | null;
   air: number;
   smokeIntensity: number;
-  routeStatus: "clear" | "unsafe" | "intervened";
+  routeStatus: RouteCondition;
   interventionApplied: boolean;
   assemblyProgress: number;
   assemblyConfirmed: boolean;
@@ -143,6 +147,8 @@ export interface WardenState {
   evidence: EvidenceRecord[];
   latestMessage: RouteMessage | null;
   lastAcknowledgement: CommandAcknowledgement | null;
+  hazardSnapshot?: HazardSnapshot;
+  maya?: MayaState;
   log: LogEntry[];
 }
 

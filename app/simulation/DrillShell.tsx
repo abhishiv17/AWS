@@ -187,12 +187,14 @@ function HazardBanner() {
     : failed
       ? { label: "TRAINING OUTCOME RECORDED", detail: "Review the decision timeline and replay.", color: "#ef4444" }
       : air <= 30
-        ? { label: "AIR GETTING THIN", detail: "Move toward clear air.", color: "#ef4444" }
-        : routeStatus === "unsafe" && warden
-          ? { label: "EAST ROUTE BLOCKED", detail: "Verify the evidence and send the west route.", color: "#ef4444" }
-          : smoke > 0.2 && !warden
-            ? { label: "SMOKE EXPOSURE", detail: "Move toward clear air and watch your route message.", color: "#f59e0b" }
-            : null;
+        ? { label: "AIR GETTING THIN", detail: "Move toward clear air immediately.", color: "#ef4444" }
+        : routeStatus === "BLOCKED" || routeStatus === "unsafe"
+          ? { label: "EAST ROUTE COMPROMISED / BLOCKED", detail: "East stairwell impassable. Divert to West Exit A.", color: "#ef4444" }
+          : routeStatus === "DANGEROUS"
+            ? { label: "HEAVY SMOKE HAZARD", detail: "Air degrading rapidly. Proceed to West Exit A.", color: "#f97316" }
+            : (routeStatus === "CAUTION" || smoke >= 0.15) && !warden
+              ? { label: "SMOKE DETECTED (CAUTION)", detail: "Watch route signs and follow clear air.", color: "#facc15" }
+              : null;
   const alertLabel = alert?.label ?? null;
   useEffect(() => {
     if (alertLabel && previous.current !== alertLabel) playSignal("alert");
@@ -333,6 +335,7 @@ export default function DrillShell({ title }: { title?: string }) {
   const sector = useSimulation((state) => state.sector);
   const routeStatus = useSimulation((state) => state.routeStatus);
   const interventionApplied = useSimulation((state) => state.interventionApplied);
+  const maya = useSimulation((state) => state.maya);
   const prompt = useSimulation((state) => state.prompt);
   const reset = useSimulation((state) => state.reset);
   const leave = useSession((state) => state.leave);
@@ -344,6 +347,23 @@ export default function DrillShell({ title }: { title?: string }) {
   const solo = mode.kind === "solo";
   const warden = mode.kind === "warden";
   const showStick = touch && view === "evacuee";
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.code === "KeyX") {
+        const sim = useSimulation.getState();
+        if (
+          sim.maya.status === "WAITING_FOR_HELP" ||
+          sim.maya.status === "FOLLOWING" ||
+          sim.maya.status === "ALARMED"
+        ) {
+          sim.abandonMaya();
+        }
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   useEffect(() => {
     if (!solo) return;
@@ -415,7 +435,7 @@ export default function DrillShell({ title }: { title?: string }) {
       <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-3 p-3 sm:gap-4 sm:p-4">
         <div className="pointer-events-auto min-w-0 max-w-[58vw]">
           <h1 className="text-[11px] font-bold uppercase leading-tight tracking-[0.12em] text-zinc-200 sm:text-sm sm:tracking-[0.2em]">{title ?? "CampusEvac Drill"}</h1>
-          <p className="mt-1 hidden text-[11px] text-zinc-500 sm:block">{warden ? `Warden station / assigned ${roomById(watched ?? "sec").name}` : mode.kind === "evacuee" ? "Evacuee view / limited hazard information" : "Solo practice / inspect the complete drill loop"}</p>
+          <p className="mt-1 hidden text-[11px] text-zinc-500 sm:block">{warden ? `Warden station / assigned ${roomById(watched ?? "junction-center").name}` : mode.kind === "evacuee" ? "Evacuee view / limited hazard information" : "Solo practice / inspect the complete drill loop"}</p>
         </div>
         <div className="pointer-events-auto flex max-w-[62vw] flex-col items-end gap-2 sm:max-w-none">
           <div className="flex flex-wrap items-center justify-end gap-2">
@@ -441,10 +461,64 @@ export default function DrillShell({ title }: { title?: string }) {
           <div className="flex flex-wrap items-center gap-2"><span className="border border-white/25 bg-white/5 px-1.5 py-0.5 text-[10px] uppercase tracking-widest text-zinc-300">{roomName}</span><span className="text-[10px] uppercase tracking-wide text-zinc-500">{roomById(sector).blurb}</span></div>
           <div className="mt-1 text-[11px] text-zinc-200">{objective}</div>
           <div className="flex flex-wrap gap-4 sm:gap-5"><Bar label="AIR" value={air} color="#10b981" danger={air < 35} /><Bar label="STAMINA" value={stamina} color="#38bdf8" /></div>
-          <div className="flex flex-wrap gap-3 font-mono text-[10px] uppercase tracking-wider text-zinc-400"><span style={{ color: routeStatus === "unsafe" ? "#ef4444" : routeStatus === "intervened" ? "#10b981" : "#facc15" }}>route / {routeStatus}</span><span>smoke / {Math.round(smoke * 100)}%</span><span>sector / {sector}</span></div>
+          <div className="flex flex-wrap gap-3 font-mono text-[10px] uppercase tracking-wider text-zinc-400">
+            <span
+              style={{
+                color:
+                  routeStatus === "CLEAR" || routeStatus === "clear"
+                    ? "#10b981"
+                    : routeStatus === "CAUTION"
+                      ? "#facc15"
+                      : routeStatus === "DANGEROUS" || routeStatus === "unsafe"
+                        ? "#f97316"
+                        : routeStatus === "BLOCKED"
+                          ? "#ef4444"
+                          : "#38bdf8",
+              }}
+            >
+              route / {routeStatus}
+            </span>
+            <span
+              style={{
+                color:
+                  maya.status === "SAFE"
+                    ? "#10b981"
+                    : maya.status === "FOLLOWING"
+                      ? "#c084fc"
+                      : maya.status === "DISTRESSED"
+                        ? "#ef4444"
+                        : maya.status === "WAITING_FOR_HELP" || maya.status === "ALARMED"
+                          ? "#facc15"
+                          : "#94a3b8",
+              }}
+            >
+              maya / {maya.status.toLowerCase()}
+            </span>
+            <span>smoke / {Math.round(smoke * 100)}%</span>
+            <span>sector / {sector}</span>
+          </div>
         </div>
         <div className="hud-panel hidden p-3 text-right text-[11px] leading-relaxed text-zinc-400 sm:block">{warden ? <><div>fixed sector view / zoom only</div><div><span className="text-zinc-200">Watch / Evidence</span> switches layer</div><div>verify before sending a route message</div></> : <><div><span className="text-zinc-200">WASD</span> move / <span className="text-zinc-200">Shift</span> sprint / <span className="text-zinc-200">Space</span> jump / <span className="text-zinc-200">E</span> interact / <span className="text-zinc-200">V</span> camera</div><div>{view === "evacuee" ? "click to capture the mouse / Esc releases" : "drag to orbit / scroll to zoom"}</div></>}</div>
       </div>
+
+      {/* Responsive screen-space smoke vignette */}
+      {view === "evacuee" && smoke > 0.05 && (
+        <div
+          className="pointer-events-none absolute inset-0 z-[5] transition-opacity duration-300"
+          style={{
+            opacity: Math.min(0.85, smoke * 0.9),
+            background: `radial-gradient(ellipse at center, transparent 35%, rgba(28, 24, 22, ${Math.min(0.88, smoke * 0.92)}) 100%)`,
+          }}
+        />
+      )}
+
+      {/* Maya in-world speech bubble / dialogue */}
+      {maya.dialogue && view === "evacuee" && (
+        <div className="pointer-events-none absolute left-1/2 top-20 z-20 -translate-x-1/2 rounded border border-purple-500/50 bg-black/85 px-3 py-1.5 text-center text-xs text-purple-200 shadow-lg backdrop-blur">
+          <span className="mr-1.5 font-bold uppercase tracking-wider text-purple-400">Maya:</span>
+          &ldquo;{maya.dialogue}&rdquo;
+        </div>
+      )}
 
       {prompt && view === "evacuee" && !showStick && <div className="pointer-events-none absolute inset-x-0 bottom-36 flex justify-center px-3 sm:bottom-32"><div className="border border-[#facc15]/50 bg-black/90 px-3 py-1.5 text-center text-[11px] text-[#facc15]">{prompt}</div></div>}
       {view === "evacuee" && !showStick && <div className="pointer-events-none absolute left-1/2 top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 border border-white/45"><span className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 bg-[#facc15]" /></div>}

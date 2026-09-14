@@ -150,7 +150,7 @@ function SmokeAtmosphere() {
   const fog = useRef<THREE.FogExp2>(null);
   const current = useRef(0);
   const clear = useMemo(() => new THREE.Color("#0d141d"), []);
-  const smoke = useMemo(() => new THREE.Color("#5d625f"), []);
+  const smoke = useMemo(() => new THREE.Color("#383533"), []);
 
   useFrame((_, rawDt) => {
     const fogInstance = fog.current;

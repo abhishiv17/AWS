@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { CuboidCollider, RigidBody } from "@react-three/rapier";
 import * as THREE from "three";
-import { ASSEMBLY_Z } from "../level";
+import { ASSEMBLY_A_POS, ASSEMBLY_B_POS, type Vec3 } from "../level";
 import { useSimulation } from "../store";
 import { Label } from "./Markers";
 
@@ -136,11 +136,11 @@ function Skyline() {
   );
 }
 
-/** The assembly beacon is visible to wardens and becomes a physical objective. */
-function AssemblyBeacon() {
+/** A single assembly beacon ring + label. */
+function Beacon({ position, label }: { position: Vec3; label: string }) {
   const view = useSimulation((s) => s.view);
   return (
-    <group position={[0, 0, ASSEMBLY_Z + 2]}>
+    <group position={position}>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
         <ringGeometry args={[1.5, 1.8, 40]} />
         <meshBasicMaterial color="#39ff88" transparent opacity={0.5} />
@@ -148,10 +148,20 @@ function AssemblyBeacon() {
       <Label
         position={[0, 1.2, 0]}
         color="#10b981"
-        text="Assembly point"
+        text={label}
         faint={view === "evacuee"}
       />
     </group>
+  );
+}
+
+/** Two assembly beacons — one at each fire-exit courtyard. */
+function AssemblyBeacons() {
+  return (
+    <>
+      <Beacon position={ASSEMBLY_A_POS} label="Assembly A (West)" />
+      <Beacon position={ASSEMBLY_B_POS} label="Assembly B (East)" />
+    </>
   );
 }
 
@@ -175,51 +185,71 @@ export default function Exterior() {
         <CuboidCollider position={[32, 3, 6]} args={[0.5, 4, 40]} />
       </RigidBody>
 
-      {/* plaza in front of the entrance */}
-      <mesh position={[0, 0.02, 16]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[20, 12]} />
-        <meshStandardMaterial color="#3a3e44" roughness={0.95} />
-      </mesh>
-      <mesh position={[0, 0.035, 12.6]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[4.2, 4]} />
-        <meshStandardMaterial color="#474b51" roughness={0.95} />
+      {/* West Courtyard Plaza & Walkway (Exit A -> Assembly Point A) */}
+      <mesh position={[-20, 0.02, 18]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[10, 10]} />
+        <meshStandardMaterial color="#353a38" roughness={0.95} />
       </mesh>
 
-      {/* entrance canopy and sign */}
+      {/* East Quad Plaza & Walkway (Exit B -> Assembly Point B) */}
+      <mesh position={[20, 0.02, 18]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[10, 10]} />
+        <meshStandardMaterial color="#38353a" roughness={0.95} />
+      </mesh>
+
+      {/* Exit A (West) Canopy & Sign */}
       <group visible={evacueeView}>
-        <mesh position={[0, 3.5, 11.6]} castShadow>
-          <boxGeometry args={[7.4, 0.25, 2.6]} />
-          <meshStandardMaterial color="#33383e" roughness={0.8} />
+        <mesh position={[-20, 3.3, 14.5]} castShadow>
+          <boxGeometry args={[4.2, 0.2, 1.6]} />
+          <meshStandardMaterial color="#2d3532" roughness={0.8} />
         </mesh>
       </group>
-      <mesh position={[0, 4.3, 10.4]}>
-        <boxGeometry args={[4.6, 0.7, 0.15]} />
+      <mesh position={[-20, 3.8, 14.1]}>
+        <boxGeometry args={[3.2, 0.45, 0.1]} />
         <meshStandardMaterial
-          color="#12161c"
-          emissive="#2b6fa8"
-          emissiveIntensity={0.5}
+          color="#0b1712"
+          emissive="#10b981"
+          emissiveIntensity={0.6}
         />
       </mesh>
 
-      <Planter position={[-2.9, 0, 11.6]} />
-      <Planter position={[2.9, 0, 11.6]} />
-      <StreetLamp position={[-8.5, 0, 13.5]} />
-      <StreetLamp position={[8.5, 0, 13.5]} />
-      <StreetLamp position={[-8.5, 0, 22]} />
-      <StreetLamp position={[8.5, 0, 22]} />
+      {/* Exit B (East) Canopy & Sign */}
+      <group visible={evacueeView}>
+        <mesh position={[20, 3.3, 14.5]} castShadow>
+          <boxGeometry args={[4.2, 0.2, 1.6]} />
+          <meshStandardMaterial color="#352d2d" roughness={0.8} />
+        </mesh>
+      </group>
+      <mesh position={[20, 3.8, 14.1]}>
+        <boxGeometry args={[3.2, 0.45, 0.1]} />
+        <meshStandardMaterial
+          color="#170b0b"
+          emissive="#ef4444"
+          emissiveIntensity={0.6}
+        />
+      </mesh>
 
-      {/* bollards along the plaza edge */}
-      {[-6, -3.5, 3.5, 6].map((x) => (
-        <mesh key={x} position={[x, 0.45, 21.5]} castShadow>
+      {/* Courtyard Planters & Streetlamps */}
+      <Planter position={[-23, 0, 17]} />
+      <Planter position={[-17, 0, 17]} />
+      <Planter position={[17, 0, 17]} />
+      <Planter position={[23, 0, 17]} />
+
+      <StreetLamp position={[-20, 0, 24]} />
+      <StreetLamp position={[-24, 0, 19]} />
+      <StreetLamp position={[20, 0, 24]} />
+      <StreetLamp position={[24, 0, 19]} />
+
+      {/* Bollards along courtyard edges */}
+      {[-23, -17, 17, 23].map((x) => (
+        <mesh key={x} position={[x, 0.45, 23.5]} castShadow>
           <cylinderGeometry args={[0.12, 0.14, 0.9, 8]} />
           <meshStandardMaterial color="#4a4f55" roughness={0.8} />
         </mesh>
       ))}
 
       <Skyline />
-      <AssemblyBeacon />
-
-      {/* moonlight */}
+      <AssemblyBeacons />
       <directionalLight
         position={[24, 30, 26]}
         intensity={0.48}

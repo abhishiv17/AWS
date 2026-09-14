@@ -1,13 +1,26 @@
 "use client";
 
 import { create } from "zustand";
-import type { RoomId } from "./level";
+import { EVACUEE_SPAWN, type RoomId, type Vec3 } from "./level";
 import {
-  BLOCKED_ROUTE,
-  AIR_DRAIN_PER_SECOND,
+  NAV_EDGES,
+  findSafestExit,
+  type NavigationEdge,
+  type NavigationNode,
+} from "./nav";
+import {
   SMOKE_EXPOSURE_THRESHOLD,
-  isRouteBlocked,
+  classifyHazard,
+  calculateAirDrainRate,
+  getSectorSmoke,
+  type RouteCondition,
 } from "./smoke";
+import {
+  createInitialMayaState,
+  transitionMaya,
+  type MayaState,
+  type MayaOutcome,
+} from "./maya";
 import type {
   CommandAcknowledgement,
   EvidenceRecord,
@@ -67,7 +80,8 @@ export interface SimulationState {
   smokeIntensity: number;
   hazardElapsed: number;
   routeBlocked: boolean;
-  routeStatus: "clear" | "unsafe" | "intervened";
+  routeStatus: RouteCondition;
+  playerPos: Vec3;
   stamina: number;
   sector: RoomId;
   explored: Partial<Record<RoomId, boolean>>;
@@ -82,11 +96,24 @@ export interface SimulationState {
   resetSeq: number;
   log: LogEntry[];
 
+  navEdges: Record<string, NavigationEdge>;
+  navPath: NavigationNode[];
+  targetExit: "assembly-a" | "assembly-b" | null;
+  optimalEgressDistance: number;
+  navSafetyRating: "safe" | "caution" | "critical";
+
+  maya: MayaState;
+  mayaOutcome: MayaOutcome;
+  mayaAssisted: boolean;
+  mayaAbandoned: boolean;
+
   setMode: (mode: SimulationMode) => void;
   setView: (view: ViewMode) => void;
   toggleCameraMode: () => void;
   setPrompt: (prompt: string | null) => void;
   enterSector: (sector: RoomId) => void;
+  updateNavPosition: (pos: Vec3) => void;
+  updateNavEdge: (edgeId: string, updates: Partial<NavigationEdge>) => void;
   applySmokeExposure: (
     elapsedSeconds: number,
     intensity: number,
@@ -95,6 +122,9 @@ export interface SimulationState {
   receiveRouteMessage: (message: RouteMessage) => void;
   receiveAcknowledgement: (acknowledgement: CommandAcknowledgement) => void;
   applyIntervention: () => void;
+  assistMaya: () => void;
+  abandonMaya: () => void;
+  updateMaya: (updater: (prev: MayaState) => MayaState) => void;
   confirmAssembly: () => void;
   fail: (reason: string) => void;
   push: (text: string, tone?: LogEntry["tone"]) => void;
@@ -107,10 +137,11 @@ const initial = {
   smokeIntensity: 0,
   hazardElapsed: 0,
   routeBlocked: false,
-  routeStatus: "clear" as const,
+  routeStatus: "CLEAR" as RouteCondition,
+  playerPos: EVACUEE_SPAWN,
   stamina: 100,
-  sector: "outside" as RoomId,
-  explored: { outside: true, entry: true } as Partial<Record<RoomId, boolean>>,
+  sector: "classroom-204" as RoomId,
+  explored: { "classroom-204": true } as Partial<Record<RoomId, boolean>>,
   evidence: {} as Record<string, EvidenceRecord>,
   latestMessage: null as RouteMessage | null,
   lastAcknowledgement: null as CommandAcknowledgement | null,
@@ -119,8 +150,17 @@ const initial = {
   assemblyConfirmed: false,
   failed: false,
   prompt: null as string | null,
+  maya: createInitialMayaState(),
+  mayaOutcome: "unmet" as MayaOutcome,
+  mayaAssisted: false,
+  mayaAbandoned: false,
   log: [] as LogEntry[],
 };
+
+const defaultEdgesRecord: Record<string, NavigationEdge> = Object.fromEntries(
+  NAV_EDGES.map((e) => [e.id, e]),
+);
+const initialNav = findSafestExit(EVACUEE_SPAWN, defaultEdgesRecord);
 
 export const useSimulation = create<SimulationState>()((set, get) => ({
   mode: { kind: "solo" },
@@ -128,6 +168,11 @@ export const useSimulation = create<SimulationState>()((set, get) => ({
   cameraMode: "third",
   resetSeq: 0,
   ...initial,
+  navEdges: defaultEdgesRecord,
+  navPath: initialNav.path.nodes,
+  targetExit: initialNav.target,
+  optimalEgressDistance: initialNav.path.totalDistance,
+  navSafetyRating: initialNav.path.safetyRating,
 
   setMode: (mode) =>
     set({
@@ -163,24 +208,84 @@ export const useSimulation = create<SimulationState>()((set, get) => ({
     if (first) get().push(`Entered ${sectorLabel(sector)}`, "info");
   },
 
+  updateNavPosition: (pos) => {
+    const state = get();
+    const result = findSafestExit(pos, state.navEdges);
+    set({
+      playerPos: pos,
+      navPath: result.path.nodes,
+      targetExit: result.target,
+      optimalEgressDistance: result.path.totalDistance,
+      navSafetyRating: result.path.safetyRating,
+    });
+  },
+
+  updateNavEdge: (edgeId, updates) => {
+    const state = get();
+    const currentEdge = state.navEdges[edgeId];
+    if (!currentEdge) return;
+    const nextEdges = {
+      ...state.navEdges,
+      [edgeId]: { ...currentEdge, ...updates },
+    };
+    set({ navEdges: nextEdges });
+  },
+
   applySmokeExposure: (elapsedSeconds, intensity, dt) => {
     const state = get();
     const nextIntensity = Math.max(0, Math.min(1, intensity));
     const safeDt = Math.max(0, Math.min(0.25, dt));
-    const exposure = nextIntensity > SMOKE_EXPOSURE_THRESHOLD ? nextIntensity : 0;
-    const routeBlocked = isRouteBlocked(
-      BLOCKED_ROUTE.from,
-      BLOCKED_ROUTE.to,
-      elapsedSeconds,
-    );
+    const airDrainRate = calculateAirDrainRate(nextIntensity);
     const airBefore = state.air;
     const hazardBefore = state.smokeIntensity;
-    const air = Math.max(0, airBefore - exposure * AIR_DRAIN_PER_SECOND * safeDt);
-    const routeStatus = state.interventionApplied
-      ? "intervened"
-      : routeBlocked
-        ? "unsafe"
-        : "clear";
+    const air = Math.max(0, airBefore - airDrainRate * safeDt);
+
+    const eastSmoke = Math.max(
+      getSectorSmoke("corridor-east", elapsedSeconds, state.interventionApplied),
+      getSectorSmoke("stair-east", elapsedSeconds, state.interventionApplied),
+    );
+    const classification = classifyHazard(eastSmoke);
+    const routeBlocked = classification === "BLOCKED";
+    const routeStatus: RouteCondition = state.interventionApplied
+      ? "INTERVENED"
+      : classification;
+
+    const navEdges = { ...state.navEdges };
+    let edgesUpdated = false;
+    if (routeBlocked && navEdges["edge-corre-staire-entry"]?.status !== "blocked") {
+      navEdges["edge-corre-staire-entry"] = {
+        ...navEdges["edge-corre-staire-entry"],
+        status: "blocked",
+      };
+      navEdges["edge-staire-entry-landing"] = {
+        ...navEdges["edge-staire-entry-landing"],
+        status: "blocked",
+      };
+      edgesUpdated = true;
+    } else if (!routeBlocked && navEdges["edge-corre-staire-entry"]?.status === "blocked") {
+      navEdges["edge-corre-staire-entry"] = {
+        ...navEdges["edge-corre-staire-entry"],
+        status: "open",
+      };
+      navEdges["edge-staire-entry-landing"] = {
+        ...navEdges["edge-staire-entry-landing"],
+        status: "open",
+      };
+      edgesUpdated = true;
+    }
+
+    let navUpdates = {};
+    if (edgesUpdated) {
+      const pos = state.playerPos ?? EVACUEE_SPAWN;
+      const navResult = findSafestExit(pos, navEdges);
+      navUpdates = {
+        navEdges,
+        navPath: navResult.path.nodes,
+        targetExit: navResult.target,
+        optimalEgressDistance: navResult.path.totalDistance,
+        navSafetyRating: navResult.path.safetyRating,
+      };
+    }
 
     set({
       hazardElapsed: Math.max(0, elapsedSeconds),
@@ -188,17 +293,27 @@ export const useSimulation = create<SimulationState>()((set, get) => ({
       routeBlocked,
       routeStatus,
       air,
+      ...navUpdates,
     });
 
     if (
-      hazardBefore <= SMOKE_EXPOSURE_THRESHOLD &&
-      nextIntensity > SMOKE_EXPOSURE_THRESHOLD
-    )
+      hazardBefore < SMOKE_EXPOSURE_THRESHOLD &&
+      nextIntensity >= SMOKE_EXPOSURE_THRESHOLD
+    ) {
       get().push("Smoke observed. Move toward clear air.", "bad");
-    if (!state.routeBlocked && routeBlocked)
-      get().push("East route is unsafe. Await or follow verified west guidance.", "bad");
-    if (airBefore >= 35 && air < 35)
+    }
+    if (state.routeStatus !== "CAUTION" && routeStatus === "CAUTION") {
+      get().push("Caution: Light smoke spreading toward East exit.", "bad");
+    }
+    if (state.routeStatus !== "DANGEROUS" && routeStatus === "DANGEROUS") {
+      get().push("Danger: Dense smoke accumulating in East corridor.", "bad");
+    }
+    if (!state.routeBlocked && routeBlocked) {
+      get().push("East route is BLOCKED by fire & toxic smoke. Rerouting via West exit.", "bad");
+    }
+    if (airBefore >= 35 && air < 35) {
       get().push("Air is getting thin. Move toward clear air.", "bad");
+    }
     if (air === 0 && airBefore > 0) get().fail("air threshold reached");
   },
 
@@ -214,14 +329,79 @@ export const useSimulation = create<SimulationState>()((set, get) => ({
   },
 
   applyIntervention: () => {
-    set({ interventionApplied: true, routeStatus: "intervened" });
+    set({ interventionApplied: true, routeStatus: "INTERVENED" });
     get().push("Ventilation override accepted. Smoke is dispersing.", "good");
   },
 
+  assistMaya: () => {
+    const state = get();
+    if (state.maya.status === "SAFE" || state.maya.status === "INCAPACITATED") return;
+    const nextMaya = transitionMaya(
+      state.maya,
+      { type: "assisted" },
+      {
+        elapsedSeconds: state.hazardElapsed,
+        playerPos: state.playerPos ?? EVACUEE_SPAWN,
+        localSmoke: state.smokeIntensity,
+      },
+    );
+    set({ maya: nextMaya, mayaAssisted: true, mayaOutcome: "in-transit" });
+    get().push("Assisting Maya: Peer following your safe egress path.", "good");
+    if (nextMaya.dialogue) get().push(`Maya: "${nextMaya.dialogue}"`, "info");
+  },
+
+  abandonMaya: () => {
+    const state = get();
+    if (state.mayaAbandoned || state.maya.status === "SAFE") return;
+    const nextMaya = transitionMaya(
+      state.maya,
+      { type: "abandoned" },
+      {
+        elapsedSeconds: state.hazardElapsed,
+        playerPos: state.playerPos ?? EVACUEE_SPAWN,
+        localSmoke: state.smokeIntensity,
+      },
+    );
+    set({ maya: nextMaya, mayaAbandoned: true, mayaOutcome: "abandoned" });
+    get().push("Decision recorded: Maya left behind in the facility.", "bad");
+    if (nextMaya.dialogue) get().push(`Maya: "${nextMaya.dialogue}"`, "bad");
+  },
+
+  updateMaya: (updater) => {
+    const state = get();
+    const nextMaya = updater(state.maya);
+    let mayaOutcome = state.mayaOutcome;
+    if (nextMaya.status === "SAFE") mayaOutcome = "saved";
+    else if (nextMaya.status === "ABANDONED") mayaOutcome = "abandoned";
+    else if (nextMaya.status === "INCAPACITATED") mayaOutcome = "incapacitated";
+    set({ maya: nextMaya, mayaOutcome });
+  },
+
   confirmAssembly: () => {
-    if (get().failed || get().assemblyConfirmed) return;
-    set({ assemblyConfirmed: true, assemblyProgress: 1 });
-    get().push("Assembly confirmed. Training outcome recorded.", "good");
+    const state = get();
+    if (state.failed || state.assemblyConfirmed) return;
+    const mayaSaved =
+      state.maya.status === "SAFE" ||
+      (state.mayaAssisted && state.maya.distanceToPlayer < 6.0);
+    const mayaOutcome: MayaOutcome = mayaSaved
+      ? "saved"
+      : state.mayaAbandoned
+        ? "abandoned"
+        : state.mayaAssisted
+          ? "in-transit"
+          : "unmet";
+    set({
+      assemblyConfirmed: true,
+      assemblyProgress: 1,
+      mayaOutcome,
+      ...(mayaSaved ? { maya: { ...state.maya, status: "SAFE" as const } } : {}),
+    });
+    get().push(
+      mayaSaved
+        ? "Assembly confirmed with peer Maya rescued! Training outcome recorded."
+        : "Assembly confirmed. Training outcome recorded.",
+      "good",
+    );
   },
 
   fail: (reason) => {
@@ -232,7 +412,11 @@ export const useSimulation = create<SimulationState>()((set, get) => ({
 
   reset: () => {
     logSeq = 0;
-    set((state) => ({ ...initial, resetSeq: state.resetSeq + 1 }));
+    set((state) => ({
+      ...initial,
+      maya: createInitialMayaState(),
+      resetSeq: state.resetSeq + 1,
+    }));
   },
 
   applyWardenState: (state) => {
@@ -240,7 +424,7 @@ export const useSimulation = create<SimulationState>()((set, get) => ({
     set({
       air: state.air,
       smokeIntensity: state.smokeIntensity,
-      routeBlocked: state.routeStatus === "unsafe",
+      routeBlocked: state.routeStatus === "unsafe" || state.routeStatus === "BLOCKED",
       routeStatus: state.routeStatus,
       sector: state.evacuee?.sectorId ?? get().sector,
       interventionApplied: state.interventionApplied,
@@ -256,16 +440,25 @@ export const useSimulation = create<SimulationState>()((set, get) => ({
 }));
 
 function sectorLabel(sector: RoomId) {
-  return {
-    outside: "the outdoor assembly court",
-    entry: "the main foyer",
-    lobby: "the corridor junction",
-    wcorr: "the west stair",
-    ecorr: "the east stair",
-    sec: "the lab and utility sector",
-    vault: "the dorm wing",
-    annex: "the electrical service area",
-  }[sector];
+  return (
+    {
+      "classroom-204": "Classroom 204",
+      "classroom-205": "Classroom 205",
+      "workshop-203": "Workshop 203",
+      "lab-201": "Lab 201 (Nanotech)",
+      "lab-202": "Lab 202 (Organic Chem)",
+      "chem-store": "Chemical Store",
+      "prep-room": "Prep Room",
+      "corridor-west": "the West Corridor",
+      "junction-center": "the Central Junction",
+      "corridor-east": "the East Corridor",
+      "stair-west": "the West Stairwell",
+      "stair-east": "the East Stairwell",
+      "assembly-a": "Assembly Area A (West)",
+      "assembly-b": "Assembly Area B (East)",
+      outside: "the campus grounds",
+    }[sector] ?? sector
+  );
 }
 
 /** Wardens follow the evacuee through the whole block; solo reveals sectors as they are explored. */

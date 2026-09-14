@@ -1,7 +1,7 @@
 "use client";
 
 import { MARKERS, type MarkerDef, type RoomId } from "../level";
-import { getSectorSmoke, VENTILATION_SMOKE_FACTOR } from "../smoke";
+import { getSectorSmoke, getHazardSnapshot, VENTILATION_SMOKE_FACTOR } from "../smoke";
 import { useSimulation } from "../store";
 import { EventsSocket } from "./events";
 import { assignRoles, resolveRoom } from "./roles";
@@ -114,6 +114,8 @@ function wardenState(room: DrillRoom, drill: DrillAuthority, warden: Participant
     evidence: drill.evidence.filter((item) => item.sectorId === assignedSector),
     latestMessage: drill.latestMessage,
     lastAcknowledgement: drill.lastAcknowledgement,
+    hazardSnapshot: getHazardSnapshot(state?.hazardElapsed ?? 0, drill.interventionApplied),
+    maya: state?.maya,
     log: state?.log ?? [],
   };
 }
@@ -383,7 +385,7 @@ export class EventsNet implements NetClient {
       drillId: room.drillId,
       evacueeState: null,
       evidence: MARKERS.filter((marker) => marker.kind === "evidence").map((marker) => evidenceFor(marker, now)),
-      routeStatus: "clear",
+      routeStatus: "CLEAR",
       interventionApplied: false,
       latestMessage: null,
       lastAcknowledgement: null,
@@ -406,10 +408,14 @@ export class EventsNet implements NetClient {
     const room = resolveRoom(this.room);
     if (!room) return;
     const drill = this.drill(room);
+    const isWardenUnsafe =
+      drill.routeStatus === "unsafe" ||
+      drill.routeStatus === "BLOCKED" ||
+      drill.routeStatus === "DANGEROUS";
     const routeStatus = drill.interventionApplied
       ? "intervened"
-      : drill.routeStatus === "unsafe"
-        ? "unsafe"
+      : isWardenUnsafe
+        ? drill.routeStatus
         : state.routeStatus;
     drill.evacueeState = {
       ...state,
@@ -492,12 +498,12 @@ export class EventsNet implements NetClient {
         if (evidence.status !== "VERIFIED") return deny("verify the east route first");
         drill.routeStatus = drill.interventionApplied ? "intervened" : "unsafe";
         if (command.command === "SEND_WEST_ROUTE") {
-          drill.latestMessage = {
+          const routeMessage: RouteMessage = {
             messageId: `${drill.drillId}:message:${drill.eventSequence + 1}`,
             drillId: drill.drillId,
             senderId: warden.id,
             senderSector: sectorOf(warden),
-            targetSector: "lobby",
+            targetSector: "junction-center",
             direction: "west",
             kind: "route",
             confidence: "verified",
@@ -507,7 +513,8 @@ export class EventsNet implements NetClient {
             caption: "East route is unsafe. Proceed to the verified west route.",
             acknowledgedAt: null,
           };
-          this.emit({ type: "route-message", message: drill.latestMessage });
+          drill.latestMessage = routeMessage;
+          this.emit({ type: "route-message", message: routeMessage });
         }
         break;
       case "APPLY_VENTILATION":

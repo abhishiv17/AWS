@@ -11,7 +11,7 @@ export const clampDt = (dt: number) => Math.min(dt, 0.05);
 export const runtime = {
   evacuee: new THREE.Vector3(...EVACUEE_SPAWN),
   evacueeYaw: 0,
-  sector: "outside" as RoomId,
+  sector: "classroom-204" as RoomId,
   alert: 0,
   drillStartedAt: 0,
   hazardElapsed: 0,
@@ -24,7 +24,7 @@ export const runtime = {
   },
   /** What the action button can do at the current position. */
   useTarget: null as null | {
-    kind: "intervention" | "assembly";
+    kind: "intervention" | "assembly" | "maya";
     id: string;
   },
 

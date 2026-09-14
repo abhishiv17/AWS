@@ -217,7 +217,7 @@ function Door({ def }: { def: DoorDef }) {
   );
 }
 
-/** A lightweight physical closure for the authored east route after the cue. */
+/** A lightweight physical closure for the East Stairwell route after the smoke threshold. */
 function RouteBlock() {
   const blocked = useSimulation((s) => s.routeBlocked);
   const view = useSimulation((s) => s.view);
@@ -226,17 +226,17 @@ function RouteBlock() {
   return (
     <>
       <CuboidCollider
-        position={[5.62, 1.25, 2.5]}
-        args={[0.18, 1.25, 0.78]}
+        position={[20, 1.25, 2]}
+        args={[1.3, 1.25, 0.2]}
       />
-      <group position={[5.62, 1.25, 2.5]}>
+      <group position={[20, 1.25, 2]}>
         <mesh>
-          <boxGeometry args={[0.16, 2.35, 1.48]} />
-          <meshBasicMaterial color="#ef4444" transparent opacity={0.16} />
+          <boxGeometry args={[2.5, 2.35, 0.16]} />
+          <meshBasicMaterial color="#ef4444" transparent opacity={0.25} />
         </mesh>
-        {[-0.48, 0, 0.48].map((z) => (
-          <mesh key={z} position={[0, 0, z]}>
-            <boxGeometry args={[0.2, 2.25, 0.08]} />
+        {[-0.8, 0, 0.8].map((x) => (
+          <mesh key={x} position={[x, 0, 0]}>
+            <boxGeometry args={[0.1, 2.25, 0.2]} />
             <meshBasicMaterial color="#ef4444" />
           </mesh>
         ))}
@@ -244,8 +244,8 @@ function RouteBlock() {
           <Label
             position={[0, 1.55, 0]}
             color="#ef4444"
-            text="EAST ROUTE BLOCKED"
-            sub="unsafe / use west route"
+            text="EAST EXIT B BLOCKED"
+            sub="heavy smoke / divert to west exit A"
           />
         )}
       </group>
