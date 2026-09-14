@@ -789,6 +789,40 @@ export function ClassroomPodium({ position, rotationY = 0 }: P) {
   );
 }
 
+/** A visible return landing in the entry: the green stair is a route landmark, not a vague HUD instruction. */
+export function EvacuationStair({ position, color = "#39ff88" }: P & { color?: string }) {
+  return (
+    <RigidBody type="fixed" colliders="cuboid">
+      <group position={position}>
+        {[0, 1, 2, 3].map((index) => (
+          <mesh key={index} position={[0, 0.1 + index * 0.13, index * 0.48]} castShadow receiveShadow>
+            <boxGeometry args={[1.15, 0.2 + index * 0.18, 0.5]} />
+            <meshStandardMaterial color="#3d5554" roughness={0.78} metalness={0.18} />
+          </mesh>
+        ))}
+        <mesh position={[-0.52, 0.82, 0.75]}>
+          <cylinderGeometry args={[0.035, 0.035, 1.2, 8]} />
+          <meshStandardMaterial color="#7ea69d" metalness={0.45} />
+        </mesh>
+        <mesh position={[0.52, 0.82, 0.75]}>
+          <cylinderGeometry args={[0.035, 0.035, 1.2, 8]} />
+          <meshStandardMaterial color="#7ea69d" metalness={0.45} />
+        </mesh>
+        <mesh position={[0, 1.36, 0.75]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.035, 0.035, 1.1, 8]} />
+          <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.2} />
+        </mesh>
+        {[-0.42, 0, 0.42].map((x) => (
+          <mesh key={x} position={[x, 0.015, 1.1]} rotation={[-Math.PI / 2, 0, 0]}>
+            <coneGeometry args={[0.12, 0.3, 3]} />
+            <meshBasicMaterial color={color} />
+          </mesh>
+        ))}
+      </group>
+    </RigidBody>
+  );
+}
+
 export function WallClock({ position, rotationY = 0 }: P) {
   return (
     <group position={position} rotation={[0, rotationY, 0]}>

@@ -76,7 +76,7 @@ function WestRouteSign() {
         <planeGeometry args={[1.1, 0.16]} />
         <meshBasicMaterial color="#10b981" />
       </mesh>
-      <Label position={[0, 0, 0.08]} color="#10b981" text="WEST ROUTE" sub="verified alternate" />
+      <Label position={[0, 0, 0.08]} color="#10b981" text="WEST STAIR -> FOYER" sub="green return route" />
       <MarkerOverlay def={def} size={[3, 0.7, 0.12]} />
     </group>
   );

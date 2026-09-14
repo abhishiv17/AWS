@@ -41,7 +41,7 @@ export async function POST(request: Request) {
       .trim();
     const lines = text.split(/\r?\n/).map((line) => line.replace(/^[-*]\s*/, "").trim()).filter(Boolean).slice(0, 4);
     if (!lines.length) return NextResponse.json({ error: "Bedrock returned no dialogue" }, { status: 502 });
-    return NextResponse.json({ lines });
+    return NextResponse.json({ lines, provider: "bedrock" });
   } catch (error) {
     console.error("Bedrock narration request failed", error);
     return NextResponse.json({ error: "Narration provider unavailable" }, { status: 503 });

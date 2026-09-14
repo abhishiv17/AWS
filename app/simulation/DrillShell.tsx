@@ -7,7 +7,7 @@ import Minimap from "./components/Minimap";
 import TouchControls from "./components/TouchControls";
 import { useCoarsePointer } from "./useCoarsePointer";
 import { COMMANDS, commandByCode, type CommandCode } from "./commands";
-import { roomById } from "./level";
+import { nextScenarioGuidance, roomById } from "./level";
 import { playSignal } from "./audio";
 import BriefingArtwork from "./components/BriefingArtwork";
 import { EVACUEE_BRIEFING, loadBedrockBriefing, speakNarration, stopNarration } from "./narration";
@@ -18,7 +18,6 @@ import {
   watchedSector,
   VIEWS,
   type ViewMode,
-  nextScenarioObjective,
 } from "./store";
 import type { EvidenceStatus, RouteMessage } from "./net/types";
 
@@ -219,6 +218,7 @@ function CommandDeck() {
   const scenarioProgress = useSimulation((state) => state.scenarioProgress);
   const lastAcknowledgement = useSimulation((state) => state.lastAcknowledgement);
   const sendCommand = useSession((state) => state.sendCommand);
+  const guidance = nextScenarioGuidance(scenarioProgress);
   const [sent, setSent] = useState<CommandCode | null>(null);
   if (mode.kind !== "warden") return null;
   return (
@@ -253,7 +253,12 @@ function CommandDeck() {
           );
         })}
       </div>
-       <div className="mt-1 flex justify-between gap-3 text-[8px] uppercase tracking-widest text-zinc-600"><span>Verify first. Every accepted action is acknowledged.</span><span>{Object.values(scenarioProgress).filter(Boolean).length}/7 evacuee steps</span></div>
+      <div className="mt-2 border-l-2 border-[#38bdf8] bg-white/[0.03] px-2 py-1.5">
+        <div className="text-[8px] font-black uppercase tracking-[0.18em] text-[#38bdf8]">Next evacuee step</div>
+        <div className="mt-0.5 text-[11px] font-black text-zinc-100">{guidance.label} <span className="font-mono text-[9px] font-normal uppercase text-zinc-500">/ {roomById(guidance.room).name}</span></div>
+        <div className="mt-0.5 text-[9px] leading-snug text-zinc-400">{guidance.instruction}</div>
+      </div>
+      <div className="mt-1 flex justify-between gap-3 text-[8px] uppercase tracking-widest text-zinc-600"><span>Verify first. Then send one clear route message.</span><span>{Object.values(scenarioProgress).filter(Boolean).length}/7 steps</span></div>
       {lastAcknowledgement && <div className="mt-2 border-t border-white/10 pt-2 text-[10px]" style={{ color: lastAcknowledgement.accepted ? "#10b981" : "#ef4444" }}>{lastAcknowledgement.accepted ? "Accepted" : "Denied"}: {commandByCode(lastAcknowledgement.command).label}{lastAcknowledgement.reason ? ` - ${lastAcknowledgement.reason}` : ""}</div>}
     </div>
   );
@@ -335,6 +340,7 @@ function Briefing() {
   const [open, setOpen] = useState(false);
   const [slide, setSlide] = useState(0);
   const [lines, setLines] = useState(EVACUEE_BRIEFING);
+  const [provider, setProvider] = useState<"bedrock" | "authored">("authored");
   const step = useRef(0);
 
   useEffect(() => {
@@ -345,13 +351,15 @@ function Briefing() {
       beginBriefing();
       setOpen(true);
       setSlide(0);
+      setProvider("authored");
       setLine("Preparing your guided route briefing...");
       void loadBedrockBriefing().then((briefing) => {
         if (disposed) return;
-        setLines(briefing);
+        setLines(briefing.lines);
+        setProvider(briefing.provider);
         step.current = 0;
         const speakNext = () => {
-          const next = briefing[step.current];
+          const next = briefing.lines[step.current];
           if (!next) {
             setLine("Briefing complete. Your route is live.");
             window.setTimeout(() => {
@@ -392,7 +400,7 @@ function Briefing() {
           <div className="shrink-0 text-right font-mono text-[10px] uppercase tracking-widest text-zinc-500"><div>{Math.min(slide + 1, lines.length)} / {lines.length}</div><div className="mt-1 text-[#a78bfa]">movement locked</div></div>
         </div>
         <div className="mt-4"><BriefingArtwork slide={slide} /></div>
-        <div className="mt-4 border-l-2 border-[#a78bfa] bg-white/[0.03] px-4 py-3" aria-live="polite"><div className="text-[9px] font-black uppercase tracking-[0.18em] text-[#a78bfa]">Narration / captions</div><div className="mt-1 text-sm leading-relaxed text-zinc-100 sm:text-base">{line}</div></div>
+        <div className="mt-4 border-l-2 border-[#a78bfa] bg-white/[0.03] px-4 py-3" aria-live="polite"><div className="flex items-center justify-between gap-3 text-[9px] font-black uppercase tracking-[0.18em] text-[#a78bfa]"><span>Narration / captions</span><span className="text-zinc-500">{provider === "bedrock" ? "Amazon Bedrock" : "Authored fallback"}</span></div><div className="mt-1 text-sm leading-relaxed text-zinc-100 sm:text-base">{line}</div></div>
         <div className="mt-4 flex items-center gap-3"><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10"><div className="h-full bg-[#a78bfa] transition-[width] duration-500" style={{ width: `${Math.min(100, ((slide + 1) / Math.max(1, lines.length)) * 100)}%` }} /></div><span className="font-mono text-[9px] uppercase tracking-widest text-zinc-500">audio + captions</span></div>
          <p className="mt-4 text-[10px] uppercase tracking-[0.16em] text-zinc-500">Keep this panel open. The controls activate automatically after the final line.</p>
        </section>
@@ -480,13 +488,14 @@ export default function DrillShell({ title }: { title?: string }) {
   }, [observeEvidence, warden]);
 
   const watched = watchedSector(mode);
+  const guidance = nextScenarioGuidance(scenarioProgress);
   const objective = warden
     ? interventionApplied
       ? "Intervention applied. Continue monitoring the alternate route."
       : "Verify the route evidence before communicating."
     : routeStatus === "unsafe"
-      ? "East route is unsafe. Choose the west stair and reach assembly."
-      : `Next: ${nextScenarioObjective(scenarioProgress)}.`;
+      ? "Follow the green West Stair to the Main Foyer, then use the marked exit."
+      : guidance.instruction;
   const roomName = roomById(sector).name;
 
   return (
@@ -521,10 +530,10 @@ export default function DrillShell({ title }: { title?: string }) {
 
       <div className={`pointer-events-none absolute inset-x-0 flex items-end justify-between gap-3 p-3 sm:gap-4 sm:p-4 ${showStick ? "bottom-[178px] sm:bottom-0" : warden ? "bottom-[9rem] sm:bottom-0" : "bottom-0"}`}>
         <div className="hud-panel flex max-w-[min(25rem,70vw)] flex-col gap-2 p-2 text-[10px] sm:gap-3 sm:p-3 sm:text-xs">
-          <div className="flex flex-wrap items-center gap-2"><span className="border border-white/25 bg-white/5 px-1.5 py-0.5 text-[10px] uppercase tracking-widest text-zinc-300">{roomName}</span><span className="text-[10px] uppercase tracking-wide text-zinc-500">{roomById(sector).blurb}</span></div>
+          {warden ? <div className="flex flex-wrap items-center gap-2"><span className="border border-white/25 bg-white/5 px-1.5 py-0.5 text-[10px] uppercase tracking-widest text-zinc-300">{roomName}</span><span className="text-[10px] uppercase tracking-wide text-zinc-500">{roomById(sector).blurb}</span></div> : <div className="flex flex-wrap items-center gap-2"><span className="border border-[#38bdf8]/60 bg-[#38bdf8]/10 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-widest text-[#38bdf8]">NEXT OBJECTIVE</span><span className="text-[10px] uppercase tracking-wide text-zinc-400">{guidance.label} / {roomById(guidance.room).name}</span></div>}
           <div className="mt-1 text-[11px] text-zinc-200">{objective}</div>
           <div className="flex flex-wrap gap-4 sm:gap-5"><Bar label="AIR" value={air} color="#10b981" danger={air < 35} /><Bar label="HEALTH" value={health} color="#fb7185" danger={health < 35} /></div>
-          <div className="flex flex-wrap gap-3 font-mono text-[10px] uppercase tracking-wider text-zinc-400"><span style={{ color: routeStatus === "unsafe" ? "#ef4444" : routeStatus === "intervened" ? "#10b981" : "#facc15" }}>route / {routeStatus}</span>{warden && <span>smoke / {Math.round(smoke * 100)}%</span>}<span>sector / {sector}</span></div>
+          {warden ? <div className="flex flex-wrap gap-3 font-mono text-[10px] uppercase tracking-wider text-zinc-400"><span style={{ color: routeStatus === "unsafe" ? "#ef4444" : routeStatus === "intervened" ? "#10b981" : "#facc15" }}>route / {routeStatus}</span><span>smoke / {Math.round(smoke * 100)}%</span><span>sector / {sector}</span></div> : routeStatus === "unsafe" && <div className="font-mono text-[10px] uppercase tracking-wider text-[#39ff88]">green path / west stair -&gt; main foyer -&gt; exit</div>}
         </div>
         <div className="hud-panel hidden p-3 text-right text-[11px] leading-relaxed text-zinc-400 sm:block">{warden ? <><div>fixed sector view / zoom only</div><div><span className="text-zinc-200">Watch / Evidence</span> switches layer</div><div>verify before sending a route message</div></> : <><div><span className="text-zinc-200">WASD</span> move / <span className="text-zinc-200">Shift</span> sprint / <span className="text-zinc-200">Space</span> jump / <span className="text-zinc-200">E</span> interact / <span className="text-zinc-200">V</span> camera</div><div>{view === "evacuee" ? "click to capture the mouse / Esc releases" : "drag to orbit / scroll to zoom"}</div></>}</div>
       </div>

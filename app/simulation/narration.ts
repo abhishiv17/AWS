@@ -8,7 +8,11 @@ export const EVACUEE_BRIEFING = [
   "The warden can see hazards that you cannot. You will see physical clues and route messages. Do not move until this briefing is complete.",
 ];
 
-export async function loadBedrockBriefing(signal?: AbortSignal) {
+export type BriefingProvider = "bedrock" | "authored";
+export type BriefingResult = { lines: string[]; provider: BriefingProvider };
+
+export async function loadBedrockBriefing(signal?: AbortSignal): Promise<BriefingResult> {
+  const fallback: BriefingResult = { lines: EVACUEE_BRIEFING, provider: "authored" };
   try {
     const response = await fetch("/api/narration", {
       method: "POST",
@@ -16,13 +20,13 @@ export async function loadBedrockBriefing(signal?: AbortSignal) {
       body: JSON.stringify({ role: "evacuee" }),
       signal,
     });
-    if (!response.ok) return EVACUEE_BRIEFING;
-    const body = (await response.json()) as { lines?: unknown };
+    if (!response.ok) return fallback;
+    const body = (await response.json()) as { lines?: unknown; provider?: unknown };
     return Array.isArray(body.lines) && body.lines.every((line) => typeof line === "string") && body.lines.length > 0
-      ? body.lines as string[]
-      : EVACUEE_BRIEFING;
+      ? { lines: body.lines as string[], provider: body.provider === "bedrock" ? "bedrock" : "authored" }
+      : fallback;
   } catch {
-    return EVACUEE_BRIEFING;
+    return fallback;
   }
 }
 

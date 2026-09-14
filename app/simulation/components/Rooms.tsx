@@ -13,6 +13,7 @@ import {
   Crate,
   CeilingPipes,
   Desk,
+  EvacuationStair,
   FumeHood,
   FloorMark,
   GlassCabinet,
@@ -168,6 +169,7 @@ function Foyer() {
       <CeilingBeam position={[0, 3.34, -3.8]} width={9.8} />
       <WallPanel position={[3.75, 0, -6.72]} width={1.8} color={ROOM_COLORS.lobby} />
       <Label position={[0, 2.24, -6.9]} color="#dcecff" text="CAMPUS EVAC" sub="READ THE SIGNS / STAY TOGETHER" />
+      <Label position={[-1.1, 2.65, 9.62]} color="#39ff88" text="WEST STAIR -> MAIN FOYER" sub="GREEN RETURN ROUTE / MARKED EXIT" />
       <RoomEdgeLights color={ROOM_COLORS.lobby} z={-6.68} />
       <FloorMark position={[0, 0, 0.2]} size={[7.4, 0.08]} color={ROOM_COLORS.lobby} opacity={0.3} />
       <PortalFrame position={[-5.62, 0, 2.5]} label="SCIENCE BLOCK" color={ROOM_COLORS.utility} rotationY={Math.PI / 2} />
@@ -304,6 +306,8 @@ function Entrance() {
         <planeGeometry args={[3.4, 1.6]} />
         <meshStandardMaterial color="#33363b" roughness={1} />
       </mesh>
+      <EvacuationStair position={[-1.1, 0, 7.35]} />
+      <FloorMark position={[-1.1, 0, 9.3]} size={[0.34, 1.8]} color="#39ff88" opacity={0.85} />
       <CeilingLight position={[0, 3.4, 8.8]} intensity={7} />
     </group>
   );

@@ -416,6 +416,26 @@ export const newScenarioProgress = (): ScenarioProgress => ({
 export const scenarioReady = (progress: ScenarioProgress) =>
   CRITICAL_SCENARIO_OBJECTS.every((id) => progress[id]);
 
+export interface ScenarioGuidance {
+  id: ScenarioObjectId | "complete";
+  label: string;
+  room: RoomId;
+  instruction: string;
+  color: string;
+}
+
+/** One actionable instruction at a time; the evacuee should never need to parse the whole checklist. */
+export function nextScenarioGuidance(progress: ScenarioProgress): ScenarioGuidance {
+  const id = CRITICAL_SCENARIO_OBJECTS.find((item) => !progress[item]);
+  if (id === "emergency-backpack") return { id, label: "Emergency backpack", room: "entry", instruction: "Go to the Main Foyer. The blue backpack is beside the entrance bench.", color: "#38bdf8" };
+  if (id === "lab-access-card") return { id, label: "Lab access card", room: "sec", instruction: "Enter the Science Block through the left portal. Find the yellow card at the access desk.", color: "#facc15" };
+  if (id === "gas-valve") return { id, label: "Gas isolation valve", room: "sec", instruction: "In the Science Block, go to the red wheel beneath the Fume Hood and close it.", color: "#ef4444" };
+  if (id === "first-aid-kit") return { id, label: "First-aid kit", room: "sec", instruction: "In the Science Block, find the white first-aid kit beside the blue window.", color: "#fb7185" };
+  if (id === "lab-safety-clue") return { id, label: "Lab safety clue", room: "sec", instruction: "Read the green safety clue on the chemistry workstation.", color: "#10b981" };
+  if (id === "academic-guide") return { id, label: "Academic route guide", room: "vault", instruction: "Cross to the Academic Block and read the purple route guide in Classroom A201.", color: "#a78bfa" };
+  return { id: "complete", label: "Marked exit", room: "entry", instruction: "Return to the Main Foyer. Follow the green floor arrows to the West Stair, then use the marked exit.", color: "#39ff88" };
+}
+
 /** Threats are deliberately only rendered in the warden's view. */
 export const SPECTATOR_THREATS = [
   {
@@ -508,12 +528,12 @@ export const MARKERS: MarkerDef[] = [
   {
     id: "west-route-sign",
     kind: "route",
-    label: "West route sign",
-    sub: "alternate route to assembly",
+    label: "WEST STAIR -> FOYER",
+    sub: "green return route to the marked exit",
     reveal: "warden",
     room: "lobby",
     color: C.green,
-    position: [-2.8, 2.5, -6.8],
+    position: [-2.2, 2.5, 6.7],
     labelOffset: [0, 0.7, 0],
     source: "Physical route signage",
     nextAction: "Send the west route when the block is verified.",

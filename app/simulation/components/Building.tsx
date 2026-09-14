@@ -244,8 +244,8 @@ function RouteBlock() {
           <Label
             position={[0, 1.55, 0]}
             color="#ef4444"
-            text="EAST ROUTE BLOCKED"
-            sub="unsafe / use west route"
+             text="ROUTE CLOSED"
+             sub="follow green stair to foyer"
           />
         )}
       </group>
