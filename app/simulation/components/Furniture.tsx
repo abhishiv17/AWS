@@ -549,3 +549,148 @@ export function StatusLight({
     </mesh>
   );
 }
+
+/** Small architectural details that make the primitive rooms feel authored. */
+export function WallTrim({
+  position,
+  width,
+  color = "#252d36",
+  accent = "#38bdf8",
+  rotationY = 0,
+}: {
+  position: Vec3;
+  width: number;
+  color?: string;
+  accent?: string;
+  rotationY?: number;
+}) {
+  return (
+    <group position={position} rotation={[0, rotationY, 0]}>
+      <mesh position={[0, 0.14, 0]} castShadow>
+        <boxGeometry args={[width, 0.28, 0.12]} />
+        <meshStandardMaterial color={color} roughness={0.72} metalness={0.2} />
+      </mesh>
+      <mesh position={[0, 0.29, 0.07]}>
+        <boxGeometry args={[width - 0.16, 0.035, 0.025]} />
+        <meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={1.1} />
+      </mesh>
+    </group>
+  );
+}
+
+export function CeilingBeam({
+  position,
+  width,
+  rotationY = 0,
+  color = "#1a2028",
+}: {
+  position: Vec3;
+  width: number;
+  rotationY?: number;
+  color?: string;
+}) {
+  return (
+    <group position={position} rotation={[0, rotationY, 0]}>
+      <mesh position={[0, 0, 0]} castShadow>
+        <boxGeometry args={[width, 0.16, 0.22]} />
+        <meshStandardMaterial color={color} roughness={0.7} metalness={0.35} />
+      </mesh>
+      <mesh position={[0, -0.095, 0.115]}>
+        <boxGeometry args={[width - 0.18, 0.035, 0.025]} />
+        <meshStandardMaterial color="#66778b" emissive="#334b67" emissiveIntensity={0.55} />
+      </mesh>
+    </group>
+  );
+}
+
+/** A compact lab bench with readable silhouettes even at the warden distance. */
+export function LabBench({ position, rotationY = 0, width = 3.6 }: P & { width?: number }) {
+  return (
+    <group position={position} rotation={[0, rotationY, 0]}>
+      <mesh position={[0, 0.82, 0]} castShadow receiveShadow>
+        <boxGeometry args={[width, 0.12, 1.05]} />
+        <meshStandardMaterial color="#4c5b62" roughness={0.62} metalness={0.25} />
+      </mesh>
+      <mesh position={[0, 0.7, 0]}>
+        <boxGeometry args={[width - 0.16, 0.08, 0.9]} />
+        <meshStandardMaterial color="#c5d0ce" roughness={0.45} metalness={0.1} />
+      </mesh>
+      {[-1, 1].map((side) => (
+        <group key={side} position={[side * (width / 2 - 0.16), 0.38, 0]}>
+          <mesh castShadow>
+            <boxGeometry args={[0.12, 0.76, 0.12]} />
+            <meshStandardMaterial color="#263239" roughness={0.7} metalness={0.35} />
+          </mesh>
+          <mesh position={[0, -0.28, 0]}>
+            <boxGeometry args={[0.35, 0.05, 0.72]} />
+            <meshStandardMaterial color="#263239" roughness={0.7} metalness={0.35} />
+          </mesh>
+        </group>
+      ))}
+      <mesh position={[0, 1.05, -0.43]}>
+        <boxGeometry args={[width - 0.25, 0.05, 0.06]} />
+        <meshStandardMaterial color="#19242c" roughness={0.7} />
+      </mesh>
+      {[-0.95, 0, 0.95].map((x, index) => (
+        <group key={x} position={[x, 0.98, 0.08]}>
+          <mesh castShadow>
+            <cylinderGeometry args={[0.1, 0.12, 0.22, 12]} />
+            <meshStandardMaterial color={index === 1 ? "#8fb4b8" : "#d0b78c"} roughness={0.25} metalness={0.1} />
+          </mesh>
+          <mesh position={[0, 0.15, 0]}>
+            <cylinderGeometry args={[0.035, 0.035, 0.1, 8]} />
+            <meshStandardMaterial color="#b6c6cf" transparent opacity={0.7} roughness={0.15} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+export function GlassCabinet({ position, rotationY = 0 }: P) {
+  return (
+    <group position={position} rotation={[0, rotationY, 0]}>
+      <mesh position={[0, 1.35, 0]} castShadow receiveShadow>
+        <boxGeometry args={[1.5, 2.7, 0.48]} />
+        <meshStandardMaterial color="#263139" roughness={0.55} metalness={0.25} />
+      </mesh>
+      <mesh position={[0, 1.38, 0.27]}>
+        <boxGeometry args={[1.22, 2.25, 0.025]} />
+        <meshStandardMaterial color="#93c8d3" transparent opacity={0.2} roughness={0.1} metalness={0.2} />
+      </mesh>
+      {[0.6, 1.35, 2.1].map((y) => (
+        <group key={y}>
+          <mesh position={[0, y, 0.31]}>
+            <boxGeometry args={[1.18, 0.035, 0.035]} />
+            <meshStandardMaterial color="#b9d4d1" roughness={0.4} />
+          </mesh>
+          <mesh position={[-0.34, y + 0.16, 0.31]}>
+            <cylinderGeometry args={[0.07, 0.09, 0.18, 10]} />
+            <meshStandardMaterial color="#cfaa73" roughness={0.25} />
+          </mesh>
+          <mesh position={[0.23, y + 0.13, 0.31]}>
+            <cylinderGeometry args={[0.05, 0.06, 0.25, 10]} />
+            <meshStandardMaterial color="#6da4ad" transparent opacity={0.8} roughness={0.18} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+export function HazardStripe({ position, width = 3.2, rotationY = 0 }: P & { width?: number }) {
+  return (
+    <group position={[position[0], 0.018, position[2]]} rotation={[0, rotationY, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[width, 0.34]} />
+        <meshBasicMaterial color="#d6a62f" transparent opacity={0.8} />
+      </mesh>
+      {Array.from({ length: 6 }, (_, index) => (
+        <mesh key={index} position={[-width / 2 + 0.32 + index * 0.58, 0, 0.012]} rotation={[-Math.PI / 2, 0, -0.55]}>
+          <planeGeometry args={[0.16, 0.48]} />
+          <meshBasicMaterial color="#171b20" />
+        </mesh>
+      ))}
+    </group>
+  );
+}
