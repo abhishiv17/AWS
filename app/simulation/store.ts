@@ -1,7 +1,16 @@
 "use client";
 
 import { create } from "zustand";
-import type { RoomId } from "./level";
+import {
+  CRITICAL_SCENARIO_OBJECTS,
+  newScenarioProgress,
+  scenarioObjectById,
+  scenarioReady,
+  type EquipmentId,
+  type RoomId,
+  type ScenarioObjectId,
+  type ScenarioProgress,
+} from "./level";
 import {
   BLOCKED_ROUTE,
   AIR_DRAIN_PER_SECOND,
@@ -63,6 +72,10 @@ export interface SimulationState {
   view: ViewMode;
   /** Kept across drill resets so a player's choice sticks. */
   cameraMode: CameraMode;
+  health: number;
+  hasBackpack: boolean;
+  equipped: EquipmentId | null;
+  scenarioProgress: ScenarioProgress;
   air: number;
   smokeIntensity: number;
   hazardElapsed: number;
@@ -85,6 +98,7 @@ export interface SimulationState {
   setMode: (mode: SimulationMode) => void;
   setView: (view: ViewMode) => void;
   toggleCameraMode: () => void;
+  interactScenario: (id: ScenarioObjectId) => void;
   setPrompt: (prompt: string | null) => void;
   enterSector: (sector: RoomId) => void;
   applySmokeExposure: (
@@ -104,6 +118,10 @@ export interface SimulationState {
 
 const initial = {
   air: 100,
+  health: 72,
+  hasBackpack: false,
+  equipped: null as EquipmentId | null,
+  scenarioProgress: newScenarioProgress(),
   smokeIntensity: 0,
   hazardElapsed: 0,
   routeBlocked: false,
@@ -145,6 +163,49 @@ export const useSimulation = create<SimulationState>()((set, get) => ({
   toggleCameraMode: () =>
     set((state) => ({ cameraMode: state.cameraMode === "third" ? "first" : "third" })),
 
+  interactScenario: (id) => {
+    const state = get();
+    if (state.failed || state.assemblyConfirmed || state.scenarioProgress[id]) return;
+    const object = scenarioObjectById(id);
+    if (id === "main-exit") {
+      const missing = CRITICAL_SCENARIO_OBJECTS.find((item) => !state.scenarioProgress[item]);
+      if (missing) {
+        get().push(`Exit locked. Resolve the ${scenarioObjectById(missing).label.toLowerCase()} first.`, "bad");
+        return;
+      }
+      set((current) => ({
+        scenarioProgress: { ...current.scenarioProgress, [id]: true },
+      }));
+      get().confirmAssembly();
+      return;
+    }
+
+    const progress = { ...state.scenarioProgress, [id]: true };
+    const changes: Partial<SimulationState> = { scenarioProgress: progress };
+    if (id === "emergency-backpack") {
+      changes.hasBackpack = true;
+      get().push("Emergency backpack secured. The radio is online.", "good");
+    } else if (id === "lab-access-card") {
+      changes.equipped = "access-card";
+      get().push("Lab access card equipped. Look for the marked exit.", "good");
+    } else if (id === "gas-valve") {
+      changes.equipped = null;
+      get().push("Gas isolation valve closed. The leak is no longer spreading.", "good");
+    } else if (id === "first-aid-kit") {
+      changes.health = Math.min(100, state.health + 28);
+      get().push("First-aid kit used. Health restored.", "good");
+    } else if (id === "lab-safety-clue") {
+      changes.equipped = "emergency-guide";
+      get().push("Clue decoded: west route, then the central exit.", "good");
+    } else if (id === "academic-guide") {
+      changes.equipped = "emergency-guide";
+      get().push("Emergency guide decoded. The exit signs match the safe route.", "good");
+    }
+    set(changes);
+    if (scenarioReady(progress)) get().push("All critical steps complete. Return to the marked exit.", "good");
+    else if (object.kind === "clue") get().push(`Next: ${nextScenarioObjective(progress)}.`, "info");
+  },
+
   setPrompt: (prompt) => set((state) => (state.prompt === prompt ? state : { prompt })),
 
   push: (text, tone = "info") =>
@@ -174,8 +235,10 @@ export const useSimulation = create<SimulationState>()((set, get) => ({
       elapsedSeconds,
     );
     const airBefore = state.air;
+    const healthBefore = state.health;
     const hazardBefore = state.smokeIntensity;
     const air = Math.max(0, airBefore - exposure * AIR_DRAIN_PER_SECOND * safeDt);
+    const health = Math.max(0, healthBefore - exposure * 1.25 * safeDt);
     const routeStatus = state.interventionApplied
       ? "intervened"
       : routeBlocked
@@ -188,6 +251,7 @@ export const useSimulation = create<SimulationState>()((set, get) => ({
       routeBlocked,
       routeStatus,
       air,
+      health,
     });
 
     if (
@@ -200,6 +264,7 @@ export const useSimulation = create<SimulationState>()((set, get) => ({
     if (airBefore >= 35 && air < 35)
       get().push("Air is getting thin. Move toward clear air.", "bad");
     if (air === 0 && airBefore > 0) get().fail("air threshold reached");
+    if (health === 0 && healthBefore > 0) get().fail("health threshold reached");
   },
 
   receiveRouteMessage: (message) => {
@@ -239,6 +304,10 @@ export const useSimulation = create<SimulationState>()((set, get) => ({
     const evidence = Object.fromEntries(state.evidence.map((item) => [item.id, item]));
     set({
       air: state.air,
+      health: state.health,
+      hasBackpack: state.hasBackpack,
+      equipped: state.equipped,
+      scenarioProgress: state.scenarioProgress,
       smokeIntensity: state.smokeIntensity,
       routeBlocked: state.routeStatus === "unsafe",
       routeStatus: state.routeStatus,
@@ -266,6 +335,11 @@ function sectorLabel(sector: RoomId) {
     vault: "the dorm wing",
     annex: "the electrical service area",
   }[sector];
+}
+
+export function nextScenarioObjective(progress: ScenarioProgress) {
+  const next = CRITICAL_SCENARIO_OBJECTS.find((id) => !progress[id]);
+  return next ? scenarioObjectById(next).label : "return to the marked exit";
 }
 
 /** Wardens follow the evacuee through the whole block; solo reveals sectors as they are explored. */

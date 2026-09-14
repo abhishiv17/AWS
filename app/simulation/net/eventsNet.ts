@@ -101,6 +101,18 @@ function wardenState(room: DrillRoom, drill: DrillAuthority, warden: Participant
     // Movement is shared with the warden in real time; evidence stays sector-scoped.
     evacuee: state ? { position: state.position, sectorId: state.sectorId } : null,
     air: state?.air ?? 100,
+    health: state?.health ?? 72,
+    hasBackpack: state?.hasBackpack ?? false,
+    equipped: state?.equipped ?? null,
+    scenarioProgress: state?.scenarioProgress ?? {
+      "emergency-backpack": false,
+      "lab-access-card": false,
+      "gas-valve": false,
+      "first-aid-kit": false,
+      "lab-safety-clue": false,
+      "academic-guide": false,
+      "main-exit": false,
+    },
     smokeIntensity:
       getSectorSmoke(assignedSector, state?.hazardElapsed ?? 0) *
       (drill.interventionApplied ? VENTILATION_SMOKE_FACTOR : 1),

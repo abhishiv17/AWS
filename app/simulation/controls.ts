@@ -2,6 +2,8 @@
 
 import { runtime } from "./runtime";
 import { useSimulation } from "./store";
+import { playSignal } from "./audio";
+import { scenarioReady } from "./level";
 
 /**
  * The two evacuee actions, in one place.
@@ -20,7 +22,11 @@ export function pressUse() {
     if (sim.mode.kind === "solo") sim.applyIntervention();
     else sim.push("The warden must authorize the ventilation intervention.", "info");
   } else if (target?.kind === "assembly") {
-    sim.confirmAssembly();
+    if (scenarioReady(sim.scenarioProgress)) sim.confirmAssembly();
+    else sim.push("The assembly point is not the exit. Follow the marked sequence first.", "info");
+  } else if (target?.kind === "scenario") {
+    sim.interactScenario(target.id as Parameters<typeof sim.interactScenario>[0]);
+    playSignal("evidence");
   }
 }
 
@@ -29,4 +35,5 @@ export function pressJump() {
   const sim = useSimulation.getState();
   if (sim.air <= 0 || sim.failed || sim.assemblyConfirmed) return;
   runtime.jumpAt = performance.now();
+  playSignal("jump");
 }

@@ -3,7 +3,13 @@
 import { useEffect, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { ASSEMBLY_Z, MARKERS, roomAt, type MarkerDef } from "../level";
+import {
+  ASSEMBLY_Z,
+  MARKERS,
+  SCENARIO_OBJECTS,
+  roomAt,
+  type MarkerDef,
+} from "../level";
 import { getSectorSmoke, VENTILATION_SMOKE_FACTOR } from "../smoke";
 import { clampDt, runtime } from "../runtime";
 import { useSession } from "../session";
@@ -56,7 +62,16 @@ export default function Systems() {
     }
 
     let useTarget: typeof runtime.useTarget = null;
-    if (flatDistance(runtime.evacuee, assemblyPosition) < 2.8) {
+    const scenarioTarget = SCENARIO_OBJECTS
+      .filter((object) => object.id === "main-exit" || !sim.scenarioProgress[object.id])
+      .filter((object) => object.room === runtime.sector)
+      .map((object) => ({ object, distance: flatDistance(runtime.evacuee, new THREE.Vector3(...object.position)) }))
+      .filter(({ object, distance }) => distance < object.radius)
+      .sort((a, b) => a.distance - b.distance)[0]?.object;
+
+    if (scenarioTarget) {
+      useTarget = { kind: "scenario", id: scenarioTarget.id };
+    } else if (flatDistance(runtime.evacuee, assemblyPosition) < 2.8) {
       useTarget = { kind: "assembly", id: "outdoor-assembly" };
     } else if (flatDistance(runtime.evacuee, ventilationPosition) < 2.2) {
       useTarget = { kind: "intervention", id: "ventilation-panel" };
@@ -67,7 +82,23 @@ export default function Systems() {
     if (accumulator.current > 0.08) {
       accumulator.current = 0;
       sim.enterSector(runtime.sector);
-      const prompt = useTarget?.kind === "assembly"
+      const scenario = useTarget?.kind === "scenario"
+        ? SCENARIO_OBJECTS.find((object) => object.id === useTarget?.id)
+        : null;
+      const missing = scenario?.id === "main-exit"
+        ? SCENARIO_OBJECTS.find((object) => object.id !== "main-exit" && !sim.scenarioProgress[object.id])
+        : null;
+      const prompt = scenario
+        ? scenario.id === "main-exit"
+          ? missing
+            ? `Exit locked. Find the ${missing.label.toLowerCase()}.`
+            : "Press E to leave through the marked exit"
+          : scenario.kind === "pickup"
+            ? `Press E to pick up the ${scenario.label.toLowerCase()}`
+            : scenario.kind === "valve"
+              ? "Press E to close the gas isolation valve"
+              : `Press E to decode the ${scenario.label.toLowerCase()}`
+        : useTarget?.kind === "assembly"
         ? "Press E to confirm assembly at the beacon"
         : useTarget?.kind === "intervention"
           ? sim.mode.kind === "solo"

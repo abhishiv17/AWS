@@ -1,4 +1,4 @@
-import type { RoomId } from "../level";
+import type { EquipmentId, RoomId, ScenarioProgress } from "../level";
 import type { CommandCode } from "../commands";
 
 export type Role = "evacuee" | "warden";
@@ -111,6 +111,10 @@ export interface EvacueeState {
   position: [number, number, number, number];
   sectorId: RoomId;
   air: number;
+  health: number;
+  hasBackpack: boolean;
+  equipped: EquipmentId | null;
+  scenarioProgress: ScenarioProgress;
   smokeIntensity: number;
   stamina: number;
   routeStatus: "clear" | "unsafe" | "intervened";
@@ -134,6 +138,10 @@ export interface WardenState {
     sectorId: RoomId;
   } | null;
   air: number;
+  health: number;
+  hasBackpack: boolean;
+  equipped: EquipmentId | null;
+  scenarioProgress: ScenarioProgress;
   smokeIntensity: number;
   routeStatus: "clear" | "unsafe" | "intervened";
   interventionApplied: boolean;

@@ -11,6 +11,30 @@ export type RoomId =
   | "vault"
   | "annex";
 
+export type EquipmentId = "access-card" | "emergency-guide";
+export type ScenarioObjectId =
+  | "emergency-backpack"
+  | "lab-access-card"
+  | "gas-valve"
+  | "first-aid-kit"
+  | "lab-safety-clue"
+  | "academic-guide"
+  | "main-exit";
+
+export type ScenarioObjectKind = "pickup" | "valve" | "clue" | "exit";
+export type ScenarioProgress = Record<ScenarioObjectId, boolean>;
+
+export interface ScenarioObjectDef {
+  id: ScenarioObjectId;
+  kind: ScenarioObjectKind;
+  room: RoomId;
+  label: string;
+  sub: string;
+  position: Vec3;
+  color: string;
+  radius: number;
+}
+
 export const WALL_T = 0.3;
 export const ROOM_H = 3.8;
 
@@ -83,8 +107,8 @@ export const ROOMS: RoomDef[] = [
   },
   {
     id: "sec",
-    name: "Lab and Utility",
-    blurb: "Smoke source evidence and the ventilation panel.",
+    name: "Science Block / Chemistry Lab 1A",
+    blurb: "Gas control, safety equipment, and the west exit route.",
     bounds: { minX: -22, maxX: -8, minZ: -7, maxZ: 7 },
     fog: true,
     floor: "#78746d",
@@ -92,8 +116,8 @@ export const ROOMS: RoomDef[] = [
   },
   {
     id: "vault",
-    name: "Dorm Wing",
-    blurb: "A secondary campus sector beyond the east passage.",
+    name: "Academic Block / Classroom A201",
+    blurb: "Emergency guide, classroom clues, and the east route.",
     bounds: { minX: 8, maxX: 22, minZ: -7, maxZ: 7 },
     fog: true,
     floor: "#78746d",
@@ -292,6 +316,125 @@ export const DOORS: DoorDef[] = [
     swing: -1,
   },
 ];
+
+/** Physical scenario props. The player must read the environment, not chase HUD markers. */
+export const SCENARIO_OBJECTS: ScenarioObjectDef[] = [
+  {
+    id: "emergency-backpack",
+    kind: "pickup",
+    room: "entry",
+    label: "Emergency backpack",
+    sub: "grab it before entering the block",
+    position: [1.55, 0.48, 8.65],
+    color: "#38bdf8",
+    radius: 1.55,
+  },
+  {
+    id: "lab-access-card",
+    kind: "pickup",
+    room: "sec",
+    label: "Lab access card",
+    sub: "opens the marked exit",
+    position: [-9.65, 0.98, 2.55],
+    color: "#facc15",
+    radius: 1.5,
+  },
+  {
+    id: "gas-valve",
+    kind: "valve",
+    room: "sec",
+    label: "Gas isolation valve",
+    sub: "close the valve before crossing the lab",
+    position: [-19.45, 1.12, -4.35],
+    color: "#ef4444",
+    radius: 1.55,
+  },
+  {
+    id: "first-aid-kit",
+    kind: "pickup",
+    room: "sec",
+    label: "First-aid kit",
+    sub: "use on pickup / one charge",
+    position: [-20.5, 1.05, 4.75],
+    color: "#fb7185",
+    radius: 1.4,
+  },
+  {
+    id: "lab-safety-clue",
+    kind: "clue",
+    room: "sec",
+    label: "Lab safety clue",
+    sub: "decode the marked west route",
+    position: [-13.7, 1.12, -1.8],
+    color: "#10b981",
+    radius: 1.35,
+  },
+  {
+    id: "academic-guide",
+    kind: "clue",
+    room: "vault",
+    label: "Emergency route guide",
+    sub: "compare the classroom map with the signs",
+    position: [12.2, 1.08, 1.25],
+    color: "#a78bfa",
+    radius: 1.35,
+  },
+  {
+    id: "main-exit",
+    kind: "exit",
+    room: "entry",
+    label: "Marked exit",
+    sub: "all critical steps must be complete",
+    position: [0, 1.15, 10.2],
+    color: "#39ff88",
+    radius: 1.6,
+  },
+];
+
+export const scenarioObjectById = (id: ScenarioObjectId) =>
+  SCENARIO_OBJECTS.find((item) => item.id === id)!;
+
+export const CRITICAL_SCENARIO_OBJECTS: ScenarioObjectId[] = [
+  "emergency-backpack",
+  "lab-access-card",
+  "gas-valve",
+  "first-aid-kit",
+  "lab-safety-clue",
+  "academic-guide",
+];
+
+export const newScenarioProgress = (): ScenarioProgress => ({
+  "emergency-backpack": false,
+  "lab-access-card": false,
+  "gas-valve": false,
+  "first-aid-kit": false,
+  "lab-safety-clue": false,
+  "academic-guide": false,
+  "main-exit": false,
+});
+
+export const scenarioReady = (progress: ScenarioProgress) =>
+  CRITICAL_SCENARIO_OBJECTS.every((id) => progress[id]);
+
+/** Threats are deliberately only rendered in the warden's view. */
+export const SPECTATOR_THREATS = [
+  {
+    id: "gas-cloud",
+    room: "sec" as RoomId,
+    position: [-19.45, 1.35, -4.35] as Vec3,
+    label: "UNSEEN GAS LEAK",
+    sub: "evacuee has no direct visual confirmation",
+    color: "#ef4444",
+  },
+  {
+    id: "east-structural-risk",
+    room: "ecorr" as RoomId,
+    position: [5.62, 1.65, 2.5] as Vec3,
+    label: "STRUCTURAL RISK",
+    sub: "route becomes unsafe after the event escalates",
+    color: "#facc15",
+  },
+] as const;
 
 /* --------------------------------------------------------------- evidence */
 

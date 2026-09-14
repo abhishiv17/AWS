@@ -1,5 +1,10 @@
 import * as THREE from "three";
-import { EVACUEE_SPAWN, type RoomId } from "./level";
+import {
+  EVACUEE_SPAWN,
+  type EquipmentId,
+  type RoomId,
+  type ScenarioObjectId,
+} from "./level";
 
 /** Keep physics stable when a tab wakes up after a frame hitch. */
 export const clampDt = (dt: number) => Math.min(dt, 0.05);
@@ -21,10 +26,13 @@ export const runtime = {
     y: number;
     z: number;
     yaw: number;
+    hasBackpack: boolean;
+    equipped: EquipmentId | null;
+    scenarioProgress: Partial<Record<ScenarioObjectId, boolean>>;
   },
   /** What the action button can do at the current position. */
   useTarget: null as null | {
-    kind: "intervention" | "assembly";
+    kind: "intervention" | "assembly" | "scenario";
     id: string;
   },
 
