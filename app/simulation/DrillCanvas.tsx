@@ -12,6 +12,8 @@ import Evacuee from "./components/Evacuee";
 import Systems from "./components/Systems";
 import NetSync from "./components/NetSync";
 import ViewRig from "./components/ViewRig";
+import SmokeHaze from "./components/SmokeHaze";
+import Maya from "./components/Maya";
 import { useIsSimulationOwner } from "./store";
 
 const MAP = [
@@ -69,8 +71,10 @@ export default function DrillCanvas() {
             <Exterior />
             <Building />
             <Rooms />
+            <SmokeHaze />
             <Interactables />
             <Evacuee />
+            <Maya />
             {ownsSimulation && <Systems />}
           </Physics>
           <NetSync />

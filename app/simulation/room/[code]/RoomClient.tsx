@@ -69,7 +69,7 @@ export default function RoomClient({ code }: { code: string }) {
     sim.setMode(
       me.role === "evacuee"
         ? { kind: "evacuee" }
-        : { kind: "warden", sectorId: me.sectorId ?? "sec" },
+        : { kind: "warden", sectorId: me.sectorId ?? "junction-center" },
     );
   }, [me?.role, me?.sectorId, room?.phase]);
 
@@ -131,7 +131,7 @@ export default function RoomClient({ code }: { code: string }) {
   }
 
   if (["active", "assembly", "failed", "reported"].includes(room?.phase ?? "") && me?.role) {
-    return <main className="relative flex-1"><DrillShell title={me.role === "evacuee" ? `Evacuee / drill ${code}` : `Warden / ${roomById(me.sectorId ?? "sec").name} / drill ${code}`} /></main>;
+    return <main className="relative flex-1"><DrillShell title={me.role === "evacuee" ? `Evacuee / drill ${code}` : `Warden / ${roomById(me.sectorId ?? "junction-center").name} / drill ${code}`} /></main>;
   }
 
   if (room?.phase === "failed" || room?.phase === "reported") {

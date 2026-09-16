@@ -38,6 +38,7 @@ function readEvacueeState(version: number): EvacueeState {
     assemblyConfirmed: sim.assemblyConfirmed,
     failed: sim.failed,
     routeMessage: sim.latestMessage,
+    maya: sim.maya,
     log: sim.log,
   };
 }
