@@ -35,7 +35,9 @@ export function buildAfterActionReview(report: SimulationReport): AfterActionRev
   const { metrics } = report;
   const exposure = Object.values(metrics.exposure);
   const findings = [...report.findings].sort((left, right) => {
-    if (left.severity === right.severity) return left.eventSequences[0] - right.eventSequences[0];
+    if (left.severity === right.severity) {
+      return (left.eventSequences[0] ?? Number.MAX_SAFE_INTEGER) - (right.eventSequences[0] ?? Number.MAX_SAFE_INTEGER);
+    }
     return left.severity === "warning" ? -1 : 1;
   });
 
