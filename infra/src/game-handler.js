@@ -5,7 +5,14 @@ const TABLE = "campusevac-events";
 const WEEK_SECONDS = 7 * 24 * 60 * 60;
 const CODE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 const CHANNELS = ["room", "cmd"];
-const MESSAGE_TYPES = ["sync", "room", "reject", "leave", "intent", "ack"];
+const MESSAGE_TYPES = ["sync", "room", "reject", "leave", "intent", "ack", "telemetry"];
+const TELEMETRY_TYPES = [
+  "GUIDE_WARNING_SENT",
+  "GUIDE_WARNING_ACKNOWLEDGED",
+  "VENTILATION_ACTIVATED",
+  "MAYA_ASSISTANCE_REQUESTED",
+  "MAYA_ASSISTANCE_ACKNOWLEDGED",
+];
 const MAX_EVENT_CHARS = 8000;
 
 // APPSYNC_JS has no regex support, so room codes are checked character by character.
@@ -26,7 +33,25 @@ function validEvent(event) {
     typeof payload === "object" &&
     MESSAGE_TYPES.indexOf(payload.t) >= 0 &&
     typeof payload.from === "string" &&
+    (payload.t !== "telemetry" || validTelemetry(payload)) &&
     JSON.stringify(payload).length <= MAX_EVENT_CHARS
+  );
+}
+
+function validTelemetry(payload) {
+  const telemetry = payload.telemetry;
+  return (
+    telemetry !== null &&
+    typeof telemetry === "object" &&
+    telemetry.schemaVersion === 1 &&
+    typeof telemetry.drillId === "string" &&
+    typeof telemetry.runId === "string" &&
+    typeof telemetry.sequence === "number" &&
+    typeof telemetry.tick === "number" &&
+    typeof telemetry.at === "number" &&
+    typeof telemetry.actorId === "string" &&
+    typeof telemetry.actorKind === "string" &&
+    TELEMETRY_TYPES.indexOf(telemetry.type) >= 0
   );
 }
 

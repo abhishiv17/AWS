@@ -1,7 +1,7 @@
 import type { EquipmentId, RoomId, ScenarioProgress } from "../level";
 import type { CommandCode } from "../commands";
-import type { RouteCondition, HazardSnapshot } from "../hazard";
-import type { MayaState } from "../maya/types";
+import type { SimulationSnapshot } from "../core/report";
+import type { TelemetryDelta, TelemetryEvent } from "./telemetry";
 
 export type Role = "evacuee" | "warden";
 export type Phase =
@@ -12,8 +12,8 @@ export type Phase =
   | "failed"
   | "reported";
 
-/** The authored MVP gives the warden the central junction / spine sector feed. */
-export const WARDEN_SECTORS: RoomId[] = ["junction-center"];
+/** The authored MVP gives the warden the utility/evidence sector feed. */
+export const WARDEN_SECTORS: RoomId[] = ["sec"];
 
 export const COUNTDOWN_MS = 10_000;
 
@@ -69,7 +69,7 @@ export interface EvidenceRecord {
 }
 
 export type RouteDirection = "west" | "east" | "wait" | "assembly";
-export type MessageKind = "route" | "hazard" | "wait" | "assembly";
+export type MessageKind = "route" | "hazard" | "wait" | "assembly" | "assistance";
 
 export interface RouteMessage {
   messageId: string;
@@ -85,6 +85,7 @@ export interface RouteMessage {
   expiresAt: number;
   caption: string;
   acknowledgedAt: number | null;
+  targetOccupantId?: string;
 }
 
 export interface CommandAcknowledgement {
@@ -119,15 +120,14 @@ export interface EvacueeState {
   scenarioProgress: ScenarioProgress;
   smokeIntensity: number;
   stamina: number;
-  routeStatus: RouteCondition;
+  routeStatus: "clear" | "unsafe" | "intervened";
   interventionApplied: boolean;
   assemblyProgress: number;
   assemblyConfirmed: boolean;
   failed: boolean;
   routeMessage: RouteMessage | null;
-  hazardSnapshot?: HazardSnapshot;
-  maya?: MayaState;
   log: LogEntry[];
+  coreSnapshot: SimulationSnapshot | null;
 }
 
 /** Warden payload. Evidence is filtered to the participant's assigned sector. */
@@ -147,7 +147,7 @@ export interface WardenState {
   equipped: EquipmentId | null;
   scenarioProgress: ScenarioProgress;
   smokeIntensity: number;
-  routeStatus: RouteCondition;
+  routeStatus: "clear" | "unsafe" | "intervened";
   interventionApplied: boolean;
   assemblyProgress: number;
   assemblyConfirmed: boolean;
@@ -155,9 +155,9 @@ export interface WardenState {
   evidence: EvidenceRecord[];
   latestMessage: RouteMessage | null;
   lastAcknowledgement: CommandAcknowledgement | null;
-  hazardSnapshot?: HazardSnapshot;
-  maya?: MayaState;
   log: LogEntry[];
+  coreSnapshot: SimulationSnapshot | null;
+  telemetry: TelemetryDelta;
 }
 
 export type ClientIntent =
@@ -169,13 +169,20 @@ export type ClientIntent =
       clientSentAt: number;
       idempotencyKey: string;
     }
+  | {
+      type: "route-message-ack";
+      messageId: string;
+      clientSentAt: number;
+      idempotencyKey: string;
+    }
   | { type: "observe-evidence"; evidenceId: string; clientSentAt: number };
 
 export type NetEvent =
   | { type: "room"; room: DrillRoom }
   | { type: "warden-state"; state: WardenState }
   | { type: "route-message"; message: RouteMessage }
-  | { type: "command-ack"; acknowledgement: CommandAcknowledgement };
+  | { type: "command-ack"; acknowledgement: CommandAcknowledgement }
+  | { type: "telemetry"; event: TelemetryEvent };
 
 export type JoinFailure =
   | "notfound"

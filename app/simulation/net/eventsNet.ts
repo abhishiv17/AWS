@@ -1,10 +1,19 @@
 "use client";
 
 import { MARKERS, type MarkerDef, type RoomId } from "../level";
-import { getSectorSmoke, getHazardSnapshot, VENTILATION_SMOKE_FACTOR } from "../smoke";
+import { getSectorSmoke, VENTILATION_SMOKE_FACTOR } from "../smoke";
 import { useSimulation } from "../store";
+import type { SimulationSnapshot } from "../core/report";
 import { EventsSocket } from "./events";
 import { assignRoles, resolveRoom } from "./roles";
+import {
+  acknowledgeRouteMessage,
+  appendTelemetryEvent,
+  telemetryDelta,
+  type TelemetryActorKind,
+  type TelemetryDetails,
+  type TelemetryEvent,
+} from "./telemetry";
 import {
   COUNTDOWN_MS,
   WARDEN_SECTORS,
@@ -28,7 +37,7 @@ const PROBE_MS = 1_200;
 const JOIN_TIMEOUT_MS = 6_000;
 const SYNC_RETRY_MS = 1_500;
 
-type WardenIntent = Exclude<ClientIntent, { type: "evacuee-state" }>;
+type WardenIntent = Extract<ClientIntent, { type: "warden-command" | "observe-evidence" }>;
 type WardenCommand = Extract<ClientIntent, { type: "warden-command" }>;
 
 /** /game/{code}/room and /game/{code}/cmd. The namespace handler stores each one in DynamoDB. */
@@ -38,7 +47,8 @@ type GameMessage =
   | { t: "reject"; from: string; to: string; reason: JoinFailure }
   | { t: "leave"; from: string }
   | { t: "intent"; from: string; intent: WardenIntent }
-  | { t: "ack"; from: string; to: string; acknowledgement: CommandAcknowledgement };
+  | { t: "ack"; from: string; to: string; acknowledgement: CommandAcknowledgement }
+  | { t: "telemetry"; from: string; event: TelemetryEvent };
 
 /** /live/{code}/warden: role-scoped snapshots, broadcast only. */
 type LiveMessage = { to: string; state: WardenState };
@@ -52,6 +62,10 @@ interface DrillAuthority {
   interventionApplied: boolean;
   latestMessage: RouteMessage | null;
   lastAcknowledgement: CommandAcknowledgement | null;
+  coreSnapshot: SimulationSnapshot | null;
+  telemetryEvents: TelemetryEvent[];
+  telemetryNextSequence: number;
+  telemetryDelivered: Record<string, number>;
   processed: Record<string, CommandAcknowledgement>;
   stateVersion: number;
   eventSequence: number;
@@ -92,6 +106,18 @@ function evidenceFor(marker: MarkerDef, now: number): EvidenceRecord {
 function wardenState(room: DrillRoom, drill: DrillAuthority, warden: Participant): WardenState {
   const assignedSector = sectorOf(warden);
   const state = drill.evacueeState;
+  const coreSnapshot = drill.coreSnapshot;
+  const coreHazard = coreSnapshot?.hazards[assignedSector];
+  const coreRoute = coreSnapshot?.connectors["lobby-ecorr"];
+  const coreIntervention = !!coreSnapshot?.incident.ventilationActive;
+  const telemetryCursor = drill.telemetryDelivered[warden.id] ?? 0;
+  const telemetry = telemetryDelta(drill.telemetryEvents, telemetryCursor);
+  drill.telemetryDelivered[warden.id] = telemetry.cursor;
+  const routeStatus = drill.interventionApplied || coreIntervention
+    ? "intervened"
+    : drill.routeStatus === "unsafe" || coreRoute?.status !== undefined && coreRoute.status !== "open"
+      ? "unsafe"
+      : state?.routeStatus ?? "clear";
   return {
     kind: "warden",
     t: Date.now(),
@@ -113,12 +139,14 @@ function wardenState(room: DrillRoom, drill: DrillAuthority, warden: Participant
       "academic-guide": false,
       "main-exit": false,
     },
-    smokeIntensity:
+    smokeIntensity: coreHazard?.density ??
       getSectorSmoke(assignedSector, state?.hazardElapsed ?? 0) *
       (drill.interventionApplied ? VENTILATION_SMOKE_FACTOR : 1),
-    routeStatus: drill.routeStatus,
-    interventionApplied: drill.interventionApplied,
-    assemblyProgress: state?.assemblyProgress ?? (room.outcome === "assembly-confirmed" ? 1 : 0),
+    routeStatus,
+    interventionApplied: drill.interventionApplied || coreIntervention,
+    assemblyProgress: coreSnapshot?.report.metrics.accountability.total
+      ? coreSnapshot.report.metrics.accountability.assembled / coreSnapshot.report.metrics.accountability.total
+      : state?.assemblyProgress ?? (room.outcome === "assembly-confirmed" ? 1 : 0),
     assemblyConfirmed: state?.assemblyConfirmed ?? room.outcome === "assembly-confirmed",
     failed:
       state?.failed ??
@@ -126,9 +154,9 @@ function wardenState(room: DrillRoom, drill: DrillAuthority, warden: Participant
     evidence: drill.evidence.filter((item) => item.sectorId === assignedSector),
     latestMessage: drill.latestMessage,
     lastAcknowledgement: drill.lastAcknowledgement,
-    hazardSnapshot: getHazardSnapshot(state?.hazardElapsed ?? 0, drill.interventionApplied),
-    maya: state?.maya,
     log: state?.log ?? [],
+    coreSnapshot,
+    telemetry,
   };
 }
 
@@ -239,6 +267,10 @@ export class EventsNet implements NetClient {
       if (role === "evacuee") this.publishEvacuee(intent.state);
       return;
     }
+    if (intent.type === "route-message-ack") {
+      if (role === "evacuee") this.acknowledgeRoute(intent);
+      return;
+    }
     if (role === "warden") this.publish({ t: "intent", from: this.myId, intent });
   }
 
@@ -279,6 +311,8 @@ export class EventsNet implements NetClient {
       case "ack":
         if (message.to === this.myId)
           this.emit({ type: "command-ack", acknowledgement: message.acknowledgement });
+        break;
+      case "telemetry":
         break;
     }
     for (const waiter of [...this.waiters]) waiter(message);
@@ -397,10 +431,14 @@ export class EventsNet implements NetClient {
       drillId: room.drillId,
       evacueeState: null,
       evidence: MARKERS.filter((marker) => marker.kind === "evidence").map((marker) => evidenceFor(marker, now)),
-      routeStatus: "CLEAR",
+      routeStatus: "clear",
       interventionApplied: false,
       latestMessage: null,
       lastAcknowledgement: null,
+      coreSnapshot: null,
+      telemetryEvents: [],
+      telemetryNextSequence: 1,
+      telemetryDelivered: {},
       processed: {},
       stateVersion: 0,
       eventSequence: 0,
@@ -420,20 +458,17 @@ export class EventsNet implements NetClient {
     const room = resolveRoom(this.room);
     if (!room) return;
     const drill = this.drill(room);
-    const isWardenUnsafe =
-      drill.routeStatus === "unsafe" ||
-      drill.routeStatus === "BLOCKED" ||
-      drill.routeStatus === "DANGEROUS";
     const routeStatus = drill.interventionApplied
       ? "intervened"
-      : isWardenUnsafe
-        ? drill.routeStatus
+      : drill.routeStatus === "unsafe"
+        ? "unsafe"
         : state.routeStatus;
     drill.evacueeState = {
       ...state,
       routeStatus,
       interventionApplied: state.interventionApplied || drill.interventionApplied,
     };
+    drill.coreSnapshot = state.coreSnapshot;
     drill.routeStatus = routeStatus;
     drill.stateVersion += 1;
 
@@ -475,6 +510,71 @@ export class EventsNet implements NetClient {
     this.broadcastWarden(room, drill, false);
   }
 
+  private recordTelemetry(
+    drill: DrillAuthority,
+    actorId: string,
+    actorKind: TelemetryActorKind,
+    details: TelemetryDetails,
+  ) {
+    const result = appendTelemetryEvent(
+      drill.telemetryEvents,
+      drill.telemetryNextSequence,
+      {
+        drillId: drill.drillId,
+        runId: drill.coreSnapshot?.runId ?? drill.evacueeState?.coreSnapshot?.runId ?? drill.drillId,
+        tick: drill.coreSnapshot?.clock.tick ?? 0,
+        at: Date.now(),
+        actorId,
+        actorKind,
+      },
+      details,
+    );
+    drill.telemetryEvents = result.events;
+    drill.telemetryNextSequence = result.nextSequence;
+    this.publish({ t: "telemetry", from: this.myId, event: result.event });
+    this.emit({ type: "telemetry", event: result.event });
+    return result.event;
+  }
+
+  private acknowledgeRoute(
+    intent: Extract<ClientIntent, { type: "route-message-ack" }>,
+  ) {
+    const room = resolveRoom(this.room);
+    if (!room || room.phase !== "active") return;
+    const drill = this.drill(room);
+    const at = Date.now();
+    const result = acknowledgeRouteMessage(drill.latestMessage, intent.messageId, at);
+    if (!result.changed || !result.message) return;
+
+    drill.latestMessage = result.message;
+    if (drill.evacueeState) {
+      drill.evacueeState = {
+        ...drill.evacueeState,
+        routeMessage: result.message,
+      };
+    }
+    drill.eventSequence += 1;
+    this.recordTelemetry(
+      drill,
+      this.myId,
+      "navigator",
+      result.message.kind === "assistance" && result.message.targetOccupantId
+        ? {
+            type: "MAYA_ASSISTANCE_ACKNOWLEDGED",
+            messageId: result.message.messageId,
+            occupantId: result.message.targetOccupantId,
+            acknowledgedAt: at,
+          }
+        : {
+            type: "GUIDE_WARNING_ACKNOWLEDGED",
+            messageId: result.message.messageId,
+            acknowledgedAt: at,
+          },
+    );
+    this.emit({ type: "route-message", message: result.message });
+    this.broadcastWarden(room, drill, false);
+  }
+
   private applyCommand(
     room: DrillRoom,
     drill: DrillAuthority,
@@ -493,29 +593,35 @@ export class EventsNet implements NetClient {
       eventSequence: drill.eventSequence,
     });
     const deny = (reason: string) => ack(false, reason);
+    let telemetry: {
+      actorId: string;
+      actorKind: TelemetryActorKind;
+      details: TelemetryDetails;
+    } | null = null;
 
     if (room.phase !== "active") return deny("drill is not active");
-    if (!evidence) return deny("evidence target is unavailable");
-    if (evidence.sectorId !== sectorOf(warden)) return deny("not your sector");
+    const requiresEvidence = command.command !== "PEER_ASSIST_MAYA";
+    if (requiresEvidence && !evidence) return deny("evidence target is unavailable");
+    if (requiresEvidence && evidence?.sectorId !== sectorOf(warden)) return deny("not your sector");
 
     switch (command.command) {
       case "VERIFY_EAST_ROUTE":
-        if (evidence.status !== "OBSERVED") return deny("observe the evidence first");
+        if (evidence?.status !== "OBSERVED") return deny("observe the evidence first");
         evidence.status = "VERIFIED";
         evidence.verifiedAt = now;
         evidence.updatedAt = now;
         break;
       case "SEND_WEST_ROUTE":
       case "MARK_EAST_UNSAFE":
-        if (evidence.status !== "VERIFIED") return deny("verify the east route first");
+        if (evidence?.status !== "VERIFIED") return deny("verify the east route first");
         drill.routeStatus = drill.interventionApplied ? "intervened" : "unsafe";
         if (command.command === "SEND_WEST_ROUTE") {
-          const routeMessage: RouteMessage = {
+          drill.latestMessage = {
             messageId: `${drill.drillId}:message:${drill.eventSequence + 1}`,
             drillId: drill.drillId,
             senderId: warden.id,
             senderSector: sectorOf(warden),
-            targetSector: "junction-center",
+            targetSector: "lobby",
             direction: "west",
             kind: "route",
             confidence: "verified",
@@ -525,20 +631,74 @@ export class EventsNet implements NetClient {
             caption: "East route is unsafe. Proceed to the verified west route.",
             acknowledgedAt: null,
           };
-          drill.latestMessage = routeMessage;
-          this.emit({ type: "route-message", message: routeMessage });
+          this.emit({ type: "route-message", message: drill.latestMessage });
+          telemetry = {
+            actorId: warden.id,
+            actorKind: "guide",
+            details: {
+              type: "GUIDE_WARNING_SENT",
+              messageId: drill.latestMessage.messageId,
+              direction: drill.latestMessage.direction,
+              targetSector: drill.latestMessage.targetSector,
+              confidence: drill.latestMessage.confidence,
+            },
+          };
         }
         break;
       case "APPLY_VENTILATION":
         if (drill.interventionApplied) return deny("intervention already applied");
-        if (evidence.status !== "VERIFIED") return deny("verify the route evidence first");
+        if (evidence?.status !== "VERIFIED") return deny("verify the route evidence first");
         drill.interventionApplied = true;
         drill.routeStatus = "intervened";
         // This browser runs the evacuee simulation, which reads the flag for smoke density.
         useSimulation.getState().applyIntervention();
+        telemetry = {
+          actorId: warden.id,
+          actorKind: "guide",
+          details: {
+            type: "VENTILATION_ACTIVATED",
+            interventionId: "ventilation-override",
+            active: true,
+          },
+        };
         break;
+      case "PEER_ASSIST_MAYA": {
+        const maya = drill.coreSnapshot?.occupants.maya;
+        if (!maya) return deny("Maya state is not available");
+        if (maya.status === "assembled" || maya.status === "missing") return deny("Maya no longer needs assistance");
+        drill.latestMessage = {
+          messageId: `${drill.drillId}:message:${drill.eventSequence + 1}`,
+          drillId: drill.drillId,
+          senderId: warden.id,
+          senderSector: sectorOf(warden),
+          targetSector: maya.roomId,
+          direction: "wait",
+          kind: "assistance",
+          confidence: "verified",
+          urgency: "urgent",
+          createdAt: now,
+          expiresAt: now + 15_000,
+          caption: `Maya needs assistance in ${maya.roomId}. Reach her, then acknowledge this request.`,
+          acknowledgedAt: null,
+          targetOccupantId: maya.id,
+        };
+        this.emit({ type: "route-message", message: drill.latestMessage });
+        telemetry = {
+          actorId: warden.id,
+          actorKind: "guide",
+          details: {
+            type: "MAYA_ASSISTANCE_REQUESTED",
+            messageId: drill.latestMessage.messageId,
+            occupantId: maya.id,
+            roomId: maya.roomId,
+            status: maya.status,
+          },
+        };
+        break;
+      }
     }
     drill.eventSequence += 1;
+    if (telemetry) this.recordTelemetry(drill, telemetry.actorId, telemetry.actorKind, telemetry.details);
     return ack(true, null);
   }
 }

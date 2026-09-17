@@ -2,7 +2,8 @@ export type CommandCode =
   | "VERIFY_EAST_ROUTE"
   | "SEND_WEST_ROUTE"
   | "MARK_EAST_UNSAFE"
-  | "APPLY_VENTILATION";
+  | "APPLY_VENTILATION"
+  | "PEER_ASSIST_MAYA";
 
 export interface CommandDef {
   code: CommandCode;
@@ -40,6 +41,13 @@ export const COMMANDS: CommandDef[] = [
     detail: "change the panel state for one bounded intervention",
     target: "ventilation panel",
     color: "#38bdf8",
+  },
+  {
+    code: "PEER_ASSIST_MAYA",
+    label: "Call for Maya assist",
+    detail: "ask the Navigator to reach Maya and acknowledge assistance",
+    target: "Maya",
+    color: "#a78bfa",
   },
 ];
 

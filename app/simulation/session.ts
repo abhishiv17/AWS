@@ -16,6 +16,7 @@ import {
   type RouteMessage,
   type WardenState,
 } from "./net/types";
+import type { TelemetryEvent } from "./net/telemetry";
 
 export { resolveRoom } from "./net/roles";
 
@@ -36,15 +37,18 @@ interface SessionState {
   startNow: () => Promise<boolean>;
   observeEvidence: (evidenceId: string) => void;
   sendCommand: (command: CommandCode, evidenceId?: string) => void;
+  acknowledgeRoute: (messageId: string) => void;
   publish: (state: EvacueeState) => void;
   onWardenState: (callback: (state: WardenState) => void) => () => void;
   onRouteMessage: (callback: (message: RouteMessage) => void) => () => void;
   onAcknowledgement: (callback: (acknowledgement: CommandAcknowledgement) => void) => () => void;
+  onTelemetry: (callback: (event: TelemetryEvent) => void) => () => void;
 }
 
 const wardenStateSubs = new Set<(state: WardenState) => void>();
 const routeMessageSubs = new Set<(message: RouteMessage) => void>();
 const acknowledgementSubs = new Set<(acknowledgement: CommandAcknowledgement) => void>();
+const telemetrySubs = new Set<(event: TelemetryEvent) => void>();
 let unsubscribe: (() => void) | null = null;
 
 const subscribe =
@@ -115,6 +119,9 @@ export const useSession = create<SessionState>()((set, get) => {
           case "command-ack":
             for (const callback of acknowledgementSubs) callback(event.acknowledgement);
             break;
+          case "telemetry":
+            for (const callback of telemetrySubs) callback(event.event);
+            break;
         }
       });
 
@@ -173,6 +180,7 @@ export const useSession = create<SessionState>()((set, get) => {
       wardenStateSubs.clear();
       routeMessageSubs.clear();
       acknowledgementSubs.clear();
+      telemetrySubs.clear();
       set({ net: null, status: "idle", code: null, myId: null, room: null, isHost: false, startError: null });
     },
 
@@ -193,10 +201,22 @@ export const useSession = create<SessionState>()((set, get) => {
       });
     },
 
+    acknowledgeRoute: (messageId) => {
+      const { net, room } = get();
+      if (!net || resolveRoom(room)?.phase !== "active" || myRole() !== "evacuee") return;
+      net.send({
+        type: "route-message-ack",
+        messageId,
+        clientSentAt: Date.now(),
+        idempotencyKey: newId(),
+      });
+    },
+
     publish: (state) => get().net?.send({ type: "evacuee-state", state }),
 
     onWardenState: subscribe(wardenStateSubs),
     onRouteMessage: subscribe(routeMessageSubs),
     onAcknowledgement: subscribe(acknowledgementSubs),
+    onTelemetry: subscribe(telemetrySubs),
   };
 });

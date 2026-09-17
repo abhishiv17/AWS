@@ -2,6 +2,7 @@
 
 import { runtime } from "./runtime";
 import { useSimulation } from "./store";
+import { useSession } from "./session";
 import { playSignal } from "./audio";
 import { scenarioReady } from "./level";
 
@@ -36,4 +37,21 @@ export function pressJump() {
   if (sim.briefingStatus !== "complete" || sim.paused || sim.air <= 0 || sim.failed || sim.assemblyConfirmed) return;
   runtime.jumpAt = performance.now();
   playSignal("jump");
+}
+
+/** `Q`: acknowledge the active route warning as the Navigator. */
+export function pressAcknowledgeRoute() {
+  const sim = useSimulation.getState();
+  const message = sim.latestMessage;
+  if (
+    sim.mode.kind !== "evacuee" ||
+    sim.paused ||
+    sim.failed ||
+    sim.assemblyConfirmed ||
+    !message ||
+    message.acknowledgedAt !== null ||
+    message.expiresAt <= Date.now()
+  ) return;
+  useSession.getState().acknowledgeRoute(message.messageId);
+  playSignal("command");
 }

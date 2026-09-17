@@ -24,6 +24,9 @@ import type {
   RouteMessage,
   WardenState,
 } from "./net/types";
+import type { SimulationSnapshot } from "./core/report";
+import type { TelemetryEvent } from "./net/telemetry";
+import { buildGuideProjection, type GuideProjection } from "./core/guide";
 
 export type ViewMode = "evacuee" | "warden" | "evidence";
 
@@ -98,6 +101,10 @@ export interface SimulationState {
   prompt: string | null;
   resetSeq: number;
   log: LogEntry[];
+  coreSnapshot: SimulationSnapshot | null;
+  guideProjection: GuideProjection | null;
+  telemetry: TelemetryEvent[];
+  telemetryCursor: number;
 
   setMode: (mode: SimulationMode) => void;
   beginBriefing: () => void;
@@ -120,6 +127,7 @@ export interface SimulationState {
   fail: (reason: string) => void;
   push: (text: string, tone?: LogEntry["tone"]) => void;
   reset: () => void;
+  setCoreSnapshot: (snapshot: SimulationSnapshot | null) => void;
   applyWardenState: (state: WardenState) => void;
 }
 
@@ -147,6 +155,10 @@ const initial = {
   failed: false,
   prompt: null as string | null,
   log: [] as LogEntry[],
+  coreSnapshot: null as SimulationSnapshot | null,
+  guideProjection: null as GuideProjection | null,
+  telemetry: [] as TelemetryEvent[],
+  telemetryCursor: 0,
 };
 
 export const useSimulation = create<SimulationState>()((set, get) => ({
@@ -227,6 +239,25 @@ export const useSimulation = create<SimulationState>()((set, get) => ({
 
   setPrompt: (prompt) => set((state) => (state.prompt === prompt ? state : { prompt })),
 
+  setCoreSnapshot: (snapshot) =>
+    set((state) => {
+      if (!snapshot) return { coreSnapshot: null };
+      const localHazard = snapshot.hazards[state.sector];
+      const eastRoute = snapshot.connectors["lobby-ecorr"];
+      const interventionApplied = state.interventionApplied || snapshot.incident.ventilationActive;
+      const routeBlocked = eastRoute?.status !== undefined
+        ? eastRoute.status !== "open"
+        : state.routeBlocked;
+      return {
+        coreSnapshot: snapshot,
+        hazardElapsed: snapshot.clock.elapsedSeconds,
+        smokeIntensity: localHazard?.density ?? state.smokeIntensity,
+        routeBlocked,
+        routeStatus: interventionApplied ? "intervened" : routeBlocked ? "unsafe" : "clear",
+        interventionApplied,
+      };
+    }),
+
   push: (text, tone = "info") =>
     set((state) => {
       if (state.log[0]?.text === text && state.log[0]?.tone === tone) return state;
@@ -248,11 +279,10 @@ export const useSimulation = create<SimulationState>()((set, get) => ({
     const nextIntensity = Math.max(0, Math.min(1, intensity));
     const safeDt = Math.max(0, Math.min(0.25, dt));
     const exposure = nextIntensity > SMOKE_EXPOSURE_THRESHOLD ? nextIntensity : 0;
-    const routeBlocked = isRouteBlocked(
-      BLOCKED_ROUTE.from,
-      BLOCKED_ROUTE.to,
-      elapsedSeconds,
-    );
+    const coreRoute = state.coreSnapshot?.connectors["lobby-ecorr"];
+    const routeBlocked = coreRoute
+      ? coreRoute.status !== "open"
+      : isRouteBlocked(BLOCKED_ROUTE.from, BLOCKED_ROUTE.to, elapsedSeconds);
     const airBefore = state.air;
     const healthBefore = state.health;
     const hazardBefore = state.smokeIntensity;
@@ -321,25 +351,49 @@ export const useSimulation = create<SimulationState>()((set, get) => ({
 
   applyWardenState: (state) => {
     const evidence = Object.fromEntries(state.evidence.map((item) => [item.id, item]));
-    set({
+    const coreSnapshot = state.coreSnapshot;
+    const coreHazard = coreSnapshot?.hazards[state.assignedSector];
+    const coreRoute = coreSnapshot?.connectors["lobby-ecorr"];
+    const interventionApplied = state.interventionApplied || !!coreSnapshot?.incident.ventilationActive;
+    const routeStatus = coreSnapshot
+      ? interventionApplied
+        ? "intervened"
+        : coreRoute?.status === "open"
+          ? "clear"
+          : "unsafe"
+      : state.routeStatus;
+    const accountability = coreSnapshot?.report.metrics.accountability;
+    set((current) => ({
       air: state.air,
       health: state.health,
       hasBackpack: state.hasBackpack,
       equipped: state.equipped,
       scenarioProgress: state.scenarioProgress,
-      smokeIntensity: state.smokeIntensity,
-      routeBlocked: state.routeStatus === "unsafe",
-      routeStatus: state.routeStatus,
+      smokeIntensity: coreHazard?.density ?? state.smokeIntensity,
+      hazardElapsed: coreSnapshot?.clock.elapsedSeconds ?? get().hazardElapsed,
+      routeBlocked: routeStatus === "unsafe",
+      routeStatus,
       sector: state.evacuee?.sectorId ?? get().sector,
-      interventionApplied: state.interventionApplied,
-      assemblyProgress: state.assemblyProgress,
+      interventionApplied,
+      assemblyProgress: accountability && accountability.total > 0
+        ? accountability.assembled / accountability.total
+        : state.assemblyProgress,
       assemblyConfirmed: state.assemblyConfirmed,
       failed: state.failed,
+      coreSnapshot: state.coreSnapshot,
+      guideProjection: coreSnapshot && state.evacuee
+        ? buildGuideProjection(coreSnapshot, state.evacuee)
+        : null,
       evidence,
       latestMessage: state.latestMessage,
       lastAcknowledgement: state.lastAcknowledgement,
       log: state.log,
-    });
+      telemetry: [
+        ...current.telemetry,
+        ...(state.telemetry?.events ?? []).filter((event) => event.sequence > current.telemetryCursor),
+      ].slice(-100),
+      telemetryCursor: Math.max(current.telemetryCursor, state.telemetry?.cursor ?? 0),
+    }));
   },
 }));
 

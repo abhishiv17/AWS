@@ -8,7 +8,7 @@ export const EVENTS_TABLE = "campusevac-events";
 /**
  * Realtime backbone: one AppSync Events API with two channel namespaces.
  *   /live/{code}/pos    runner transform ~10 Hz, broadcast only, never stored
- *   /game/{code}/{kind} lobby, pings, interventions, outcome; saved to DynamoDB
+ *   /game/{code}/{kind} lobby, commands, telemetry, and outcomes; saved to DynamoDB
  */
 export class CampusEvacStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {

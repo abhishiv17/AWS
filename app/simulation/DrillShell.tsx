@@ -4,6 +4,8 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import Minimap from "./components/Minimap";
+import EvidenceTelemetry from "./components/EvidenceTelemetry";
+import GuideTacticalPanel from "./components/GuideTacticalPanel";
 import TouchControls from "./components/TouchControls";
 import { useCoarsePointer } from "./useCoarsePointer";
 import { COMMANDS, commandByCode, type CommandCode } from "./commands";
@@ -30,6 +32,8 @@ import { runtime } from "./runtime";
 import { useSession } from "./session";
 import { useSimulation, watchedSector, VIEWS, type ViewMode } from "./store";
 import type { EvidenceStatus, RouteMessage } from "./net/types";
+import { calculateDrillScore, GRADE_COLORS, GRADE_LABELS, type DrillScore } from "./scoring";
+import type { SimulationReport } from "./core/report";
 
 const DrillCanvas = dynamic(() => import("./DrillCanvas"), {
   ssr: false,
@@ -182,11 +186,13 @@ function PromptBar() {
 }
 
 function ControlsHint() {
+  const mode = useSimulation((state) => state.mode);
   const items: [string, string][] = [
     ["WASD", "move"],
     ["Shift", "sprint"],
     ["Space", "jump"],
     ["E", "interact"],
+    ...(mode.kind === "evacuee" ? ([["Q", "acknowledge"]] as [string, string][]) : []),
     ["V", "camera"],
     ["Esc", "menu"],
   ];
@@ -228,7 +234,22 @@ function NarrationCaption() {
       }
       if (state.sector !== previous.sector && !previous.explored[state.sector]) {
         const line = ROOM_NARRATION[state.sector];
-        if (line) say(line);
+        if (line) {
+          say(line);
+          return;
+        }
+      }
+      if (state.routeStatus !== previous.routeStatus) {
+        const line = state.routeStatus === "unsafe"
+          ? "Route status changed: the east passage is unsafe. Check for verified guidance before crossing."
+          : state.routeStatus === "intervened"
+            ? "Intervention applied. Recheck the route evidence before moving through smoke."
+            : "Route status is clear in your current reading.";
+        say(line);
+        return;
+      }
+      if (previous.smokeIntensity <= 0.45 && state.smokeIntensity > 0.45) {
+        say("Smoke reading is now in the dangerous band. Move toward a clear route.");
       }
     });
     return () => {
@@ -354,6 +375,7 @@ function ConnectionBadge() {
 function RouteMessageCard() {
   const mode = useSimulation((state) => state.mode);
   const message = useSimulation((state) => state.latestMessage);
+  const acknowledgeRoute = useSession((state) => state.acknowledgeRoute);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 250);
@@ -364,7 +386,19 @@ function RouteMessageCard() {
     <div className="hud-rise max-w-[min(30rem,calc(100vw-1.5rem))] border-2 border-mint bg-night/95 px-4 py-3 shadow-[5px_5px_0_var(--mint)]" role="status" aria-live="polite">
       <div className="text-[10px] font-black uppercase tracking-[0.18em] text-mint">Message from the warden · {message.confidence}</div>
       <div className="mt-1 text-sm font-black uppercase text-paper">{message.caption}</div>
-      <div className="mt-0.5 text-[10px] text-paper/55">Disappears in {Math.ceil((message.expiresAt - now) / 1000)}s · you choose the route</div>
+      <div className="mt-0.5 text-[10px] text-paper/55">
+        {message.acknowledgedAt
+          ? "Acknowledged · you choose the route"
+          : `Disappears in ${Math.ceil((message.expiresAt - now) / 1000)}s · you choose the route`}
+      </div>
+      {!message.acknowledgedAt && (
+        <button
+          className="mt-2 border border-mint px-2 py-1 text-[10px] font-black uppercase tracking-wider text-mint hover:bg-mint hover:text-ink"
+          onClick={() => acknowledgeRoute(message.messageId)}
+        >
+          Acknowledge <Key light small>Q</Key>
+        </button>
+      )}
     </div>
   );
 }
@@ -414,8 +448,10 @@ function CommandDeck() {
   const interventionApplied = useSimulation((state) => state.interventionApplied);
   const scenarioProgress = useSimulation((state) => state.scenarioProgress);
   const lastAcknowledgement = useSimulation((state) => state.lastAcknowledgement);
+  const guideProjection = useSimulation((state) => state.guideProjection);
   const sendCommand = useSession((state) => state.sendCommand);
   const guidance = nextScenarioGuidance(scenarioProgress);
+  const maya = guideProjection?.occupants.find((occupant) => occupant.id === "maya");
   const [sent, setSent] = useState<CommandCode | null>(null);
   if (mode.kind !== "warden") return null;
   return (
@@ -429,6 +465,8 @@ function CommandDeck() {
           const disabled =
             command.code === "VERIFY_EAST_ROUTE"
               ? evidence?.status !== "OBSERVED"
+              : command.code === "PEER_ASSIST_MAYA"
+                ? !maya || maya.status === "assembled" || maya.status === "missing"
               : command.code === "SEND_WEST_ROUTE" || command.code === "MARK_EAST_UNSAFE"
                 ? evidence?.status !== "VERIFIED"
                 : interventionApplied || evidence?.status !== "VERIFIED";
@@ -437,7 +475,10 @@ function CommandDeck() {
               key={command.code}
               disabled={disabled}
               onClick={() => {
-                sendCommand(command.code, command.code === "APPLY_VENTILATION" ? undefined : "east-route-evidence");
+                const evidenceId = command.code === "APPLY_VENTILATION" || command.code === "PEER_ASSIST_MAYA"
+                  ? undefined
+                  : "east-route-evidence";
+                sendCommand(command.code, evidenceId);
                 setSent(command.code);
                 playSignal("command");
                 window.setTimeout(() => setSent((current) => (current === command.code ? null : current)), 900);
@@ -481,19 +522,124 @@ function formatTime(seconds: number) {
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
 }
 
+function ScoreBar({ label, value, max, color, delay }: { label: string; value: number; max: number; color: string; delay: number }) {
+  const [animated, setAnimated] = useState(0);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setAnimated(value), delay);
+    return () => window.clearTimeout(timer);
+  }, [value, delay]);
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-20 text-[10px] font-black uppercase tracking-wider text-ink-soft">{label}</span>
+      <div className="h-3 flex-1 border border-ink/30 bg-paper">
+        <div
+          className="h-full transition-[width] duration-700 ease-out"
+          style={{ width: `${(animated / max) * 100}%`, background: color }}
+        />
+      </div>
+      <span className="w-8 text-right font-mono text-[11px] font-black" style={{ color }}>{value}</span>
+    </div>
+  );
+}
+
+function StarRating({ count }: { count: number }) {
+  return (
+    <div className="flex gap-1">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <span key={n} className={`text-lg ${n <= count ? "text-sun" : "text-ink/20"}`}>
+          ★
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function AiDebrief({ score, completed, health, report }: {
+  score: DrillScore; completed: boolean; health: number;
+  report: SimulationReport | null;
+}) {
+  const [analysis, setAnalysis] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [provider, setProvider] = useState<"bedrock" | "authored">("authored");
+  const tried = useRef(false);
+
+  useEffect(() => {
+    if (!report || tried.current) return;
+    tried.current = true;
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const response = await fetch("/api/debrief", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ report }),
+          signal: controller.signal,
+        });
+        if (response.ok) {
+          const body = await response.json() as { analysis?: string; provider?: string };
+          if (body.analysis) {
+            setAnalysis(body.analysis);
+            setProvider(body.provider === "bedrock" ? "bedrock" : "authored");
+          }
+        }
+      } catch { /* fallback below */ }
+      setLoading(false);
+    })();
+    return () => controller.abort();
+  }, [report]);
+
+  // Authored fallback
+  const fallback = completed
+    ? score.total >= 80
+      ? "Excellent evacuation. You moved decisively and completed all objectives with resources to spare. In a real scenario, this level of preparation saves lives."
+      : score.total >= 50
+        ? "You made it out, but the margin was tight. Practice the route order to build speed — start with the backpack, then the lab objectives, then the east wing."
+        : "You escaped, but barely. Focus on the critical path: backpack first, then lab access card and gas valve before exploring further."
+    : health <= 0
+      ? "Health reached zero. Smoke exposure is cumulative — avoid lingering in corridors. Close the gas valve early to reduce spread."
+      : "Air ran out before you could exit. Move faster through smoky areas and prioritize the gas valve to limit exposure time.";
+
+  const text = analysis ?? fallback;
+  return (
+    <div className="mt-4 border-2 border-ink/20 bg-paper-light p-3">
+      <div className="flex items-center justify-between">
+        <span className="text-[9px] font-black uppercase tracking-[0.18em] text-violet">AI Analysis</span>
+        {provider === "bedrock" && <span className="text-[8px] font-bold uppercase tracking-wider text-ink-soft">Amazon Bedrock</span>}
+        {report && loading && <span className="text-[8px] font-bold uppercase tracking-wider text-ink-soft animate-pulse">Analysing...</span>}
+      </div>
+      <p className="mt-2 text-[13px] leading-relaxed text-ink-soft">{text}</p>
+    </div>
+  );
+}
+
 function EndCard({ onReset, onLeave, onHome }: { onReset: () => void; onLeave: () => void; onHome: () => void }) {
   const complete = useSimulation((state) => state.assemblyConfirmed);
   const failed = useSimulation((state) => state.failed);
   const solo = useSimulation((state) => state.mode.kind === "solo");
   const routeStatus = useSimulation((state) => state.routeStatus);
   const interventionApplied = useSimulation((state) => state.interventionApplied);
+  const coreReport = useSimulation((state) => state.coreSnapshot?.report ?? null);
   const latestMessage = useSimulation((state) => state.latestMessage);
   const progress = useSimulation((state) => state.scenarioProgress);
   const elapsed = useSimulation((state) => state.hazardElapsed);
   const health = useSimulation((state) => state.health);
+  const air = useSimulation((state) => state.air);
   const reset = useSimulation((state) => state.reset);
   if (!complete && !failed) return null;
+
   const done = CRITICAL_SCENARIO_OBJECTS.filter((id) => progress[id]).length;
+  const score = calculateDrillScore({
+    completed: !!complete,
+    failed: !!failed,
+    elapsedSeconds: elapsed,
+    health,
+    air,
+    scenarioProgress: progress,
+    interventionApplied,
+    routeMessageReceived: !!latestMessage,
+  });
+
+  const gradeColor = GRADE_COLORS[score.grade];
   const coordination = failed
     ? "The evacuee did not reach the exit before their air or health ran out."
     : latestMessage
@@ -512,25 +658,63 @@ function EndCard({ onReset, onLeave, onHome }: { onReset: () => void; onLeave: (
   return (
     <div className="pointer-events-auto absolute inset-0 z-50 grid place-items-center overflow-y-auto bg-night/75 p-4 backdrop-blur-sm">
       <section role="dialog" aria-modal="true" aria-labelledby="end-title" className="brutal-panel w-full max-w-lg p-5 text-ink sm:p-7">
-        <span className={`brutal-tag ${complete ? "bg-mint" : "bg-coral"}`}>{complete ? "Drill complete" : "Drill ended"}</span>
-        <h2 id="end-title" className="mt-3 text-4xl font-black uppercase leading-[0.95] tracking-[-0.05em]">
-          {complete ? "You got out safely." : "Not this time."}
-        </h2>
-        <dl className="mt-5 grid grid-cols-3 border-2 border-ink bg-paper">
-          {(
-            [
-              ["Time", formatTime(elapsed)],
-              ["Steps", `${done}/${CRITICAL_SCENARIO_OBJECTS.length}`],
-              ["Health", String(Math.round(health))],
-            ] as const
-          ).map(([label, value], index) => (
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <span className={`brutal-tag ${complete ? "bg-mint" : "bg-coral"}`}>{complete ? "Drill complete" : "Drill ended"}</span>
+            <h2 id="end-title" className="mt-3 text-4xl font-black uppercase leading-[0.95] tracking-[-0.05em]">
+              {complete ? "You got out safely." : "Not this time."}
+            </h2>
+          </div>
+          {/* Grade badge */}
+          <div className="flex flex-col items-center">
+            <div
+              className="grid h-16 w-16 place-items-center border-4 text-3xl font-black shadow-[3px_3px_0_var(--ink)]"
+              style={{ borderColor: gradeColor, color: gradeColor, background: "var(--paper)" }}
+            >
+              {score.grade}
+            </div>
+            <span className="mt-1 text-[9px] font-black uppercase tracking-widest" style={{ color: gradeColor }}>
+              {GRADE_LABELS[score.grade]}
+            </span>
+            <StarRating count={score.stars} />
+          </div>
+        </div>
+
+        {/* Stats row */}
+        <dl className="mt-5 grid grid-cols-4 border-2 border-ink bg-paper">
+          {([
+            ["Score", String(score.total), gradeColor],
+            ["Time", formatTime(elapsed), "var(--ink)"],
+            ["Steps", `${done}/${CRITICAL_SCENARIO_OBJECTS.length}`, "var(--ink)"],
+            ["Health", String(Math.round(health)), health < 35 ? "var(--danger)" : "var(--ink)"],
+          ] as const).map(([label, value, color], index) => (
             <div key={label} className={`p-3 ${index ? "border-l-2 border-ink" : ""}`}>
               <dt className="text-[9px] font-black uppercase tracking-[0.18em] text-ink-soft">{label}</dt>
-              <dd className="mt-1 font-mono text-2xl font-black">{value}</dd>
+              <dd className="mt-1 font-mono text-xl font-black" style={{ color }}>{value}</dd>
             </div>
           ))}
         </dl>
-        <div className="mt-5 space-y-3">
+
+        {/* Score breakdown */}
+        <div className="mt-4 space-y-1.5 border-2 border-ink/15 bg-paper p-3">
+          <div className="mb-2 text-[9px] font-black uppercase tracking-[0.18em] text-ink-soft">Score Breakdown</div>
+          <ScoreBar label="Survival" value={score.breakdown.survival} max={25} color="var(--mint)" delay={200} />
+          <ScoreBar label="Speed" value={score.breakdown.time} max={25} color="var(--sun)" delay={400} />
+          <ScoreBar label="Health" value={score.breakdown.health} max={20} color="var(--coral)" delay={600} />
+          <ScoreBar label="Air" value={score.breakdown.air} max={15} color="#6fb8ff" delay={800} />
+          <ScoreBar label="Objectives" value={score.breakdown.objectives} max={15} color="var(--violet)" delay={1000} />
+        </div>
+
+        {/* AI Debrief */}
+        <AiDebrief
+          score={score}
+          completed={!!complete}
+          health={health}
+          report={coreReport}
+        />
+
+        {/* Debrief questions */}
+        <div className="mt-4 space-y-3">
           {debrief.map(([question, answer, color]) => (
             <div key={question} className="border-l-4 pl-3" style={{ borderColor: color }}>
               <div className="text-[10px] font-black uppercase tracking-[0.16em]">{question}</div>
@@ -538,6 +722,7 @@ function EndCard({ onReset, onLeave, onHome }: { onReset: () => void; onLeave: (
             </div>
           ))}
         </div>
+
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
           {solo ? (
             <button
@@ -1089,7 +1274,9 @@ export default function DrillShell({ title }: { title?: string }) {
             Menu
           </button>
         </div>
-        <Minimap />
+         <Minimap />
+         {warden && <GuideTacticalPanel />}
+         {view !== "evacuee" && <EvidenceTelemetry />}
         {view !== "evacuee" && <EvidencePanel />}
         {view !== "evacuee" && <Log />}
       </div>

@@ -23,12 +23,21 @@ const SHORT: Partial<Record<RoomId, string>> = {
   annex: "SERVICE",
 };
 const EXIT = scenarioObjectById("main-exit").position;
+const ROUTES = [
+  { id: "main", label: "main", points: "0,8.7 0,0 0,17.5", color: "#ffc44d" },
+  { id: "west", label: "west", points: "0,0 -6.75,2.5 0,17.5", color: "#2fd18f" },
+  { id: "east", label: "east", points: "0,0 6.75,2.5 0,17.5", color: "#ff6a3d" },
+] as const;
 
 /** Lightweight floorplan layer; the 3D scene remains the only world view. */
 export default function Minimap() {
   const mode = useSimulation((state) => state.mode);
+  const view = useSimulation((state) => state.view);
   const sector = useSimulation((state) => state.sector);
   const progress = useSimulation((state) => state.scenarioProgress);
+  const smoke = useSimulation((state) => state.smokeIntensity);
+  const routeStatus = useSimulation((state) => state.routeStatus);
+  const latestMessage = useSimulation((state) => state.latestMessage);
   const assignedSector = mode.kind === "warden" ? mode.sectorId : null;
   const guidance = nextScenarioGuidance(progress);
   const objective =
@@ -50,7 +59,11 @@ export default function Minimap() {
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, []);
+  }, [mode]);
+
+  const hazardSector = assignedSector ?? sector;
+  const hazardBounds = roomById(hazardSector).bounds;
+  const hazardVisible = smoke > 0.2 && hazardSector !== "outside";
 
   return (
     <div className="hud-panel hud-panel-blue p-2.5">
@@ -62,9 +75,9 @@ export default function Minimap() {
         viewBox={`0 0 ${W} ${H}`}
         className="block h-[88px] w-[138px] overflow-visible sm:h-[128px] sm:w-[200px]"
         role="img"
-        aria-label="Floorplan with your position, the next objective and the exit"
-      >
-        <rect x={sx(-14)} y={sy(10.5)} width={28} height={8.5} fill="rgba(47,209,143,0.08)" stroke="rgba(248,242,234,0.15)" strokeWidth={0.2} />
+         aria-label="Floorplan with current position, hazard reading, route state and exit"
+       >
+         <rect x={sx(-14)} y={sy(10.5)} width={28} height={8.5} fill="rgba(47,209,143,0.08)" stroke="rgba(248,242,234,0.15)" strokeWidth={0.2} />
         {PLAN.map((id) => {
           const bounds = ROOMS.find((item) => item.id === id)!.bounds;
           const current = sector === id;
@@ -94,9 +107,40 @@ export default function Minimap() {
                   {SHORT[id]}
                 </text>
               )}
-            </g>
+           </g>
+         );
+         })}
+        {ROUTES.map((route) => {
+          const blocked = route.id === "east" && routeStatus === "unsafe";
+          const recommended = latestMessage?.direction === route.id;
+          return (
+            <polyline
+              key={route.id}
+              points={route.points.split(" ").map((point) => {
+                const [x, z] = point.split(",").map(Number);
+                return `${sx(x)},${sy(z)}`;
+              }).join(" ")}
+              fill="none"
+              stroke={blocked ? "#ef4444" : recommended ? "#39ff88" : route.color}
+              strokeWidth={recommended || blocked ? 0.65 : 0.3}
+              strokeDasharray={blocked ? "1.2 0.7" : "0.9 0.6"}
+              opacity={blocked ? 0.95 : recommended ? 1 : 0.35}
+            />
           );
         })}
+        {hazardVisible && (
+          <rect
+            x={sx(hazardBounds.minX)}
+            y={sy(hazardBounds.minZ)}
+            width={hazardBounds.maxX - hazardBounds.minX}
+            height={hazardBounds.maxZ - hazardBounds.minZ}
+            fill="#ef4444"
+            fillOpacity={Math.min(0.55, 0.1 + smoke * 0.45)}
+            stroke="#ef4444"
+            strokeWidth={0.35}
+            strokeDasharray="0.8 0.5"
+          />
+        )}
         <circle cx={sx(0)} cy={sy(ASSEMBLY_Z + 2)} r={1.8} fill="none" stroke="#2fd18f" strokeWidth={0.3} strokeDasharray="0.7 0.5" />
         <rect x={sx(EXIT[0]) - 1.1} y={sy(EXIT[2]) - 1.1} width={2.2} height={2.2} fill="#2fd18f" stroke="#16111e" strokeWidth={0.3} />
         {objective && (
@@ -106,7 +150,7 @@ export default function Minimap() {
           </g>
         )}
         <g ref={you} transform={`translate(${sx(0)} ${sy(9)})`}>
-          <path d="M0 1.9 L1.25 -1.1 L0 -0.45 L-1.25 -1.1 Z" fill="#ffc44d" stroke="#16111e" strokeWidth={0.3} />
+          <path d="M0 1.9 L1.25 -1.1 L0 -0.45 L-1.25 -1.1 Z" fill={view === "evidence" ? "#39ff88" : "#ffc44d"} stroke="#16111e" strokeWidth={0.3} />
         </g>
       </svg>
       <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[9px] font-bold uppercase tracking-wider text-paper/65">
@@ -122,7 +166,17 @@ export default function Minimap() {
           <i className="inline-block h-2 w-2 bg-mint" />
           Exit
         </span>
+        <span className="flex items-center gap-1">
+          <i className="inline-block h-2 w-2 border border-coral bg-coral/40" />
+          Hazard
+        </span>
         {assignedSector && <span className="text-mint">Your sector</span>}
+      </div>
+      <div className="mt-1 flex items-center justify-between gap-2 text-[9px] font-mono uppercase tracking-wider">
+        <span style={{ color: routeStatus === "unsafe" ? "var(--coral)" : routeStatus === "intervened" ? "var(--mint)" : "var(--sun)" }}>
+          route / {routeStatus}
+        </span>
+        <span className="text-paper/45">smoke / {Math.round(smoke * 100)}%</span>
       </div>
     </div>
   );

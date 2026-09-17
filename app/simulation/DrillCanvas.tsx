@@ -24,6 +24,7 @@ const MAP = [
   { name: "sprint", keys: ["ShiftLeft", "ShiftRight"] },
   { name: "use", keys: ["KeyE"] },
   { name: "jump", keys: ["Space"] },
+  { name: "acknowledge", keys: ["KeyQ"] },
   { name: "camera", keys: ["KeyV"] },
 ];
 

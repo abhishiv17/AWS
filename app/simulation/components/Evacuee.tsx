@@ -6,7 +6,7 @@ import { useKeyboardControls } from "@react-three/drei";
 import { CapsuleCollider, RigidBody, useRapier, type RapierRigidBody } from "@react-three/rapier";
 import * as THREE from "three";
 import { EVACUEE_SPAWN, ROOM_H, roomAt } from "../level";
-import { pressJump, pressUse } from "../controls";
+import { pressAcknowledgeRoute, pressJump, pressUse } from "../controls";
 import { clampDt, runtime } from "../runtime";
 import { useSimulation, useIsSimulationOwner } from "../store";
 import { Label, NeonBox } from "./Markers";
@@ -20,6 +20,7 @@ type Controls =
   | "sprint"
   | "use"
   | "jump"
+  | "acknowledge"
   | "camera";
 
 const WALK = 3.6;
@@ -104,6 +105,15 @@ function LocalEvacuee() {
       sub(
         (state) => state.jump,
         (pressed) => pressed && pressJump(),
+      ),
+    [sub],
+  );
+
+  useEffect(
+    () =>
+      sub(
+        (state) => state.acknowledge,
+        (pressed) => pressed && pressAcknowledgeRoute(),
       ),
     [sub],
   );

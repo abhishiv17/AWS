@@ -10,7 +10,19 @@ import {
   roomAt,
   type MarkerDef,
 } from "../level";
-import { getSectorSmoke, VENTILATION_SMOKE_FACTOR } from "../smoke";
+import {
+  DEFAULT_TICK_DURATION_SECONDS,
+  appendSimulationEvent,
+  buildSimulationSnapshot,
+  createInitialSimulationState,
+  createLiveScenario,
+  setVentilationActive,
+  startSimulation,
+  stepSimulation,
+  type ScenarioDefinition,
+  type SimulationState as CoreSimulationState,
+} from "../core";
+import type { TelemetryEvent } from "../net/telemetry";
 import { clampDt, runtime } from "../runtime";
 import { useSession } from "../session";
 import { useSimulation } from "../store";
@@ -27,16 +39,108 @@ const flatDistance = (a: THREE.Vector3, b: THREE.Vector3) =>
 /** Local fallback simulation for movement, bounded smoke, and physical prompts. */
 export default function Systems() {
   const accumulator = useRef(0);
-  const hazardAccumulator = useRef(0);
+  const coreAccumulator = useRef(0);
+  const coreState = useRef<CoreSimulationState | null>(null);
+  const scenario = useRef<ScenarioDefinition | null>(null);
+  const interventionState = useRef(false);
   const resetSeq = useSimulation((state) => state.resetSeq);
+  const onTelemetry = useSession((state) => state.onTelemetry);
 
   useEffect(() => {
-    hazardAccumulator.current = 0;
+    coreAccumulator.current = 0;
+    accumulator.current = 0;
+    const room = useSession.getState().room;
+    const nextScenario = createLiveScenario(room?.seed ?? 18421);
+    const initial = createInitialSimulationState(
+      nextScenario,
+      `${room?.drillId ?? "solo"}:${resetSeq}`,
+    );
+    scenario.current = nextScenario;
+    coreState.current = initial;
+    interventionState.current = false;
+    useSimulation.getState().setCoreSnapshot(buildSimulationSnapshot(initial, nextScenario));
     runtime.alert = 0;
     runtime.drillStartedAt = 0;
     runtime.hazardElapsed = 0;
     runtime.useTarget = null;
   }, [resetSeq]);
+
+  useEffect(() => {
+    return onTelemetry((event: TelemetryEvent) => {
+      const current = coreState.current;
+      const currentScenario = scenario.current;
+      const currentDrillId = current?.runId.split(":")[0];
+      if (!current || !currentScenario || (event.runId !== current.runId && event.runId !== currentDrillId)) return;
+
+      let next = current;
+      if (event.type === "GUIDE_WARNING_SENT") {
+        next = appendSimulationEvent(
+          current,
+          "warden",
+          {
+            type: "message_sent",
+            payload: {
+              messageId: event.messageId,
+              direction: event.direction,
+              confidence: event.confidence,
+            },
+          },
+          { actorId: event.actorId, actorKind: "warden", roomId: event.targetSector },
+        );
+      } else if (event.type === "GUIDE_WARNING_ACKNOWLEDGED") {
+        next = appendSimulationEvent(
+          current,
+          "evacuee",
+          {
+            type: "message_acknowledged",
+            payload: { messageId: event.messageId, acknowledged: true },
+          },
+          { actorId: event.actorId, actorKind: "player" },
+        );
+      } else if (event.type === "MAYA_ASSISTANCE_REQUESTED") {
+        next = appendSimulationEvent(
+          current,
+          "warden",
+          {
+            type: "message_sent",
+            payload: {
+              messageId: event.messageId,
+              direction: "assistance",
+              confidence: "verified",
+            },
+          },
+          { actorId: event.actorId, actorKind: "warden", roomId: event.roomId },
+        );
+      } else if (event.type === "MAYA_ASSISTANCE_ACKNOWLEDGED") {
+        next = appendSimulationEvent(
+          current,
+          "evacuee",
+          {
+            type: "message_acknowledged",
+            payload: { messageId: event.messageId, acknowledged: true },
+          },
+          { actorId: event.actorId, actorKind: "player" },
+        );
+        next = appendSimulationEvent(
+          next,
+          "evacuee",
+          {
+            type: "peer_assistance_requested",
+            payload: {
+              occupantId: event.occupantId,
+              messageId: event.messageId,
+              reason: "Navigator acknowledged the Guide request to assist Maya",
+            },
+          },
+          { actorId: event.actorId, actorKind: "player" },
+        );
+      }
+
+      if (next === current) return;
+      coreState.current = next;
+      useSimulation.getState().setCoreSnapshot(buildSimulationSnapshot(next, currentScenario));
+    });
+  }, [onTelemetry]);
 
   useFrame((_, rawDt) => {
     const dt = clampDt(rawDt);
@@ -58,21 +162,41 @@ export default function Systems() {
 
     const room = useSession.getState().room;
     if (room && room.phase !== "active") return;
-    if (runtime.drillStartedAt <= 0) runtime.drillStartedAt = Date.now();
-    const elapsed = Math.max(0, (Date.now() - runtime.drillStartedAt) / 1000);
-    runtime.hazardElapsed = elapsed;
     runtime.sector = roomAt(runtime.evacuee.x, runtime.evacuee.z);
 
-    const intensity =
-      getSectorSmoke(runtime.sector, elapsed) *
-      (sim.interventionApplied ? VENTILATION_SMOKE_FACTOR : 1);
-    runtime.alert = intensity * 100;
-    hazardAccumulator.current += dt;
-    if (hazardAccumulator.current >= 0.08) {
-      const tickDt = hazardAccumulator.current;
-      hazardAccumulator.current = 0;
-      sim.applySmokeExposure(elapsed, intensity, tickDt);
+    const currentScenario = scenario.current;
+    let currentCore = coreState.current;
+    if (!currentScenario || !currentCore) return;
+
+    if (currentCore.phase === "idle") {
+      currentCore = startSimulation(currentCore);
+      coreState.current = currentCore;
     }
+
+    if (sim.interventionApplied !== interventionState.current) {
+      currentCore = setVentilationActive(currentCore, sim.interventionApplied);
+      interventionState.current = sim.interventionApplied;
+    }
+
+    if (currentCore.phase === "running") {
+      coreAccumulator.current += dt;
+      const tickDuration = currentCore.clock.tickDurationSeconds || DEFAULT_TICK_DURATION_SECONDS;
+      let ticks = 0;
+      while (coreAccumulator.current >= tickDuration && ticks < 5 && currentCore.phase === "running") {
+        currentCore = stepSimulation(currentCore, currentScenario);
+        coreAccumulator.current -= tickDuration;
+        ticks += 1;
+      }
+      coreState.current = currentCore;
+      useSimulation.getState().setCoreSnapshot(buildSimulationSnapshot(currentCore, currentScenario));
+    }
+
+    const hazard = currentCore.hazards[runtime.sector];
+    const elapsed = currentCore.clock.elapsedSeconds;
+    const intensity = hazard?.density ?? 0;
+    runtime.hazardElapsed = elapsed;
+    runtime.alert = intensity * 100;
+    sim.applySmokeExposure(elapsed, intensity, dt);
 
     let useTarget: typeof runtime.useTarget = null;
     const scenarioTarget = SCENARIO_OBJECTS

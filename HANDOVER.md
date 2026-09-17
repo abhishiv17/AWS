@@ -4,6 +4,12 @@ This document serves as the project status, architecture breakdown, and implemen
 
 > **Note**: Do not copy this into `README.md`. Keep this as the dedicated team handover reference.
 
+> **Model migration note**: The expanded 12-room model described below was introduced in commit
+> `8e35c36` and is retained as historical code under `app/simulation/nav`, `hazard`, and `maya`.
+> Later feature-branch commits intentionally replaced the active renderer and room IDs with the
+> compact authored block in `app/simulation/level.ts`. The active application and deterministic
+> core use the compact model; the historical modules are not imported by the active app.
+
 ---
 
 ## Executive Summary
@@ -31,7 +37,10 @@ The next step is to make the second human player—the **Guide / Overwatch**—a
 
 ---
 
-## Completed Phases
+## Historical Expanded Model (Superseded)
+
+The following phases describe the expanded model from commit `8e35c36`. They are retained for
+reference and are not the active simulation contract.
 
 ### Phase 1 — Map Foundation & Two-Exit Geometry ✓
 - Level 2 Science & Engineering Building architecture.
@@ -86,16 +95,21 @@ The next step is to make the second human player—the **Guide / Overwatch**—a
 
 ## Current Test Suite & Verification
 
-All **20 cumulative tests** are passing cleanly:
+The default test command covers the active compact deterministic core:
 
 ```bash
 npm test
 ```
 
 Suite breakdown:
-1. `tests/navGraph.test.ts` (6 tests) — Connectivity, $A^*$, nearest node, smoke penalty, rerouting.
-2. `tests/hazardEngine.test.ts` (7 tests) — Ignition, differential flow, 4-stage transitions, automatic reroute, air drain, ventilation mitigation, snapshot export.
-3. `tests/mayaSystem.test.ts` (7 tests) — Spawn, state transitions, nav graph steering, hazard refusal, distress slowdown, abandonment logging, safe muster arrival.
+1. `tests/simulationCore.test.ts` — Compact world validation, deterministic clock/RNG, event schema, and lifecycle.
+2. `tests/simulationLoop.test.ts` — Smoke propagation, rerouting, behavior delay, congestion, accountability, accessibility, and injury evidence.
+3. `tests/overwatchTelemetry.test.ts` — Authority ordering, route-message acknowledgement idempotency, telemetry envelopes, cursor deltas, and one-shot intervention events.
+4. `tests/guideProjection.test.ts` — Compact all-room/connector tactical projection, occupant visibility, and dynamic safest-exit recommendations.
+
+The historical expanded tests remain available through `npm run test:legacy`. They currently fail
+against the compact model because their expanded room IDs and APIs were intentionally superseded;
+they are retained for migration reference rather than silently included in the active gate.
 
 ### Quality Checks
 ```bash
@@ -120,7 +134,16 @@ Make the second human player capable of materially improving or worsening the Na
    - **Communicate**: Dispatch tactical directives (`ROUTE_DIVERT_WEST`, `PEER_ASSIST_MAYA`, `ROUTE_CLEAR_CONFIRMED`, `HALT_HAZARD_AHEAD`). Navigator acknowledges with `[Q]`.
    - **Intervene**: Trigger HVAC ventilation override to purge smoke corridors, preserving egress paths.
 3. **Telemetry Event Stream**:
-   - Structured logging of drill events: `ALARM_RECEIVED`, `MAYA_DISCOVERED`, `MAYA_ASSISTED`, `MAYA_ABANDONED`, `GUIDE_WARNING_SENT`, `GUIDE_WARNING_ACKNOWLEDGED`, `ROUTE_CHANGED`, `ENTERED_DANGEROUS_ZONE`, `EXIT_REACHED`, `MUSTER_REACHED`, `VENTILATION_ACTIVATED`.
+    - Structured logging of drill events: `ALARM_RECEIVED`, `MAYA_DISCOVERED`, `MAYA_ASSISTED`, `MAYA_ABANDONED`, `GUIDE_WARNING_SENT`, `GUIDE_WARNING_ACKNOWLEDGED`, `ROUTE_CHANGED`, `ENTERED_DANGEROUS_ZONE`, `EXIT_REACHED`, `MUSTER_REACHED`, `VENTILATION_ACTIVATED`.
+
+### Phase 5 Implemented Slice
+- The active compact model now has an authority-owned route-warning acknowledgement path. The Navigator can press `Q` or use the message card to acknowledge the exact `RouteMessage.messageId` once before expiry.
+- The authority emits typed telemetry with monotonic sequence/tick metadata for `GUIDE_WARNING_SENT`, `GUIDE_WARNING_ACKNOWLEDGED`, and `VENTILATION_ACTIVATED`.
+- Telemetry is persisted through `/game/{code}/room` and delivered to wardens as cursor-based deltas rather than a full event log.
+- Core `message_sent` and `message_acknowledged` events are appended from authority telemetry, not inferred from render-loop state changes.
+- The compact tactical projection is now implemented and tested. A larger tactical camera treatment remains separate follow-up work.
+- `PEER_ASSIST_MAYA` is now Navigator-mediated: the Guide sends a targeted assistance request, the Navigator acknowledges with `Q`, and the core records `peer_assistance_requested` without forcing Maya's autonomous state.
+- Remaining Phase 5 work is richer tactical camera treatment and reconnect recovery.
 
 ### Phase 6 — Scoring & After-Action Review (AAR)
 Transform the simulation into an evaluative training platform:
