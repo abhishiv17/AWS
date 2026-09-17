@@ -34,6 +34,7 @@ import { useSimulation, watchedSector, VIEWS, type ViewMode } from "./store";
 import type { EvidenceStatus, RouteMessage } from "./net/types";
 import { calculateDrillScore, GRADE_COLORS, GRADE_LABELS, type DrillScore } from "./scoring";
 import type { SimulationReport } from "./core/report";
+import { buildAfterActionReview, type AfterActionReview } from "./core";
 
 const DrillCanvas = dynamic(() => import("./DrillCanvas"), {
   ssr: false,
@@ -554,6 +555,68 @@ function StarRating({ count }: { count: number }) {
   );
 }
 
+function MeasuredAAR({ review }: { review: AfterActionReview }) {
+  const coreOutcome = review.outcome === "completed"
+    ? "completed"
+    : review.outcome === "failed"
+      ? "failed"
+      : "in progress";
+  const accountability = review.accountability.rate === null
+    ? "n/a"
+    : `${Math.round(review.accountability.rate * 100)}%`;
+  const averageEvacuation = review.timing.averageEvacuationTimeSeconds === null
+    ? "n/a"
+    : formatTime(review.timing.averageEvacuationTimeSeconds);
+  const peakDensity = review.exposure.peakDensity === null
+    ? "n/a"
+    : `${Math.round(review.exposure.peakDensity * 100)}%`;
+  const metrics = [
+    ["Accountability", `${review.accountability.assembled}/${review.accountability.total}`, accountability],
+    ["Avg evacuation", averageEvacuation, "recorded occupants"],
+    ["Route changes", String(review.coordination.routeChanges), "core events"],
+    ["Peak exposure", peakDensity, "highest density"],
+  ] as const;
+  return (
+    <div className="mt-4 border-2 border-ink bg-paper p-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-[9px] font-black uppercase tracking-[0.18em] text-violet">Measured AAR</span>
+        <span className="font-mono text-[9px] font-bold uppercase tracking-wider text-ink-soft">core / {coreOutcome}</span>
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {metrics.map(([label, value, detail]) => (
+          <div key={label} className="border border-ink/15 bg-paper-light p-2">
+            <div className="text-[8px] font-black uppercase tracking-wider text-ink-soft">{label}</div>
+            <div className="mt-1 font-mono text-lg font-black text-ink">{value}</div>
+            <div className="text-[8px] uppercase tracking-wider text-ink-soft">{detail}</div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-[9px] uppercase tracking-wider text-ink-soft sm:grid-cols-4">
+        <span>Assistance / {review.coordination.assistanceRequests}</span>
+        <span>Injuries / {review.coordination.injuryTransitions}</span>
+        <span>Blocked / {review.coordination.blockedConnectorChanges}</span>
+        <span>Missing / {review.accountability.missing}</span>
+      </div>
+      {review.findings.priority.length > 0 && (
+        <div className="mt-3 border-t border-ink/15 pt-2">
+          <div className="text-[8px] font-black uppercase tracking-[0.18em] text-ink-soft">
+            Evidence / {review.findings.warnings} warnings · {review.findings.info} observations
+          </div>
+          <div className="mt-1 space-y-1">
+            {review.findings.priority.map((finding) => (
+              <div key={finding.id} className="text-[10px] leading-snug text-ink-soft">
+                <span className={finding.severity === "warning" ? "font-black text-coral" : "font-black text-violet"}>
+                  {finding.severity === "warning" ? "WARN" : "NOTE"}
+                </span>{" "}{finding.statement}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AiDebrief({ score, completed, health, report }: {
   score: DrillScore; completed: boolean; health: number;
   report: SimulationReport | null;
@@ -638,6 +701,7 @@ function EndCard({ onReset, onLeave, onHome }: { onReset: () => void; onLeave: (
     interventionApplied,
     routeMessageReceived: !!latestMessage,
   });
+  const measuredAAR = coreReport ? buildAfterActionReview(coreReport) : null;
 
   const gradeColor = GRADE_COLORS[score.grade];
   const coordination = failed
@@ -704,6 +768,8 @@ function EndCard({ onReset, onLeave, onHome }: { onReset: () => void; onLeave: (
           <ScoreBar label="Air" value={score.breakdown.air} max={15} color="#6fb8ff" delay={800} />
           <ScoreBar label="Objectives" value={score.breakdown.objectives} max={15} color="var(--violet)" delay={1000} />
         </div>
+
+        {measuredAAR && <MeasuredAAR review={measuredAAR} />}
 
         {/* AI Debrief */}
         <AiDebrief

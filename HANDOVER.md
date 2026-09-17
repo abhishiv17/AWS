@@ -24,7 +24,7 @@ PHASE 4  ── Maya / vulnerable peer         ✓ COMPLETED
                     │
                     ▼
 PHASE 5  ── Guide / Overwatch              ✓ IMPLEMENTED SLICE
-PHASE 6  ── Scoring & AAR
+PHASE 6  ── Scoring & AAR                  ✓ FIRST SLICE
 PHASE 7  ── Scenario Engine
 PHASE 8  ── Multiplayer Hardening
 PHASE 9  ── Multi-floor / Campus
@@ -33,7 +33,7 @@ PHASE 10 ── Instructor Training Platform
 
 The core simulation engine is now fully functional and verified: **physical world → navigation graph → dynamic hazard engine → human/NPC evacuation behavior**.
 
-The next step is to make the second human player—the **Guide / Overwatch**—an active, gameplay-critical participant who can materially improve or worsen the Navigator's evacuation outcome.
+The Guide / Overwatch is now an active, gameplay-critical participant, and the first measured scoring/AAR slice is in place.
 
 ---
 
@@ -106,6 +106,7 @@ Suite breakdown:
 2. `tests/simulationLoop.test.ts` — Smoke propagation, rerouting, behavior delay, congestion, accountability, accessibility, and injury evidence.
 3. `tests/overwatchTelemetry.test.ts` — Authority ordering, route-message acknowledgement idempotency, telemetry envelopes, cursor deltas, reconnect replay, and one-shot intervention events.
 4. `tests/guideProjection.test.ts` — Compact all-room/connector tactical projection, occupant visibility, and dynamic safest-exit recommendations.
+5. `tests/afterActionReview.test.ts` — Report-backed accountability, timing, coordination, exposure, finding priority, and unavailable-measurement behavior.
 
 The historical expanded tests remain available through `npm run test:legacy`. They currently fail
 against the compact model because their expanded room IDs and APIs were intentionally superseded;
@@ -146,9 +147,9 @@ Make the second human player capable of materially improving or worsening the Na
 - The compact tactical projection and full-block tactical camera treatment are implemented and tested.
 - `PEER_ASSIST_MAYA` is now Navigator-mediated: the Guide sends a targeted assistance request, the Navigator acknowledges with `Q`, and the core records `peer_assistance_requested` without forcing Maya's autonomous state.
 - `npm run test:appsync` provides a two-client WebSocket smoke test for connections, subscriptions, room publishing, and cursor publishing. `CampusEvacStack` is deployed at `UPDATE_COMPLETE`, and all four checks pass against the updated handler, including `telemetry-cursor`.
-- Remaining validation is the full application-level cursor/reconnect run; broader room lifecycle and interpolation hardening remain in Phase 8.
+- `npm run test:appsync:reconnect` exercises lobby admission, deterministic roles, authority telemetry, forced Warden socket loss, resubscription, cursor handshake, and exact missed-event replay. Broader room lifecycle and interpolation hardening remain in Phase 8.
 
-### Phase 6 — Scoring & After-Action Review (AAR)
+### Phase 6 — Scoring & After-Action Review (AAR) (First Implemented Slice)
 Transform the simulation into an evaluative training platform:
 - Calculate evacuation time ($t_{\text{muster}} - t_{\text{alarm}}$).
 - Route efficiency score ($D_{\text{optimal\_safe}} / D_{\text{actual}}$).
@@ -156,6 +157,12 @@ Transform the simulation into an evaluative training platform:
 - Assistance scoring: Maya saved ($+300$), Maya abandoned ($-500$), Maya distressed ($-100$).
 - Visual replay: side-by-side overlay of actual path taken vs optimal hazard-free path.
 - Post-drill performance report card with exportable training metrics.
+
+### Phase 6 Implemented Slice
+- `buildAfterActionReview()` derives a measured AAR view model from the authoritative `SimulationReport`: accountability rate, missing occupants, evacuation timing, coordination signals, exposure bounds, and prioritized findings.
+- The end card now shows the measured AAR alongside the existing local gameplay score. The existing score remains a Navigator-facing experience score until human path and coordination scoring are fully recorded.
+- Local drill completion/failure finalizes the compact core report with a terminal event and phase, so the AAR does not remain marked as running after the drill ends.
+- Remaining Phase 6 work is path sampling/route efficiency, explicit coordination scoring, Maya outcome scoring, replay, export, and durable final-report storage.
 
 ### Phase 7 — Scenario & Drill Engine
 Transition from a single fixed fire drill into a configurable drill engine:

@@ -44,6 +44,7 @@ export default function Systems() {
   const scenario = useRef<ScenarioDefinition | null>(null);
   const interventionState = useRef(false);
   const resetSeq = useSimulation((state) => state.resetSeq);
+  const terminal = useSimulation((state) => state.assemblyConfirmed || state.failed);
   const onTelemetry = useSession((state) => state.onTelemetry);
 
   useEffect(() => {
@@ -141,6 +142,25 @@ export default function Systems() {
       useSimulation.getState().setCoreSnapshot(buildSimulationSnapshot(next, currentScenario));
     });
   }, [onTelemetry]);
+
+  useEffect(() => {
+    if (!terminal) return;
+    const current = coreState.current;
+    const currentScenario = scenario.current;
+    if (!current || !currentScenario || current.phase !== "running") return;
+    const completed = useSimulation.getState().assemblyConfirmed;
+    const next = appendSimulationEvent(
+      current,
+      "evacuee",
+      completed
+        ? { type: "run_completed", payload: { reason: "Navigator reached the assembly zone" } }
+        : { type: "run_failed", payload: { reason: "Navigator drill ended before assembly" } },
+      { actorKind: "player" },
+    );
+    const finalized = { ...next, phase: completed ? ("completed" as const) : ("failed" as const) };
+    coreState.current = finalized;
+    useSimulation.getState().setCoreSnapshot(buildSimulationSnapshot(finalized, currentScenario));
+  }, [terminal]);
 
   useFrame((_, rawDt) => {
     const dt = clampDt(rawDt);
