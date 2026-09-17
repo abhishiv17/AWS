@@ -23,7 +23,7 @@ PHASE 3  ── Fire & smoke                   ✓ COMPLETED
 PHASE 4  ── Maya / vulnerable peer         ✓ COMPLETED
                     │
                     ▼
-PHASE 5  ── Guide / Overwatch              ← NEXT MILESTONE
+PHASE 5  ── Guide / Overwatch              ✓ IMPLEMENTED SLICE
 PHASE 6  ── Scoring & AAR
 PHASE 7  ── Scenario Engine
 PHASE 8  ── Multiplayer Hardening
@@ -104,7 +104,7 @@ npm test
 Suite breakdown:
 1. `tests/simulationCore.test.ts` — Compact world validation, deterministic clock/RNG, event schema, and lifecycle.
 2. `tests/simulationLoop.test.ts` — Smoke propagation, rerouting, behavior delay, congestion, accountability, accessibility, and injury evidence.
-3. `tests/overwatchTelemetry.test.ts` — Authority ordering, route-message acknowledgement idempotency, telemetry envelopes, cursor deltas, and one-shot intervention events.
+3. `tests/overwatchTelemetry.test.ts` — Authority ordering, route-message acknowledgement idempotency, telemetry envelopes, cursor deltas, reconnect replay, and one-shot intervention events.
 4. `tests/guideProjection.test.ts` — Compact all-room/connector tactical projection, occupant visibility, and dynamic safest-exit recommendations.
 
 The historical expanded tests remain available through `npm run test:legacy`. They currently fail
@@ -122,7 +122,7 @@ npm run build       # successful production bundle
 
 ## Remaining Phases (Roadmap for Next Sprints)
 
-### Phase 5 — Guide / Overwatch (Next Immediate Milestone)
+### Phase 5 — Guide / Overwatch (Implemented Slice)
 Make the second human player capable of materially improving or worsening the Navigator's evacuation outcome through asymmetric information.
 
 1. **Asymmetric Information Boundaries**:
@@ -140,10 +140,12 @@ Make the second human player capable of materially improving or worsening the Na
 - The active compact model now has an authority-owned route-warning acknowledgement path. The Navigator can press `Q` or use the message card to acknowledge the exact `RouteMessage.messageId` once before expiry.
 - The authority emits typed telemetry with monotonic sequence/tick metadata for `GUIDE_WARNING_SENT`, `GUIDE_WARNING_ACKNOWLEDGED`, and `VENTILATION_ACTIVATED`.
 - Telemetry is persisted through `/game/{code}/room` and delivered to wardens as cursor-based deltas rather than a full event log.
+- The Warden camera now frames the full compact block with a responsive overview fit and deliberate orbit/pan controls instead of following one sector.
+- AppSync reconnects restore subscriptions and trigger a Warden cursor handshake; the evacuee authority replays only the missed telemetry delta. Cursor messages are validated by the namespace handler.
 - Core `message_sent` and `message_acknowledged` events are appended from authority telemetry, not inferred from render-loop state changes.
-- The compact tactical projection is now implemented and tested. A larger tactical camera treatment remains separate follow-up work.
+- The compact tactical projection and full-block tactical camera treatment are implemented and tested.
 - `PEER_ASSIST_MAYA` is now Navigator-mediated: the Guide sends a targeted assistance request, the Navigator acknowledges with `Q`, and the core records `peer_assistance_requested` without forcing Maya's autonomous state.
-- Remaining Phase 5 work is richer tactical camera treatment and reconnect recovery.
+- Remaining validation is a real two-browser AppSync run; broader room lifecycle and interpolation hardening remain in Phase 8.
 
 ### Phase 6 — Scoring & After-Action Review (AAR)
 Transform the simulation into an evaluative training platform:

@@ -4,63 +4,11 @@ import { useEffect, useMemo, useRef, useState, type ComponentRef } from "react";
 import { ContactShadows, Environment, Lightformer, OrbitControls, PerspectiveCamera } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { roomById, SUN_DIRECTION, type RoomDef } from "../level";
+import { roomById, SUN_DIRECTION } from "../level";
 import { getSectorSmoke, VENTILATION_SMOKE_FACTOR } from "../smoke";
 import { clampDt, runtime } from "../runtime";
 import { useSimulation } from "../store";
 import { useCoarsePointer } from "../useCoarsePointer";
-
-/** Corners of a room, at floor level and at head height. */
-function roomCorners(room: RoomDef) {
-  const b = room.bounds;
-  const out: THREE.Vector3[] = [];
-  for (const x of [b.minX, b.maxX])
-    for (const z of [b.minZ, b.maxZ])
-      for (const y of [0, 2.4]) out.push(new THREE.Vector3(x, y, z));
-  return out;
-}
-
-/**
- * How far back this room has to be viewed from to hold all of it on screen.
- *
- * The pose in `level.ts` fixes the direction - behind the door the evacuee
- * walks in through - but the distance that fits depends on the window: a tall
- * narrow window has a much narrower horizontal field than a wide one, and the
- * far corners slide off the sides. Solving for it here means the warden
- * always gets the whole room whatever shape their window is, instead of a
- * framing that only works on the laptop it was authored on.
- */
-function fitDistance(room: RoomDef, aspect: number, fov: number) {
-  const target = new THREE.Vector3(...room.cam.target);
-  const dir = new THREE.Vector3(...room.cam.pos).sub(target).normalize();
-  const corners = roomCorners(room);
-  const probe = new THREE.PerspectiveCamera(fov, aspect, 0.1, 400);
-  const MARGIN = 0.92;
-
-  const overflow = (d: number) => {
-    probe.position.copy(target).addScaledVector(dir, d);
-    probe.lookAt(target);
-    probe.updateMatrixWorld(true);
-    probe.updateProjectionMatrix();
-    let worst = 0;
-    for (const c of corners) {
-      const p = c.clone().project(probe);
-      worst = Math.max(worst, Math.abs(p.x), Math.abs(p.y));
-    }
-    return worst;
-  };
-
-  const authored = new THREE.Vector3(...room.cam.pos).distanceTo(target);
-  if (overflow(authored) <= MARGIN) return authored;
-  let lo = authored;
-  let hi = authored * 4;
-  for (let i = 0; i < 24; i++) {
-    const mid = (lo + hi) / 2;
-    if (overflow(mid) > MARGIN) lo = mid;
-    else hi = mid;
-  }
-  return hi;
-}
 
 /**
  * Mouse look for the evacuee. Uses pointer lock when the browser allows it and
@@ -143,6 +91,47 @@ function FirstPersonLook({ touch }: { touch: boolean }) {
  */
 const FOV = 45;
 
+const OVERVIEW_START: [number, number, number] = [0, 42, 46];
+const OVERVIEW_TARGET = new THREE.Vector3(0, 0, 5);
+const OVERVIEW_DIRECTION = new THREE.Vector3(0, 0.68, 0.74).normalize();
+const OVERVIEW_BOUNDS = { minX: -22, maxX: 22, minZ: -10, maxZ: 26 };
+
+function overviewCorners() {
+  const corners: THREE.Vector3[] = [];
+  for (const x of [OVERVIEW_BOUNDS.minX, OVERVIEW_BOUNDS.maxX])
+    for (const z of [OVERVIEW_BOUNDS.minZ, OVERVIEW_BOUNDS.maxZ])
+      for (const y of [0, 3.8]) corners.push(new THREE.Vector3(x, y, z));
+  return corners;
+}
+
+function fitOverviewDistance(aspect: number, fov: number) {
+  const corners = overviewCorners();
+  const probe = new THREE.PerspectiveCamera(fov, aspect, 0.1, 400);
+  const MARGIN = 0.9;
+  const overflow = (distance: number) => {
+    probe.position.copy(OVERVIEW_TARGET).addScaledVector(OVERVIEW_DIRECTION, distance);
+    probe.lookAt(OVERVIEW_TARGET);
+    probe.updateMatrixWorld(true);
+    probe.updateProjectionMatrix();
+    let worst = 0;
+    for (const corner of corners) {
+      const projected = corner.clone().project(probe);
+      worst = Math.max(worst, Math.abs(projected.x), Math.abs(projected.y));
+    }
+    return worst;
+  };
+  const authored = new THREE.Vector3(...OVERVIEW_START).distanceTo(OVERVIEW_TARGET);
+  if (overflow(authored) <= MARGIN) return authored;
+  let lo = authored;
+  let hi = authored * 2;
+  for (let i = 0; i < 24; i++) {
+    const mid = (lo + hi) / 2;
+    if (overflow(mid) > MARGIN) lo = mid;
+    else hi = mid;
+  }
+  return hi;
+}
+
 /** Cheap distance fog: smoke changes readability without a volumetric pass. */
 function SmokeAtmosphere() {
   const view = useSimulation((s) => s.view);
@@ -212,9 +201,7 @@ function SceneLighting() {
 function WardenRig({ active }: { active: boolean }) {
   const mode = useSimulation((s) => s.mode);
   const evacueeSector = useSimulation((s) => s.sector);
-  // every overview camera follows the evacuee's live sector
-  const room = evacueeSector;
-  // a warden's framing is bolted down - only solo may turn it
+  const room = mode.kind === "warden" ? "lobby" : evacueeSector;
   const posted = mode.kind === "warden";
   // re-fit when the window changes shape, so a resize never crops the room
   const aspect = useThree((s) => s.viewport.aspect);
@@ -231,7 +218,7 @@ function WardenRig({ active }: { active: boolean }) {
   const fitted = useMemo(
     () =>
       posted
-        ? fitDistance(roomById(room), aspect || 1.6, FOV)
+        ? fitOverviewDistance(aspect || 1.6, FOV)
         : new THREE.Vector3(...roomById(room).cam.pos).distanceTo(
             new THREE.Vector3(...roomById(room).cam.target),
           ),
@@ -240,18 +227,13 @@ function WardenRig({ active }: { active: boolean }) {
 
   useEffect(() => {
     const r = roomById(room);
-    want.current.target.set(...r.cam.target);
     if (posted) {
-      // keep the authored direction, take whatever distance shows the room
-      const dir = new THREE.Vector3(...r.cam.pos)
-        .sub(want.current.target)
-        .normalize();
-      want.current.pos.copy(want.current.target).addScaledVector(dir, fitted);
+      want.current.target.copy(OVERVIEW_TARGET);
+      want.current.pos.copy(OVERVIEW_TARGET).addScaledVector(OVERVIEW_DIRECTION, fitted);
     } else {
+      want.current.target.set(...r.cam.target);
       want.current.pos.set(...r.cam.pos);
     }
-    // a warden never turns the camera, so there is nothing to ease:
-    // put the aim on the room at once and let only the position slide
     if (posted && orbit.current) {
       orbit.current.target.copy(want.current.target);
       orbit.current.update();
@@ -303,23 +285,15 @@ function WardenRig({ active }: { active: boolean }) {
         <OrbitControls
           ref={orbit}
           makeDefault
-           /* Wardens get a fixed frame: zoom only, so the sector never turns
-              under them and the evacuee heading stays readable. */
-          enableRotate={!posted}
-          enablePan={!posted}
-           /* the assigned framing already starts wide enough to see the whole
-              sector and its entry; this is only headroom
-             to lean in or pull further back, measured off that fitted distance
-             so it means the same thing on every window shape */
-          minDistance={posted ? fitted * 0.45 : 4}
+          enableRotate
+          enablePan
+          minDistance={posted ? fitted * 0.55 : 4}
           maxDistance={posted ? fitted * 1.8 : 40}
-          maxPolarAngle={posted ? 1.3 : 1.52}
+          maxPolarAngle={posted ? 1.48 : 1.52}
           enableDamping
           dampingFactor={0.08}
           onStart={() => {
-            // a warden can only dolly, and that must not cancel the
-            // slide back to their room's framing
-            if (!posted) following.current = false;
+            following.current = false;
           }}
         />
       )}

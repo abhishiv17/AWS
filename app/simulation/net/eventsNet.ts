@@ -48,7 +48,8 @@ type GameMessage =
   | { t: "leave"; from: string }
   | { t: "intent"; from: string; intent: WardenIntent }
   | { t: "ack"; from: string; to: string; acknowledgement: CommandAcknowledgement }
-  | { t: "telemetry"; from: string; event: TelemetryEvent };
+  | { t: "telemetry"; from: string; event: TelemetryEvent }
+  | { t: "telemetry-cursor"; from: string; cursor: number };
 
 /** /live/{code}/warden: role-scoped snapshots, broadcast only. */
 type LiveMessage = { to: string; state: WardenState };
@@ -183,9 +184,10 @@ export class EventsNet implements NetClient {
     this.code = code;
     const socket = new EventsSocket();
     this.socket = socket;
+    const onConnection = socket.onConnection(() => this.requestTelemetryCursor());
     const game = socket.subscribe(`/game/${code}/*`, (payload) => this.receive(payload as GameMessage));
     const live = socket.subscribe(`/live/${code}/warden`, (payload) => this.receiveLive(payload as LiveMessage));
-    this.unsubscribe = [game.close, live.close];
+    this.unsubscribe = [game.close, live.close, onConnection];
     await withTimeout(Promise.all([game.ready, live.ready]), CONNECT_TIMEOUT_MS, "realtime connection timed out");
   }
 
@@ -239,6 +241,7 @@ export class EventsNet implements NetClient {
     );
     if (!outcome) return { error: sawRoom ? "unavailable" : "notfound" };
     if (typeof outcome === "string") return { error: outcome };
+    this.requestTelemetryCursor();
     return { room: this.room ?? outcome };
   }
 
@@ -282,7 +285,7 @@ export class EventsNet implements NetClient {
   /* ------------------------------------------------------------- transport */
 
   private publish(message: GameMessage) {
-    const channel = message.t === "intent" || message.t === "ack" ? "cmd" : "room";
+    const channel = message.t === "intent" || message.t === "ack" || message.t === "telemetry-cursor" ? "cmd" : "room";
     this.socket?.publish(`/game/${this.code}/${channel}`, [message]);
   }
 
@@ -314,12 +317,39 @@ export class EventsNet implements NetClient {
         break;
       case "telemetry":
         break;
+      case "telemetry-cursor":
+        this.resumeTelemetryCursor(message.from, message.cursor);
+        break;
     }
     for (const waiter of [...this.waiters]) waiter(message);
   }
 
   private receiveLive(message: LiveMessage) {
     if (message?.to === this.myId) this.emit({ type: "warden-state", state: message.state });
+  }
+
+  private requestTelemetryCursor() {
+    if (this.me()?.role !== "warden" || resolveRoom(this.room)?.phase !== "active") return;
+    this.publish({
+      t: "telemetry-cursor",
+      from: this.myId,
+      cursor: useSimulation.getState().telemetryCursor,
+    });
+  }
+
+  private resumeTelemetryCursor(from: string, cursor: number) {
+    const room = resolveRoom(this.room);
+    const participant = room?.participants.find((item) => item.id === from);
+    if (
+      !room ||
+      room.phase !== "active" ||
+      participant?.role !== "warden" ||
+      !Number.isInteger(cursor) ||
+      cursor < 0
+    ) return;
+    const drill = this.drill(room);
+    drill.telemetryDelivered[from] = Math.min(cursor, drill.telemetryNextSequence - 1);
+    this.broadcastWarden(room, drill, false);
   }
 
   /** Resolve with the first message `match` accepts, re-sending `kick` until then; null on timeout. */

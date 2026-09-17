@@ -126,17 +126,22 @@ type Authority = {
   evidence: EvidenceRecord[];
   latestMessage: RouteMessage | null;
   telemetryEvents: TelemetryEvent[];
+  telemetryDelivered: Record<string, number>;
+  telemetryNextSequence: number;
   coreSnapshot: SimulationSnapshot | null;
 };
 type InternalNet = {
   room: DrillRoom | null;
+  code: string;
   myId: string;
   socket: { publish: (...args: unknown[]) => void };
   drill: (room: DrillRoom) => Authority;
   authorize: (from: string, intent: Extract<ClientIntent, { type: "warden-command" | "observe-evidence" }>) => void;
+  resumeTelemetryCursor: (from: string, cursor: number) => void;
 };
 const internal = net as unknown as InternalNet;
 internal.room = room;
+internal.code = room.code;
 internal.myId = navigator.id;
 internal.socket = { publish: (...args) => published.push(args) };
 const authority = internal.drill(room);
@@ -232,7 +237,16 @@ internal.authorize(guide.id, {
 assert.equal(authority.telemetryEvents.filter((event) => event.type === "VENTILATION_ACTIVATED").length, 1);
 assert.deepEqual(authority.telemetryEvents.map((event) => event.sequence), [1, 2, 3, 4, 5]);
 assert(published.some((entry) => JSON.stringify(entry).includes("telemetry")));
-console.log("✓ Observe/verify/send ordering, route-message identity, idempotent acknowledgement, and one-shot ventilation are authoritative.");
+
+published.length = 0;
+internal.resumeTelemetryCursor(guide.id, 2);
+const livePublish = published.find((entry) => Array.isArray(entry) && entry[0] === `/live/${room.code}/warden`);
+assert(livePublish && Array.isArray(livePublish[1]));
+const resumedState = (livePublish[1][0] as { state: { telemetry: { cursor: number; events: TelemetryEvent[] } } }).state;
+assert.equal(resumedState.telemetry.cursor, 5);
+assert.deepEqual(resumedState.telemetry.events.map((event) => event.sequence), [3, 4, 5]);
+assert.equal(authority.telemetryDelivered[guide.id], 5);
+console.log("✓ Observe/verify/send ordering, idempotent commands, and reconnect cursor replay are authoritative.");
 
 console.log("\n========================================");
 console.log("All Guide / Overwatch telemetry tests passed cleanly!");

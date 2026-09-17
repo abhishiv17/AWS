@@ -52,6 +52,7 @@ export class EventsSocket {
   private retry: ReturnType<typeof setTimeout> | null = null;
   private readonly subscribers = new Map<string, Subscriber>();
   private readonly queue: string[] = [];
+  private readonly connectionListeners = new Set<() => void>();
 
   constructor() {
     if (!HOST || !REALTIME_URL || !API_KEY)
@@ -71,6 +72,11 @@ export class EventsSocket {
         if (this.subscribers.delete(id) && this.ready) this.send({ type: "unsubscribe", id });
       },
     };
+  }
+
+  onConnection(callback: () => void) {
+    this.connectionListeners.add(callback);
+    return () => this.connectionListeners.delete(callback);
   }
 
   /** Volatile events (high-frequency snapshots) are dropped while offline instead of queued. */
@@ -94,6 +100,7 @@ export class EventsSocket {
     this.clearTimers();
     this.subscribers.clear();
     this.queue.length = 0;
+    this.connectionListeners.clear();
     const ws = this.ws;
     this.ws = null;
     ws?.close();
@@ -129,6 +136,7 @@ export class EventsSocket {
         this.keepAlive();
         for (const [id, subscriber] of this.subscribers) this.sendSubscribe(id, subscriber.channel);
         for (const queued of this.queue.splice(0)) this.ws?.send(queued);
+        for (const callback of this.connectionListeners) callback();
         return;
       case "subscribe_success":
         this.settle(message.id, null);

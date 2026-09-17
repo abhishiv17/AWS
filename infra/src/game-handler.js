@@ -5,7 +5,7 @@ const TABLE = "campusevac-events";
 const WEEK_SECONDS = 7 * 24 * 60 * 60;
 const CODE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 const CHANNELS = ["room", "cmd"];
-const MESSAGE_TYPES = ["sync", "room", "reject", "leave", "intent", "ack", "telemetry"];
+const MESSAGE_TYPES = ["sync", "room", "reject", "leave", "intent", "ack", "telemetry", "telemetry-cursor"];
 const TELEMETRY_TYPES = [
   "GUIDE_WARNING_SENT",
   "GUIDE_WARNING_ACKNOWLEDGED",
@@ -34,6 +34,7 @@ function validEvent(event) {
     MESSAGE_TYPES.indexOf(payload.t) >= 0 &&
     typeof payload.from === "string" &&
     (payload.t !== "telemetry" || validTelemetry(payload)) &&
+    (payload.t !== "telemetry-cursor" || validTelemetryCursor(payload)) &&
     JSON.stringify(payload).length <= MAX_EVENT_CHARS
   );
 }
@@ -52,6 +53,15 @@ function validTelemetry(payload) {
     typeof telemetry.actorId === "string" &&
     typeof telemetry.actorKind === "string" &&
     TELEMETRY_TYPES.indexOf(telemetry.type) >= 0
+  );
+}
+
+function validTelemetryCursor(payload) {
+  return (
+    typeof payload.cursor === "number" &&
+    payload.cursor >= 0 &&
+    payload.cursor <= 9007199254740991 &&
+    payload.cursor % 1 === 0
   );
 }
 
