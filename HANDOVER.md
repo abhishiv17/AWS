@@ -145,8 +145,8 @@ Make the second human player capable of materially improving or worsening the Na
 - Core `message_sent` and `message_acknowledged` events are appended from authority telemetry, not inferred from render-loop state changes.
 - The compact tactical projection and full-block tactical camera treatment are implemented and tested.
 - `PEER_ASSIST_MAYA` is now Navigator-mediated: the Guide sends a targeted assistance request, the Navigator acknowledges with `Q`, and the core records `peer_assistance_requested` without forcing Maya's autonomous state.
-- `npm run test:appsync` provides a two-client WebSocket smoke test for connections, subscriptions, room publishing, and cursor publishing. The current deployed handler passed the first three checks but predates `telemetry-cursor`; redeploy requires refreshing the expired AWS CLI session (`InvalidClientTokenId`).
-- Remaining validation is the full deployed cursor/reconnect run; broader room lifecycle and interpolation hardening remain in Phase 8.
+- `npm run test:appsync` provides a two-client WebSocket smoke test for connections, subscriptions, room publishing, and cursor publishing. `CampusEvacStack` is deployed at `UPDATE_COMPLETE`, and all four checks pass against the updated handler, including `telemetry-cursor`.
+- Remaining validation is the full application-level cursor/reconnect run; broader room lifecycle and interpolation hardening remain in Phase 8.
 
 ### Phase 6 — Scoring & After-Action Review (AAR)
 Transform the simulation into an evaluative training platform:
